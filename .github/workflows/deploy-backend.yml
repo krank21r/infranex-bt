@@ -1,0 +1,60 @@
+# ============================================
+# INFRANEX BT - Deploy Backend to Render
+# ============================================
+
+name: Deploy Backend to Render
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infranex-bt/backend/**'
+      - 'infranex-bt/docker/Dockerfile.backend'
+      - '.github/workflows/deploy-backend.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy-backend:
+    name: Deploy to Render
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to Render
+        uses: render/deploy-action@v1
+        with:
+          service-id: ${{ secrets.RENDER_BACKEND_SERVICE_ID }}
+          api-key: ${{ secrets.RENDER_API_KEY }}
+          wait-for-success: true
+          timeout: 600
+
+      - name: Verify deployment
+        run: |
+          URL="https://${{ secrets.RENDER_BACKEND_HOSTNAME }}"
+          for i in {1..15}; do
+            if curl -sf "$URL/health/live" > /dev/null; then
+              echo "Backend deployment healthy!"
+              exit 0
+            fi
+            echo "Waiting for backend deployment... ($i/15)"
+            sleep 20
+          done
+          echo "Backend deployment verification failed"
+          exit 1
+
+  deploy-worker:
+    name: Deploy Worker to Render
+    runs-on: ubuntu-latest
+    needs: deploy-backend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy Worker to Render
+        uses: render/deploy-action@v1
+        with:
+          service-id: ${{ secrets.RENDER_WORKER_SERVICE_ID }}
+          api-key: ${{ secrets.RENDER_API_KEY }}
+          wait-for-success: true
+          timeout: 600

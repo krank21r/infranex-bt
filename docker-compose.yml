@@ -1,0 +1,98 @@
+# ============================================
+# INFRANEX BT - Root Docker Compose
+# Run from project root: docker-compose -f docker-compose.yml up
+# ============================================
+
+version: '3.8'
+
+services:
+  postgres:
+    image: supabase/postgres:15.1.0.147
+    container_name: infranex-postgres
+    environment:
+      POSTGRES_DB: infranex_bt
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: valkey/valkey:7-alpine
+    container_name: infranex-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+      target: runner
+    container_name: infranex-backend
+    env_file:
+      - .env
+    environment:
+      - SUPABASE_URL=http://postgres:5432
+      - REDIS_URL=redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.frontend
+      target: runner
+    container_name: infranex-frontend
+    env_file:
+      - .env
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.backend
+      target: runner
+    container_name: infranex-worker
+    env_file:
+      - .env
+    environment:
+      - SUPABASE_URL=http://postgres:5432
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python -m app.workers.runner
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: infranex-network

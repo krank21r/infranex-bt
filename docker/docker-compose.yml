@@ -1,0 +1,130 @@
+# ============================================
+# INFRANEX BT - Local Development Docker Compose
+# ============================================
+
+version: '3.8'
+
+services:
+  # PostgreSQL (local Supabase alternative)
+  postgres:
+    image: supabase/postgres:15.1.0.147
+    container_name: infranex-postgres
+    environment:
+      POSTGRES_DB: infranex_bt
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../database/migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis/Valkey
+  redis:
+    image: valkey/valkey:7-alpine
+    container_name: infranex-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+      target: runner
+    container_name: infranex-backend
+    environment:
+      - APP_ENV=development
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+      - SUPABASE_URL=http://postgres:5432
+      - SUPABASE_ANON_KEY=local-anon-key
+      - SUPABASE_SERVICE_ROLE_KEY=local-service-role-key
+      - REDIS_URL=redis://redis:6379/0
+      - BITTENSOR_NETWORK=testnet
+      - BITTENSOR_RPC_ENDPOINT=wss://entrypoint-finney.opentensor.ai:443
+      - DEPLOYMENT_MODE=mock
+      - CORS_ORIGINS=http://localhost:3000
+      - SECRET_KEY=dev-secret-key-change-in-production
+      - DEFAULT_CURRENCY=INR
+      - USD_TO_INR=83.5
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../backend:/app/app:ro
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Frontend
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+      target: builder
+    container_name: infranex-frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_SUPABASE_URL=http://localhost:5432
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=local-anon-key
+      - NEXT_PUBLIC_APP_NAME=Infranex BT
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    volumes:
+      - ../frontend:/app:ro
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev
+
+  # Backend Worker (for background jobs)
+  worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.backend
+      target: runner
+    container_name: infranex-worker
+    environment:
+      - APP_ENV=development
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+      - SUPABASE_URL=http://postgres:5432
+      - SUPABASE_ANON_KEY=local-anon-key
+      - SUPABASE_SERVICE_ROLE_KEY=local-service-role-key
+      - REDIS_URL=redis://redis:6379/0
+      - BITTENSOR_NETWORK=testnet
+      - BITTENSOR_RPC_ENDPOINT=wss://entrypoint-finney.opentensor.ai:443
+      - DEPLOYMENT_MODE=mock
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ../backend:/app/app:ro
+    command: python -m app.workers.runner
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  default:
+    name: infranex-network

@@ -1,0 +1,13 @@
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+  transpilePackages: ['@radix-ui/react-slot', '@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-tabs', '@radix-ui/react-tooltip', '@radix-ui/react-progress', '@radix-ui/react-select', '@radix-ui/react-separator', '@radix-ui/react-avatar'],
+  experimental: {
+    optimizePackageImports: ['lucide-react', 'recharts'],
+  },
+  images: {
+    domains: ['lh3.googleusercontent.com', 'avatars.githubusercontent.com'],
+  },
+}
+
+module.exports = nextConfig

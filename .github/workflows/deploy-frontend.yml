@@ -1,0 +1,69 @@
+# ============================================
+# INFRANEX BT - Deploy Frontend to Vercel
+# ============================================
+
+name: Deploy Frontend to Vercel
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infranex-bt/frontend/**'
+      - 'infranex-bt/docker/Dockerfile.frontend'
+      - '.github/workflows/deploy-frontend.yml'
+  workflow_dispatch:
+
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+jobs:
+  deploy-frontend:
+    name: Deploy to Vercel
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./infranex-bt/frontend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Pull Vercel Environment
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build Project Artifacts
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy Project Artifacts to Vercel
+        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_APP_NAME: ${{ secrets.NEXT_PUBLIC_APP_NAME }}
+
+  # Verify deployment
+  verify-deployment:
+    name: Verify Deployment
+    needs: deploy-frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for deployment
+        run: sleep 30
+
+      - name: Check deployment health
+        run: |
+          URL="https://${{ secrets.VERCEL_PROJECT_NAME }}.vercel.app"
+          for i in {1..10}; do
+            if curl -sf "$URL/health" > /dev/null; then
+              echo "Deployment healthy!"
+              exit 0
+            fi
+            echo "Waiting for deployment... ($i/10)"
+            sleep 10
+          done
+          echo "Deployment verification failed"
+          exit 1
