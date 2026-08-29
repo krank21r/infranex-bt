@@ -14,8 +14,6 @@ const nextConfig = {
       },
     ],
   },
-  // Enable standalone output for Vercel
-  output: 'standalone',
   // Optimize for production
   poweredByHeader: false,
   compress: true,
