@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.core.logging import configure_logging, RequestLoggingMiddleware
 from app.core.exceptions import register_exception_handlers
 from app.core.database import init_database, close_database
+from app.core.startup import validate_environment
 from app.api import api_router
 
 
@@ -18,6 +19,9 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     # Startup
     configure_logging()
+    
+    # Validate environment before attempting database connection
+    validate_environment()
     
     # Initialize database connections
     await init_database()
