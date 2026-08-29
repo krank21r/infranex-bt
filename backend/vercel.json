@@ -21,19 +21,5 @@
       }
     }
   ],
-  "crons": [
-    {
-      "path": "/api/cron/market-data",
-      "schedule": "0 * * * *"
-    },
-    {
-      "path": "/api/cron/scanner",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/cron/scoring",
-      "schedule": "*/15 * * * *"
-    }
-  ],
   "regions": ["iad1"]
 }
