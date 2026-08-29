@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "api/index.py",
+      "src": "app/main.py",
       "use": "@vercel/python",
       "config": {
         "maxLambdaSize": "50mb",
@@ -13,7 +13,7 @@
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "api/index.py",
+      "dest": "app/main.py",
       "headers": {
         "Access-Control-Allow-Origin": "$NEXT_PUBLIC_APP_URL",
         "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
@@ -35,34 +35,9 @@
       "schedule": "*/15 * * * *"
     }
   ],
-  "env": {
-    "APP_ENV": "production",
-    "DEPLOYMENT_MODE": "production",
-    "SUPABASE_URL": "@SUPABASE_URL",
-    "SUPABASE_ANON_KEY": "@SUPABASE_ANON_KEY",
-    "SUPABASE_SERVICE_ROLE_KEY": "@SUPABASE_SERVICE_ROLE_KEY",
-    "SUPABASE_JWT_SECRET": "@SUPABASE_JWT_SECRET",
-    "DATABASE_URL": "@DATABASE_URL",
-    "DATABASE_POOLER_URL": "@DATABASE_POOLER_URL",
-    "BITTENSOR_NETWORK": "@BITTENSOR_NETWORK",
-    "BITTENSOR_RPC_ENDPOINT": "@BITTENSOR_RPC_ENDPOINT",
-    "UPSTASH_REDIS_REST_URL": "@UPSTASH_REDIS_REST_URL",
-    "UPSTASH_REDIS_REST_TOKEN": "@UPSTASH_REDIS_REST_TOKEN",
-    "GITHUB_TOKEN": "@GITHUB_TOKEN",
-    "CORS_ORIGINS": "@CORS_ORIGINS",
-    "SECRET_KEY": "@SECRET_KEY",
-    "CRON_SECRET": "@CRON_SECRET",
-    "RATE_LIMIT_REQUESTS": "@RATE_LIMIT_REQUESTS",
-    "RATE_LIMIT_WINDOW_SECONDS": "@RATE_LIMIT_WINDOW_SECONDS",
-    "SCANNER_FAST_INTERVAL_SECONDS": "@SCANNER_FAST_INTERVAL_SECONDS",
-    "SCANNER_MEDIUM_INTERVAL_SECONDS": "@SCANNER_MEDIUM_INTERVAL_SECONDS",
-    "SCANNER_SLOW_INTERVAL_SECONDS": "@SCANNER_SLOW_INTERVAL_SECONDS",
-    "DEFAULT_CURRENCY": "@DEFAULT_CURRENCY",
-    "USD_TO_INR": "@USD_TO_INR"
-  },
   "regions": ["iad1"],
   "functions": {
-    "api/index.py": {
+    "app/main.py": {
       "maxDuration": 60
     }
   }
