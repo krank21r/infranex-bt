@@ -41,7 +41,6 @@ from app.intelligence.monitoring import (
     should_migrate,
     DEFAULT_MIN_OBSERVATIONS,
     DEFAULT_ROLLING_WINDOW,
-    MONITOR_MODEL_VERSION,
 )
 
 logger = logging.getLogger(__name__)

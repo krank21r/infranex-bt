@@ -85,6 +85,12 @@ async def test_now_injection_makes_snapshots_time_stable():
 def test_no_bittensor_import_triggered_by_loading_fake_client():
     # RealBittensorClient lazy-imports `bittensor` inside __init__.
     # Loading FakeBittensorClient must not pull that module in.
-    client = FakeBittensorClient()
-    assert "bittensor" not in sys.modules
-    assert isinstance(client, FakeBittensorClient)
+    # Save and remove bittensor from sys.modules to ensure test isolation.
+    saved_bittensor = sys.modules.pop("bittensor", None)
+    try:
+        client = FakeBittensorClient()
+        assert "bittensor" not in sys.modules
+        assert isinstance(client, FakeBittensorClient)
+    finally:
+        if saved_bittensor is not None:
+            sys.modules["bittensor"] = saved_bittensor

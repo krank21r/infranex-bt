@@ -1,13 +1,12 @@
 """
 Health check endpoints.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 
 from app.core.config import settings
-from app.core.database import db_manager
 from app.api.deps import get_db
 from app.schemas.common import HealthCheck, ReadinessCheck, LivenessCheck
 
@@ -18,7 +17,7 @@ router = APIRouter(tags=["health"])
 async def health_check(request: Request) -> HealthCheck:
     return HealthCheck(
         status="healthy",
-        timestamp=datetime.utcnow(),
+        timestamp=datetime.now(timezone.utc),
         version="1.0.0",
         environment=settings.APP_ENV,
         deployment_mode=settings.DEPLOYMENT_MODE,
@@ -27,7 +26,7 @@ async def health_check(request: Request) -> HealthCheck:
 
 @router.get("/health/live", response_model=LivenessCheck)
 async def liveness_check(request: Request) -> LivenessCheck:
-    return LivenessCheck(alive=True, timestamp=datetime.utcnow())
+    return LivenessCheck(alive=True, timestamp=datetime.now(timezone.utc))
 
 
 @router.get("/health/ready", response_model=ReadinessCheck)
@@ -87,7 +86,7 @@ async def health_details(
         "deployment_mode": settings.DEPLOYMENT_MODE,
         "python_version": sys.version,
         "platform": platform.platform(),
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "dependencies": {
             "database": db_status,
             "database_latency_ms": round(db_latency, 2),

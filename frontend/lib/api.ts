@@ -1,6 +1,6 @@
 import { createBrowserClient } from '@supabase/ssr'
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api/v1'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api'
 
 /** Standard backend envelope: { success, data, message?, meta? } */
 interface APIEnvelope<T> {
@@ -30,17 +30,19 @@ class ApiClient {
 
   private getSupabase() {
     if (!this.supabase) {
-      this.supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      )
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      if (!url || !key) {
+        return null
+      }
+      this.supabase = createBrowserClient(url, key)
     }
     return this.supabase
   }
 
   private async getHeaders(): Promise<HeadersInit> {
     const supabase = this.getSupabase()
-    const { data: { session } } = await supabase.auth.getSession()
+    const session = supabase ? (await supabase.auth.getSession()).data.session : null
 
     return {
       'Content-Type': 'application/json',
@@ -160,4 +162,17 @@ export const endpoints = {
 
   authVerify: '/auth/verify',
   authLogout: '/auth/logout',
+
+  monitoringOverview: '/monitoring/overview',
+  monitoringMiner: (id: string) => `/monitoring/miners/${id}`,
+  monitoringAlerts: '/monitoring/alerts',
+  monitoringResolveAlert: (id: string) => `/monitoring/alerts/${id}/resolve`,
+  monitoringEvents: '/monitoring/events',
+
+  // Change detection
+  subnetChanges: (netuid: number) => `/v2/opportunities/${netuid}/history`,
+
+  // Worker status
+  orchestratorStatus: '/orchestrator/status',
+  workersStatus: '/orchestrator/status',
 }

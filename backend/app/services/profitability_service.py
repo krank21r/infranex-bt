@@ -37,7 +37,6 @@ from app.models import Deployment
 from app.intelligence.profitability import (
     ProfitabilityProjection,
     project_profitability,
-    SERVICE_MODEL_VERSION,
 )
 
 logger = logging.getLogger(__name__)

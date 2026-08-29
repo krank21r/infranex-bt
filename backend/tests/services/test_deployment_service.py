@@ -18,10 +18,12 @@ from unittest.mock import AsyncMock, MagicMock
 from app.services.deployment_service import (
     DeploymentService,
     CostProjection,
+    DEFAULT_DEPLOYMENT_MODE,
+)
+from app.providers import (
     MockProvider,
     ProductionProvider,
     PROVIDER_REGISTRY,
-    DEFAULT_DEPLOYMENT_MODE,
 )
 
 

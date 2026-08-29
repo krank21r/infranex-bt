@@ -6,6 +6,9 @@ Postgres direct connection string), and the Supabase REST client for auth.
 
 The previous version tried to derive the Postgres hostname from the Supabase
 URL — that was wrong. The Supabase URL is the API gateway, not the DB.
+
+For serverless (Vercel), uses Supabase PgBouncer pooler (port 6543) via
+DATABASE_POOLER_URL. For local development, uses direct connection.
 """
 import logging
 from contextlib import asynccontextmanager
@@ -74,10 +77,17 @@ class DatabaseManager:
     def get_async_engine(self):
         if self._async_engine is None:
             db_url = self._build_async_db_url()
+            
+            # For serverless (Vercel), use NullPool to avoid connection issues
+            pool_class = NullPool if settings.APP_ENV == "production" else None
+            pool_size = 1 if settings.APP_ENV == "production" else settings.DATABASE_POOL_SIZE
+            max_overflow = 0 if settings.APP_ENV == "production" else settings.DATABASE_MAX_OVERFLOW
+            
             self._async_engine = create_async_engine(
                 db_url,
-                pool_size=settings.DATABASE_POOL_SIZE,
-                max_overflow=settings.DATABASE_MAX_OVERFLOW,
+                poolclass=pool_class,
+                pool_size=pool_size,
+                max_overflow=max_overflow,
                 pool_timeout=settings.DATABASE_POOL_TIMEOUT,
                 pool_pre_ping=True,
                 echo=False,
@@ -114,8 +124,9 @@ class DatabaseManager:
             db_url = self._build_sync_db_url()
             self._sync_engine = create_engine(
                 db_url,
-                pool_size=settings.DATABASE_POOL_SIZE,
-                max_overflow=settings.DATABASE_MAX_OVERFLOW,
+                poolclass=NullPool if settings.APP_ENV == "production" else None,
+                pool_size=1 if settings.APP_ENV == "production" else settings.DATABASE_POOL_SIZE,
+                max_overflow=0 if settings.APP_ENV == "production" else settings.DATABASE_MAX_OVERFLOW,
                 pool_timeout=settings.DATABASE_POOL_TIMEOUT,
                 pool_pre_ping=True,
             )
@@ -133,7 +144,8 @@ class DatabaseManager:
     # --- Helpers ---
 
     def _build_async_db_url(self) -> str:
-        url = settings.DATABASE_URL
+        """Build async database URL, using pooler in production."""
+        url = settings.effective_database_url
         if url:
             if url.startswith("postgresql://"):
                 return url.replace("postgresql://", "postgresql+asyncpg://", 1)
@@ -145,7 +157,8 @@ class DatabaseManager:
         )
 
     def _build_sync_db_url(self) -> str:
-        url = settings.DATABASE_URL
+        """Build sync database URL, using pooler in production."""
+        url = settings.effective_database_url
         if url:
             if url.startswith("postgresql+asyncpg://"):
                 return url.replace("postgresql+asyncpg://", "postgresql://", 1)
@@ -194,7 +207,7 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_database():
     """Initialize database connections on startup. Non-fatal if DB is down."""
-    if settings.DATABASE_URL:
+    if settings.DATABASE_URL or settings.DATABASE_POOLER_URL:
         ok = await db_manager.ping()
         if ok:
             logger.info("Database connection established")

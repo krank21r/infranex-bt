@@ -38,6 +38,16 @@ from app.workers.migration_worker import (
     create_migration_worker,
 )
 
+from app.workers.auto_stop_worker import (
+    AutoStopWorker,
+    create_auto_stop_worker,
+)
+
+from app.workers.recovery_worker import (
+    RecoveryWorker,
+    create_recovery_worker,
+)
+
 __all__ = [
     # Base
     "BaseWorker",
@@ -57,4 +67,8 @@ __all__ = [
     "create_analyzer_worker",
     "MigrationWorker",
     "create_migration_worker",
+    "AutoStopWorker",
+    "create_auto_stop_worker",
+    "RecoveryWorker",
+    "create_recovery_worker",
 ]

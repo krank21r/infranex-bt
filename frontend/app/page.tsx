@@ -12,11 +12,14 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { useTopOpportunities, useRecalculateOpportunity } from '@/hooks/useOpportunities'
 import { useSubnets } from '@/hooks/useSubnets'
+import { useWorkerStatus } from '@/hooks/useChangeDetection'
 import { adaptOpportunityRow } from '@/lib/adapters'
+import { WorkerStatusCard } from '@/components/cards/worker-status-card'
 
 export default function DashboardPage() {
   const { data: top, isLoading: loadingTop, error: topError, refetch: refetchTop } = useTopOpportunities(10)
   const { data: subnetsPage, isLoading: loadingSubnets } = useSubnets({ page: 1, page_size: 50 })
+  const { data: workers } = useWorkerStatus()
   const recalculate = useRecalculateOpportunity()
 
   const opportunities = useMemo(
@@ -57,26 +60,26 @@ export default function DashboardPage() {
           <MetricCard
             title="Tracked Subnets"
             value={loadingSubnets ? '…' : subnetCount.toString()}
-            icon={Network}
-            description="From Bittensor chain"
+            icon={<Network className="h-4 w-4" />}
+            subtitle="From Bittensor chain"
           />
           <MetricCard
             title="Active Opportunities"
             value={loadingTop ? '…' : activeOpportunityCount.toString()}
-            icon={TrendingUp}
-            description="Score ≥ 50"
+            icon={<TrendingUp className="h-4 w-4" />}
+            subtitle="Score ≥ 50"
           />
           <MetricCard
             title="Top Score"
             value={loadingTop ? '…' : topScore.toFixed(1)}
-            icon={Coins}
-            description="Best subnet opportunity"
+            icon={<Coins className="h-4 w-4" />}
+            subtitle="Best subnet opportunity"
           />
           <MetricCard
             title="Average Score"
             value={loadingTop ? '…' : avgScore.toFixed(1)}
-            icon={Activity}
-            description="Across tracked subnets"
+            icon={<Activity className="h-4 w-4" />}
+            subtitle="Across tracked subnets"
           />
         </div>
 
@@ -137,22 +140,28 @@ export default function DashboardPage() {
             )}
           </TabsContent>
 
-          <TabsContent value="activity" className="space-y-4">
+           <TabsContent value="activity" className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle>Recent Score Trend</CardTitle>
               </CardHeader>
               <CardContent>
                 <RevenueChart
-                  data={opportunities.slice(0, 7).map((o) => ({
+                  data={opportunities.slice(0, 7).map((o, i) => ({
                     name: o.subnet_name,
                     value: o.score,
+                    timestamp: new Date(Date.now() - i * 86400000).toISOString(),
                   }))}
                 />
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Worker Status */}
+        {workers && workers.length > 0 && (
+          <WorkerStatusCard workers={workers} />
+        )}
       </div>
     </DashboardLayout>
   )

@@ -48,7 +48,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Deployment
-from app.models.deployment import Server
 from app.models.audit import ApprovalRequest
 from app.services.deployment_service import (
     PROVIDER_REGISTRY,
@@ -276,11 +275,9 @@ class ApprovalService:
 
         # Provisioning -> provisioned via the registered provider.
         provider = self._provider_cls()
-        # `offer` was snapshotted into deployment_config at request time.
-        offer = (deployment.deployment_config or {}).get("offer", {})
-        server = await provider.provision_server(
-            deployment=deployment, offer=offer
-        )
+        # `offer` was snapshotted into deployment_config at request time;
+        # the provider reads it from there.
+        server = await provider.provision_server(deployment=deployment)
         self.db.add(server)
 
         deployment.status = STATUS_PROVISIONED

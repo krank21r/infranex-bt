@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from './providers'
+import { SupabaseProvider } from '@/lib/supabase-provider'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -102,7 +103,9 @@ export default function RootLayout({
       <body
         className={`${inter.variable} font-sans antialiased bg-background text-foreground min-h-screen`}
       >
-        <AuthProvider>{children}</AuthProvider>
+        <SupabaseProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </SupabaseProvider>
       </body>
     </html>
   )

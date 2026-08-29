@@ -10,7 +10,6 @@ Provides a robust base class for all background workers with:
 
 import asyncio
 import logging
-import signal
 import time
 import uuid
 from abc import ABC, abstractmethod
@@ -19,7 +18,6 @@ from dataclasses import dataclass, field
 from functools import wraps
 from typing import Any, Callable, Dict, Optional, TypeVar
 
-from app.core.config import settings
 
 # Type variable for generic retry decorator
 T = TypeVar("T")
@@ -254,7 +252,9 @@ class BaseWorker(ABC):
         while self._running and not self._shutdown_event.is_set():
             start_time = time.time()
             try:
+                await self.on_before_run()
                 await self.run()
+                await self.on_after_run()
                 duration_ms = (time.time() - start_time) * 1000
                 self.metrics.record_success(duration_ms)
                 self.logger.debug(
@@ -264,6 +264,7 @@ class BaseWorker(ABC):
             except Exception as e:
                 duration_ms = (time.time() - start_time) * 1000
                 self.metrics.record_failure(duration_ms, str(e))
+                await self.on_error(e)
                 self.logger.error(
                     "Worker run failed",
                     error=str(e),
@@ -280,6 +281,18 @@ class BaseWorker(ABC):
                 # Normal interval timeout, continue loop
                 pass
 
+    async def on_before_run(self) -> None:
+        """Hook called before each run(). Override for pre-flight checks."""
+        pass
+
+    async def on_after_run(self) -> None:
+        """Hook called after each successful run(). Override for cleanup."""
+        pass
+
+    async def on_error(self, error: Exception) -> None:
+        """Hook called when run() raises an exception. Override for error handling."""
+        pass
+
     @abstractmethod
     async def run(self) -> None:
         """
@@ -289,6 +302,15 @@ class BaseWorker(ABC):
         Should be idempotent and handle its own errors appropriately.
         """
         pass
+
+    async def _run_loop_step(self) -> None:
+        """Run a single step of the loop (for testing)."""
+        try:
+            await self.on_before_run()
+            await self.run()
+            await self.on_after_run()
+        except Exception as e:
+            await self.on_error(e)
 
     def get_metrics(self) -> Dict[str, Any]:
         """Get current worker metrics as dictionary."""

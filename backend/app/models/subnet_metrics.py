@@ -1,7 +1,7 @@
 """
 Subnet metrics (current snapshot + time-series).
 """
-from sqlalchemy import String, Integer, BigInteger, Float, Text, DateTime, JSON
+from sqlalchemy import Integer, BigInteger, Float, Text, DateTime
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import Optional

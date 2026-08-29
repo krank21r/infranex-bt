@@ -36,7 +36,7 @@ NOT in scope (deferred):
 """
 from dataclasses import dataclass
 from statistics import median
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 
 # Default model version. Bump on any change to the migrate rule.

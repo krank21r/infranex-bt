@@ -4,7 +4,7 @@ GPU service — read queries against the real ORM models.
 Falls back to empty data when the database is not configured (mock/dev mode).
 """
 import logging
-from typing import Optional, List, Tuple, Dict, Any
+from typing import Optional, List, Tuple
 
 from sqlalchemy import select, func, desc, asc, and_
 from sqlalchemy.ext.asyncio import AsyncSession

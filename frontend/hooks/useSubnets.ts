@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { api, endpoints } from '@/lib/api'
 import type { Subnet, FilterParams } from '@/types'
+import type { BackendSubnet } from '@/lib/adapters'
 
 export function useSubnets(params?: FilterParams) {
   return useQuery({
@@ -16,7 +17,7 @@ export function useSubnets(params?: FilterParams) {
           }
         })
       }
-      return api.getPaginated<Subnet>(
+      return api.getPaginated<BackendSubnet>(
         `${endpoints.subnets}?${searchParams.toString()}`
       )
     },

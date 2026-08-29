@@ -20,7 +20,6 @@ from app.models import GPUOffer, GPUModel
 from app.intelligence.gpu_matching import (
     rank_offers_for_requirements,
     RankedOffer,
-    MATCH_MODEL_VERSION,
 )
 
 logger = logging.getLogger(__name__)

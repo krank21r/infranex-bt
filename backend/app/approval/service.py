@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 
-from sqlalchemy import select, update, and_
+from sqlalchemy import select, update, insert, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit import ApprovalRequest

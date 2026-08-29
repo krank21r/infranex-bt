@@ -1,7 +1,7 @@
 """
 Common schemas used across the API.
 """
-from typing import Generic, TypeVar, Optional, List, Any
+from typing import Generic, TypeVar, Optional
 from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 

@@ -520,15 +520,28 @@ alembic upgrade head
 | **Phase 1A** | ✅ Complete | Frontend + Supabase + FastAPI foundation, ORM models for all 27 tables |
 | **Phase 1B** | ✅ Complete | Approval + Audit + Drift schema (`002_approval_audit_drift.sql`, 8 new tables) + SQLAlchemy models + Vercel Cron wiring |
 | **Phase 1C** | ✅ Complete | 3-level approval module live (`backend/app/approval/`), L1/L2/L3 classifier, audit writer, approval router wired into API |
-| Phase 2 | 🔄 Planned | Bittensor Scanner (SDK integration) |
-| Phase 3 | 🔄 Planned | Intelligence Engine (scoring) |
-| Phase 4 | 🔄 Planned | Subnet Analyzer (GitHub integration) + Change Detection engine |
-| Phase 5 | 🔄 Planned | GPU Matching & Provider Engine |
-| Phase 6 | 🔄 Planned | Profitability Engine |
-| Phase 7 | 🔄 Planned | Compatibility Lab |
-| Phase 8 | 🔄 Planned | Deployment Engine |
-| Phase 9 | 🔄 Planned | Monitoring & Rewards + Drift comparator |
-| Phase 10 | 🔄 Planned | Feedback & Learning Engine |
+| **Phase 2** | ✅ Complete | Bittensor Scanner (dual-mode SDK client) |
+| **Phase 3** | ✅ Complete | Intelligence Engine (v1.0 scoring, GPU matching, profitability, monitoring) |
+| **Phase 4** | ✅ Complete | Subnet Analyzer (GitHub integration, requirements extraction) |
+| **Phase 5** | ✅ Complete | GPU Matching + Provider Adapters (RunPod, Vast.ai, TensorDock, E2E) |
+| **Phase 6** | ✅ Complete | Profitability Engine |
+| **Phase 7** | ✅ Complete | Compatibility Lab |
+| **Phase 8** | ✅ Complete | Deployment Engine (lifecycle state machine, health checks) |
+| **Phase 9** | ✅ Complete | Monitoring & Alerts (real-time, SSE) |
+| **Phase 10** | ✅ Complete | Learning Engine (feedback loop, weight adaptation) |
+| **Phase 11** | 🔄 In Progress | v2.0 Scoring Model (3-Pillar: Utility / Technical / Economics) |
+
+---
+
+## 📚 Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Architecture Overview](docs/architecture/overview.md) | System architecture, data flow, module inventory |
+| [v2.0 Scoring Engine](docs/architecture/v2-scoring-engine.md) | 3-pillar scoring model (Utility / Technical / Economics) |
+| [Decision Engine](docs/architecture/decision-engine.md) | RUN / WATCH / AVOID decision framework |
+| [Scoring API](docs/api/scoring.md) | Scoring API reference (v2.0) |
+| [Migration Guide](docs/migration-v2.md) | v1.0 → v2.0 migration guide |
 
 ---
 

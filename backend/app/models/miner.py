@@ -1,7 +1,7 @@
 """
 Miner + per-tick miner health.
 """
-from sqlalchemy import String, Integer, BigInteger, Float, Text, Boolean, DateTime, JSON
+from sqlalchemy import Integer, BigInteger, Float, Text, Boolean, DateTime
 from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import Optional

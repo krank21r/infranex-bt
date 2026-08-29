@@ -1,8 +1,8 @@
 """
 Reward, expense, and profitability records.
 """
-from sqlalchemy import String, Integer, BigInteger, Float, Text, DateTime, JSON
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy import Integer, BigInteger, Float, Text, DateTime
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import Optional
 from datetime import datetime

@@ -48,7 +48,8 @@ class _StubServerFactory:
     def __init__(self) -> None:
         self._seq = 0
 
-    async def provision_server(self, deployment, offer):
+    async def provision_server(self, deployment):
+        offer = (getattr(deployment, "deployment_config", None) or {}).get("offer", {})
         self._seq += 1
         return Server(
             provider_instance_id=f"stub-srv-{self._seq:04d}",

@@ -5,7 +5,6 @@ Falls back to empty data when the database is not configured (mock/dev mode).
 """
 import logging
 from typing import Optional, List, Tuple
-from decimal import Decimal
 
 from sqlalchemy import select, func, or_, desc, asc
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,12 +15,9 @@ from app.models import (
     Neuron,
     Emission,
     Incentive,
-    GPUModel,
-    GPUOffer,
     Repository,
     SubnetRequirement,
 )
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 

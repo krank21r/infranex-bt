@@ -6,7 +6,7 @@ The SQL migration is the source of truth; this file reflects it.
 
 Architecture reference: memory/project-architecture-spec.md
 """
-from sqlalchemy import String, Integer, Float, Text, Boolean, DateTime
+from sqlalchemy import Integer, Float, Text, Boolean, DateTime
 from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import Optional

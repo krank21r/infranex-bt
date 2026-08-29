@@ -24,6 +24,7 @@ export function useAuth() {
   const supabase = useSupabaseClient()
 
   const fetchUser = useCallback(async () => {
+    if (!supabase) return
     try {
       const { data: { session } } = await supabase.auth.getSession()
       
@@ -58,6 +59,7 @@ export function useAuth() {
   }, [supabase])
 
   useEffect(() => {
+    if (!supabase) return
     fetchUser()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -88,11 +90,13 @@ export function useAuth() {
   }, [supabase, fetchUser])
 
   const signIn = async (email: string, password: string) => {
+    if (!supabase) throw new Error('Supabase client not available')
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
   }
 
   const signUp = async (email: string, password: string, name: string) => {
+    if (!supabase) throw new Error('Supabase client not available')
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -105,11 +109,13 @@ export function useAuth() {
   }
 
   const signOut = async () => {
+    if (!supabase) throw new Error('Supabase client not available')
     const { error } = await supabase.auth.signOut()
     if (error) throw error
   }
 
   const updatePreferences = async (preferences: Partial<UserPreferences>) => {
+    if (!supabase) throw new Error('Supabase client not available')
     if (!state.user) throw new Error('Not authenticated')
     
     const { error } = await supabase

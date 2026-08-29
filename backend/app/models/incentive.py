@@ -1,7 +1,7 @@
 """
 Incentive records — per-neuron incentive snapshots.
 """
-from sqlalchemy import String, Integer, BigInteger, Float, Text, DateTime
+from sqlalchemy import Integer, BigInteger, Float, Text, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import Optional

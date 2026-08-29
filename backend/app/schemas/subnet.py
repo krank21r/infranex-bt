@@ -2,7 +2,7 @@
 Subnet schemas for Bittensor subnet data.
 """
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field
 from datetime import datetime
 from decimal import Decimal
 

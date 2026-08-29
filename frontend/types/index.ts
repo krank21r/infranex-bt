@@ -175,6 +175,12 @@ export interface FilterParams {
   riskLevel?: string
   sortBy?: string
   sortOrder?: 'asc' | 'desc'
+  page?: number
+  page_size?: number
+  sort_by?: string
+  sort_order?: string
+  min_score?: number
+  is_active?: boolean
 }
 
 export interface User {
@@ -225,4 +231,67 @@ export interface WebSocketMessage<T = unknown> {
   type: string
   payload: T
   timestamp: string
+}
+
+export interface MonitoringOverview {
+  total_miners: number
+  active_miners: number
+  inactive_miners: number
+  down_miners: number
+  total_subnets: number
+  active_subnets: number
+  total_alerts: number
+  critical_alerts: number
+  warning_alerts: number
+  info_alerts: number
+  avg_system_health_score: number | null
+  total_emission_24h: number | null
+  total_incentive_24h: number | null
+  miners: MinerHealthSummary[]
+  alerts: Alert[]
+}
+
+export interface MinerHealthSummary {
+  miner_id: string
+  status: string
+  netuid: number
+  hotkey_address: string
+  health_score: number | null
+  uptime_seconds: number | null
+  last_health_check: string | null
+  latest_gpu: Record<string, unknown>
+  gpu_utilization_avg: number | null
+  gpu_temperature_avg: number | null
+  emission: number | null
+  incentive: number | null
+  rank: number | null
+  trust: number | null
+  active_alerts: number
+  recent_errors: string[]
+}
+
+export interface SubnetPerformance {
+  netuid: number
+  miner_count: number
+  active_miners: number
+  down_miners: number
+  avg_health_score: number | null
+  avg_gpu_utilization: number | null
+  avg_gpu_temperature: number | null
+  total_emission: number | null
+  total_incentive: number | null
+  active_alerts: number
+  miners: MinerHealthSummary[]
+}
+
+export interface Alert {
+  id: string
+  alert_type: 'miner_down' | 'low_gpu_utilization' | 'high_temperature' | 'subnet_disconnected' | 'negative_roi'
+  severity: 'critical' | 'warning' | 'info'
+  message: string
+  miner_id: string | null
+  metadata: Record<string, unknown>
+  created_at: string
+  resolved_at: string | null
+  is_resolved: boolean
 }

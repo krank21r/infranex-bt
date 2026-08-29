@@ -1,7 +1,7 @@
 """
 Opportunity service — compute + persist subnet opportunity scores.
 
-Uses the explainable v1.0 rule-based scoring engine from `app.intelligence`.
+v2.0 uses the 3-pillar scoring model (utility, technical, economics).
 Falls back to empty data when the database is not configured (mock/dev mode).
 """
 import logging
@@ -16,6 +16,8 @@ from app.models import (
     MarketData,
     SubnetRequirement,
     GPUModel,
+    GPUOffer,
+    Repository,
     OpportunityScore,
     ScoreComponent as ScoreComponentORM,
 )
@@ -36,6 +38,7 @@ def _to_float(value) -> float:
 
 def _metrics_to_dict(m: SubnetMetrics) -> Dict[str, Any]:
     return {
+        "netuid": m.netuid,
         "emission": _to_float(m.emission),
         "average_incentive": _to_float(m.average_incentive),
         "total_stake": _to_float(m.total_stake),
@@ -70,12 +73,6 @@ def _market_to_dict(m: Optional[MarketData]) -> Dict[str, Any]:
 
 
 def _requirements_to_dict(r: Optional[SubnetRequirement]) -> Dict[str, Any]:
-    """Map a SubnetRequirement row to the dict the score engine consumes.
-
-    Empty dict when no row exists; full 16-field mapping when one does.
-    `extraction_confidence` is included so the score path can audit
-    extraction quality later (Phase 6+) without re-querying.
-    """
     if r is None:
         return {}
     return {
@@ -97,11 +94,35 @@ def _requirements_to_dict(r: Optional[SubnetRequirement]) -> Dict[str, Any]:
         "raw_requirements": r.raw_requirements or {},
         "extraction_confidence": _to_float(r.extraction_confidence),
     }
-    return {"min_vram_gb": _to_float(r.min_vram_gb)}
 
 
 def _gpus_to_list(gpus: List[GPUModel]) -> List[Dict[str, Any]]:
     return [{"vram_gb": _to_float(g.vram_gb)} for g in gpus]
+
+
+def _subnet_metadata_to_dict(subnet: Subnet) -> Dict[str, Any]:
+    return {
+        "netuid": subnet.netuid,
+        "name": subnet.name,
+        "description": subnet.description,
+        "subnet_type": subnet.subnet_type,
+        "owner_hotkey": subnet.owner_hotkey,
+        "max_neurons": subnet.max_neurons,
+        "max_allowed_validators": subnet.max_allowed_validators,
+        "immunity_period": subnet.immunity_period,
+        "tempo": subnet.tempo,
+        "is_active": subnet.is_active,
+        "registration_open": subnet.registration_open,
+        "metadata": subnet.extra_metadata or {},
+    }
+
+
+async def _get_gpu_cost_hourly(db: AsyncSession) -> float:
+    result = await db.execute(
+        select(func.avg(GPUOffer.hourly_price)).where(GPUOffer.availability == "available")
+    )
+    avg_price = result.scalar_one_or_none()
+    return _to_float(avg_price)
 
 
 class OpportunityService:
@@ -123,7 +144,6 @@ class OpportunityService:
         return list(result.scalars().all())
 
     async def score_subnet(self, netuid: int) -> Optional[Dict[str, Any]]:
-        """Compute opportunity score for one subnet. Returns dict or None."""
         subnet_q = await self.db.execute(
             select(Subnet).where(Subnet.netuid == netuid)
         )
@@ -148,32 +168,63 @@ class OpportunityService:
         market = await self.latest_market()
         gpus = await self.list_gpus()
 
+        repo_q = await self.db.execute(
+            select(Repository).where(Repository.netuid == netuid)
+        )
+        repo = repo_q.scalar_one_or_none()
+        readme_analysis = repo.readme_content if repo and repo.readme_content else ""
+
+        utility_data = {
+            "subnet": _subnet_metadata_to_dict(subnet),
+            "readme_analysis": readme_analysis,
+            "metadata": subnet.extra_metadata or {},
+        }
+
+        technical_data = {
+            "requirements": _requirements_to_dict(requirements),
+            "gpus": _gpus_to_list(gpus),
+            "extraction_confidence": _requirements_to_dict(requirements).get("extraction_confidence", 0.0),
+        }
+
+        gpu_cost_hourly = await _get_gpu_cost_hourly(self.db)
+        economics_data = {
+            "metrics": _metrics_to_dict(metrics),
+            "market": _market_to_dict(market),
+            "gpu_cost_hourly": gpu_cost_hourly,
+        }
+
         result = compute_opportunity_score(
-            metrics=_metrics_to_dict(metrics),
-            market=_market_to_dict(market),
-            requirements=_requirements_to_dict(requirements),
-            gpus=_gpus_to_list(gpus),
+            utility_data=utility_data,
+            technical_data=technical_data,
+            economics_data=economics_data,
         )
         result["netuid"] = netuid
         result["subnet_name"] = subnet.name
+        result["pillar_scores"] = result.get("pillar_scores", {})
+        result["decision"] = result.get("decision", "AVOID")
         return result
 
     async def persist_score(
         self, netuid: int, score: Dict[str, Any]
     ) -> OpportunityScore:
-        """Persist a computed score into the opportunity_scores + components tables."""
+        pillar_scores = score.get("pillar_scores", {})
         components = score.get("components", [])
-        primary = max(components, key=lambda c: c.get("score", 0)) if components else None
-        explanation = (
-            score.get("summary", "")
-            if not primary
-            else f"{primary.get('explanation', '')} | {score.get('summary', '')}".strip(" |")
-        )
+        explanation = score.get("summary", "") or ""
         row = OpportunityScore(
             netuid=netuid,
             score=score["total_score"],
             score_model_version=score.get("model_version", SCORE_MODEL_VERSION),
+            pillar_version=score.get("model_version", SCORE_MODEL_VERSION),
+            utility_score=pillar_scores.get("utility"),
+            technical_score=pillar_scores.get("technical"),
+            economics_score=pillar_scores.get("economics"),
+            decision=score.get("decision"),
             explanation=explanation or None,
+            extra_metadata={
+                "pillar_breakdown": pillar_scores,
+                "weights": score.get("weights", {}),
+                "components": components,
+            },
         )
         self.db.add(row)
         await self.db.flush()
@@ -182,28 +233,62 @@ class OpportunityService:
             self.db.add(
                 ScoreComponentORM(
                     opportunity_score_id=row.id,
-                    component_name=comp["name"],
-                    score=comp["score"],
-                    weight=comp["weight"],
+                    component_name=comp.get("name", ""),
+                    score=comp.get("score", 0.0),
+                    weight=comp.get("weight", 0.0),
                     explanation=comp.get("explanation", ""),
+                    raw_values=comp,
                 )
             )
         await self.db.commit()
         await self.db.refresh(row)
         return row
 
+    async def get_pillar_breakdown(self, score_id: str) -> Optional[Dict[str, Any]]:
+        result = await self.db.execute(
+            select(OpportunityScore).where(OpportunityScore.id == score_id)
+        )
+        row = result.scalar_one_or_none()
+        if row is None:
+            return None
+        return {
+            "score_id": row.id,
+            "netuid": row.netuid,
+            "total_score": row.score,
+            "pillar_version": row.pillar_version,
+            "decision": row.decision,
+            "pillar_scores": {
+                "utility": row.utility_score,
+                "technical": row.technical_score,
+                "economics": row.economics_score,
+            },
+            "components": [
+                {
+                    "name": c.component_name,
+                    "score": c.score,
+                    "weight": c.weight,
+                    "explanation": c.explanation,
+                    "raw_values": c.raw_values,
+                }
+                for c in row.score_components
+            ],
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        }
+
     async def list_current_opportunities(
         self,
         page: int = 1,
         page_size: int = 20,
         min_score: Optional[float] = None,
+        decision: Optional[str] = None,
         sort_by: str = "score",
         sort_order: str = "desc",
     ) -> Tuple[List[OpportunityScore], int]:
-        """List the most recent persisted score per subnet."""
         query = select(OpportunityScore)
         if min_score is not None:
             query = query.where(OpportunityScore.score >= min_score)
+        if decision is not None:
+            query = query.where(OpportunityScore.decision == decision)
 
         total = await self.db.scalar(
             select(func.count()).select_from(query.subquery())
@@ -215,10 +300,23 @@ class OpportunityService:
         result = await self.db.execute(query)
         return list(result.scalars().all()), total
 
-    async def top_n(self, limit: int = 10) -> List[OpportunityScore]:
+    async def top_n(
+        self,
+        limit: int = 10,
+        decision: Optional[str] = None,
+    ) -> List[OpportunityScore]:
+        query = select(OpportunityScore)
+        if decision is not None:
+            query = query.where(OpportunityScore.decision == decision)
+        result = await self.db.execute(
+            query.order_by(desc(OpportunityScore.score)).limit(limit)
+        )
+        return list(result.scalars().all())
+
+    async def get_watchlist(self) -> List[OpportunityScore]:
         result = await self.db.execute(
             select(OpportunityScore)
+            .where(OpportunityScore.decision == "WATCH")
             .order_by(desc(OpportunityScore.score))
-            .limit(limit)
         )
         return list(result.scalars().all())

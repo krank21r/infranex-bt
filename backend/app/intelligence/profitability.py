@@ -22,7 +22,7 @@ Trailing N-block average smooths that variance. The window size is
 a parameter; the service layer chooses it (default = a full day of
 blocks, ~7200).
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 

@@ -2,7 +2,7 @@
 Authentication schemas.
 """
 from typing import Optional, List
-from pydantic import BaseModel, Field, ConfigDict, EmailStr
+from pydantic import Field, EmailStr
 from datetime import datetime
 
 from app.schemas.common import BaseSchema, TimestampMixin, IDMixin

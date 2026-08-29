@@ -13,7 +13,7 @@ import signal
 import sys
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,6 +28,8 @@ from app.workers import (
     create_scoring_worker,
     create_analyzer_worker,
 )
+from app.workers.auto_stop_worker import AutoStopWorker, create_auto_stop_worker
+from app.workers.recovery_worker import RecoveryWorker, create_recovery_worker
 
 
 @dataclass
@@ -137,6 +139,24 @@ class WorkerRunner:
                 config={},
                 enabled=True,
             ),
+            WorkerConfig(
+                worker_class=AutoStopWorker,
+                factory=create_auto_stop_worker,
+                interval_seconds=300.0,
+                config={
+                    "unhealthy_threshold": 2,
+                    "degraded_threshold": 5,
+                    "max_age_hours": 72,
+                },
+                enabled=True,
+            ),
+            WorkerConfig(
+                worker_class=RecoveryWorker,
+                factory=create_recovery_worker,
+                interval_seconds=300.0,
+                config={},
+                enabled=True,
+            ),
         ]
 
     async def start(self) -> None:
@@ -161,7 +181,13 @@ class WorkerRunner:
                 # that don't (e.g. MarketDataWorker) ignore unknown kwargs
                 # only if we filter — for safety we only pass db when the
                 # factory is the scanner one, leaving other workers alone.
-                if config.factory in (create_scanner_worker, create_scoring_worker, create_analyzer_worker) and self.db is not None:
+                if config.factory in (
+                    create_scanner_worker,
+                    create_scoring_worker,
+                    create_analyzer_worker,
+                    create_auto_stop_worker,
+                    create_recovery_worker,
+                ) and self.db is not None:
                     factory_kwargs["db"] = self.db
                 worker = config.factory(**factory_kwargs)
                 self._workers[worker.name] = worker

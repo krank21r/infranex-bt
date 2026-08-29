@@ -4,7 +4,6 @@ Subnet API routes — thin wrappers over SubnetService.
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from decimal import Decimal
 
 from app.api.deps import get_db, get_subnet_service
 from app.schemas.common import APIResponse, PaginationMeta

@@ -1,7 +1,7 @@
 """
 Neuron models — individual hotkey stake/incentive/ranks.
 """
-from sqlalchemy import String, Integer, BigInteger, Float, Text, Boolean, DateTime, JSON, UniqueConstraint
+from sqlalchemy import Integer, BigInteger, Float, Text, Boolean, DateTime, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import Optional

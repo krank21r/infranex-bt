@@ -1,7 +1,7 @@
 """
 User model — links Supabase auth user to operator profile.
 """
-from sqlalchemy import String, Text, JSON
+from sqlalchemy import Text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import Optional

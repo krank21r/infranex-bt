@@ -1,7 +1,7 @@
 """
 System-wide log records.
 """
-from sqlalchemy import String, Text, DateTime, JSON
+from sqlalchemy import Text, DateTime
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import Optional

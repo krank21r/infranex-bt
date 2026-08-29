@@ -1,7 +1,7 @@
 """
 Predictions vs actuals + accuracy tracking.
 """
-from sqlalchemy import String, Integer, Float, Text, DateTime, JSON
+from sqlalchemy import Integer, Float, Text, DateTime
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import Optional

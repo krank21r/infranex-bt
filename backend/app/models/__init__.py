@@ -16,13 +16,14 @@ from .incentive import Incentive
 from .market_data import MarketData
 from .repository import Repository, SubnetRequirement
 from .gpu import GPUModel, GPUProvider, GPUOffer
-from .opportunity import OpportunityScore, ScoreComponent
+from .opportunity import OpportunityScore, ScoreComponent, UtilityAssessment
 from .compatibility import CompatibilityTest, TestResult
 from .deployment import Deployment, Server
 from .miner import Miner, MinerHealth
 from .rewards import Reward, Expense, Profitability
 from .predictions import Prediction, ActualResult, PredictionAccuracy
 from .system_log import SystemLog
+from .learning import PerformanceReport, AccuracyTracking, WeightAdjustment, DriftAlert
 from .audit import (
     ApprovalRequest,
     AuditLog,
@@ -52,6 +53,7 @@ __all__ = [
     "GPUOffer",
     "OpportunityScore",
     "ScoreComponent",
+    "UtilityAssessment",
     "CompatibilityTest",
     "TestResult",
     "Deployment",
@@ -73,4 +75,8 @@ __all__ = [
     "SubnetVersion",
     "MinerVersion",
     "ProfitabilitySnapshot",
+    "PerformanceReport",
+    "AccuracyTracking",
+    "WeightAdjustment",
+    "DriftAlert",
 ]

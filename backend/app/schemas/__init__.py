@@ -59,6 +59,13 @@ from app.schemas.auth import (
     SupabaseUser,
     SupabaseSession,
 )
+from app.schemas.deployment import (
+    DeploymentCreate,
+    DeploymentResponse,
+    ServerResponse,
+    ApprovalGateInput,
+    TerminateInput,
+)
 
 __all__ = [
     # Common
@@ -110,4 +117,10 @@ __all__ = [
     "RefreshResponse",
     "SupabaseUser",
     "SupabaseSession",
+    # Deployment
+    "DeploymentCreate",
+    "DeploymentResponse",
+    "ServerResponse",
+    "ApprovalGateInput",
+    "TerminateInput",
 ]

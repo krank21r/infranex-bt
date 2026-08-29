@@ -8,8 +8,9 @@ they actually return the right shapes end-to-end in mock mode.
 
 What this file pins:
   - The 4 health endpoints each return the documented JSON shape.
-  - The 8 router prefixes (health, subnets, opportunities, gpus,
-    providers, auth, approvals, cron) are all registered under
+  - The 13 router prefixes (health, subnets, opportunities, gpus,
+    providers, auth, approvals, cron, strategy, orchestrator,
+    optimizer, recovery, learning) are all registered under
     `/api/...` in the OpenAPI schema. This is the load-bearing
     proof that the api_router aggregator in `app/api/__init__.py`
     is wiring every router (not just importing the names).
@@ -97,10 +98,10 @@ def test_health_details_endpoint_is_registered():
     assert op is not None
 
 
-# ---------- OpenAPI schema: all 8 routers mounted ----------
+# ---------- OpenAPI schema: all 13 routers mounted ----------
 
 
-# The 8 router prefixes (or root-level for health) we expect to
+# The 13 router prefixes (or root-level for health) we expect to
 # see registered. Health has no prefix, so it lands at /api/health*.
 # Everything else has its own prefix under /api.
 _EXPECTED_PATH_PREFIXES = [
@@ -112,10 +113,15 @@ _EXPECTED_PATH_PREFIXES = [
     "/api/auth",            # auth_router
     "/api/approvals",       # approvals_router
     "/api/cron",            # cron_router
+    "/api/strategy",        # strategy_router
+    "/api/orchestrator",    # orchestrator_router
+    "/api/optimizer",       # optimizer_router
+    "/api/recover",         # recovery_router
+    "/api/learning",        # learning_router
 ]
 
 
-def test_openapi_schema_registers_all_eight_router_prefixes():
+def test_openapi_schema_registers_all_router_prefixes():
     """Every router mounted in `app/api/__init__.py` shows up at /api/*.
 
     This is the cross-router integration check: if anyone removes

@@ -3,9 +3,11 @@ Structured logging configuration using structlog.
 """
 import sys
 import logging
+import time
 import structlog
 from typing import Any, Dict
-from pythonjsonlogger import jsonlogger
+from fastapi import Request
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import settings
 
@@ -58,10 +60,6 @@ def get_logger(name: str = None) -> structlog.BoundLogger:
 
 
 # --- Request Logging Middleware ---
-
-import time
-from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):

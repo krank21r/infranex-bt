@@ -4,7 +4,6 @@ Opportunity scoring API routes — thin wrappers over OpportunityService.
 from typing import Optional
 from fastapi import APIRouter, Depends, Query, Path, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from decimal import Decimal
 
 from app.api.deps import get_db
 from app.schemas.common import APIResponse, PaginationMeta

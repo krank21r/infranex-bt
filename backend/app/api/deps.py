@@ -1,7 +1,10 @@
 """
 API dependencies for FastAPI endpoints.
 """
-from typing import Optional, AsyncGenerator, List
+from typing import Optional, AsyncGenerator
+from collections import defaultdict
+import time
+from pydantic import BaseModel
 from fastapi import Depends, Query, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +18,10 @@ from app.core.auth import (
     require_admin,
 )
 from app.schemas.common import PaginationParams, PaginationMeta, SortParams
+from app.schemas.auth import User, TokenData
+from app.services.subnet_service import SubnetService
+from app.services.opportunity_service import OpportunityService
+from app.services.gpu_service import GPUService
 
 
 # --- Database Dependencies ---
@@ -140,9 +147,6 @@ def get_user_agent(request: Request) -> str:
 
 # --- Rate Limiting Dependency ---
 
-from collections import defaultdict
-import time
-
 _rate_limit_store = defaultdict(list)
 
 
@@ -175,10 +179,6 @@ async def rate_limit(
 
 # --- Service Dependencies ---
 
-from app.services.subnet_service import SubnetService
-from app.services.opportunity_service import OpportunityService
-from app.services.gpu_service import GPUService
-
 
 def get_subnet_service(
     db: AsyncSession = Depends(get_db),
@@ -199,7 +199,3 @@ def get_gpu_service(
 ) -> GPUService:
     """Get GPU service instance."""
     return GPUService(db)
-
-
-# --- Import User for type hints ---
-from app.schemas.auth import User, TokenData

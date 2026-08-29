@@ -3,6 +3,7 @@ Bittensor chain client.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
@@ -43,32 +44,349 @@ class BittensorClient(ABC):
 
 
 class RealBittensorClient(BittensorClient):
+    """
+    Real Bittensor chain client using the bittensor SDK.
+    
+    Connects to a subtensor RPC endpoint and fetches live chain data.
+    All methods run SDK calls in a thread pool to avoid blocking the event loop.
+    """
+    
     def __init__(self) -> None:
         try:
             import bittensor as bt
         except ImportError as e:
             raise ImportError(
-                "RealBittensorClient requires the `bittensor` package."
+                "RealBittensorClient requires the `bittensor` package (>=9.0.0). "
+                "Install with: pip install bittensor>=9.0.0"
             ) from e
+        
         self._network = settings.BITTENSOR_NETWORK
         self._endpoint = settings.BITTENSOR_RPC_ENDPOINT
+        self._bt = bt
+        self._subtensor: Optional[bt.Subtensor] = None
+        self._subtensor_lock = asyncio.Lock()
+        
         logger.info("real_bittensor_client_init", network=self._network, endpoint=self._endpoint)
 
+    async def _get_subtensor(self) -> "bt.Subtensor":  # noqa: F821
+        """Get or create the subtensor connection (thread-safe)."""
+        if self._subtensor is None:
+            async with self._subtensor_lock:
+                if self._subtensor is None:
+                    # Run in thread pool since bittensor SDK is synchronous
+                    self._subtensor = await asyncio.get_event_loop().run_in_executor(
+                        None,
+                        lambda: self._bt.Subtensor(network=self._network)
+                    )
+                    logger.info("subtensor_connected", network=self._network)
+        return self._subtensor
+
     async def get_subnets(self) -> List[SubnetSnapshot]:
-        logger.warning("real_bittensor_get_subnets_not_wired")
-        return []
+        """Fetch all active subnets from the chain."""
+        try:
+            subtensor = await self._get_subtensor()
+            
+            # Get all subnet netuids by querying the chain
+            # Use metagraph to discover subnets, or query subnets directly
+            subnets_data = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: subtensor.all_subnets()
+            )
+            
+            now = datetime.now(timezone.utc)
+            snapshots: List[SubnetSnapshot] = []
+            
+            for netuid in subnets_data:
+                try:
+                    # Fetch subnet info for each netuid
+                    subnet_info = await asyncio.get_event_loop().run_in_executor(
+                        None,
+                        lambda n=netuid: subtensor.get_subnet_hyperparameters(n)
+                    )
+                    
+                    if subnet_info is None:
+                        continue
+                    
+                    # Get subnet name from metagraph or use netuid
+                    subnet_name = await self._get_subnet_name(subtensor, netuid)
+                    
+                    snapshots.append(SubnetSnapshot(
+                        netuid=netuid,
+                        name=subnet_name,
+                        description=None,  # Not directly available from chain
+                        owner_hotkey=getattr(subnet_info, 'owner_hotkey', None),
+                        max_neurons=getattr(subnet_info, 'max_neurons', None),
+                        max_allowed_validators=getattr(subnet_info, 'max_allowed_validators', None),
+                        immunity_period=getattr(subnet_info, 'immunity_period', None),
+                        tempo=getattr(subnet_info, 'tempo', None),
+                        min_difficulty=getattr(subnet_info, 'min_difficulty', None),
+                        max_difficulty=getattr(subnet_info, 'max_difficulty', None),
+                        difficulty=getattr(subnet_info, 'difficulty', None),
+                        rho=getattr(subnet_info, 'rho', None),
+                        kappa=getattr(subnet_info, 'kappa', None),
+                        is_active=True,
+                        registration_open=getattr(subnet_info, 'registration_allowed', True),
+                        raw_metadata={"source": "bittensor_sdk", "fetched_at": now.isoformat()},
+                    ))
+                except Exception as e:
+                    logger.warning("failed_to_fetch_subnet", netuid=netuid, error=str(e))
+                    continue
+            
+            logger.info("real_bittensor_get_subnets_done", count=len(snapshots))
+            return snapshots
+            
+        except Exception as e:
+            logger.error("real_bittensor_get_subnets_failed", error=str(e))
+            return []
+
+    async def _get_subnet_name(self, subtensor, netuid: int) -> Optional[str]:
+        """Try to get subnet name from metagraph or registry."""
+        try:
+            # Try to get from metagraph
+            metagraph = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: subtensor.metagraph(netuid)
+            )
+            if metagraph and hasattr(metagraph, 'name') and metagraph.name:
+                return metagraph.name
+        except Exception:
+            pass
+        return f"subnet-{netuid}"
 
     async def get_metagraph(self, netuid: int) -> Tuple[MetricsSnapshot, List[NeuronSnapshot]]:
-        logger.warning("real_bittensor_get_metagraph_not_wired", netuid=netuid)
-        return MetricsSnapshot(netuid=netuid), []
+        """Fetch metagraph for a subnet: metrics + all neurons."""
+        try:
+            subtensor = await self._get_subtensor()
+            
+            # Fetch metagraph
+            metagraph = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: subtensor.metagraph(netuid)
+            )
+            
+            if metagraph is None:
+                logger.warning("metagraph_not_found", netuid=netuid)
+                return MetricsSnapshot(netuid=netuid), []
+            
+            now = datetime.now(timezone.utc)
+            block = getattr(metagraph, 'block', None)
+            
+            # Extract metrics from metagraph
+            n = metagraph.n.item() if hasattr(metagraph.n, 'item') else len(metagraph.hotkeys)
+            validator_count = sum(1 for v in metagraph.validator_permit if v) if hasattr(metagraph, 'validator_permit') else 0
+            miner_count = n - validator_count
+            
+            # Calculate aggregate metrics
+            total_incentive = float(sum(metagraph.I)) if hasattr(metagraph, 'I') else 0.0
+            avg_incentive = total_incentive / n if n > 0 else 0.0
+            
+            # Incentive distribution
+            incentives = [float(i) for i in metagraph.I] if hasattr(metagraph, 'I') else []
+            top_incentive = max(incentives) if incentives else 0.0
+            median_incentive = sorted(incentives)[len(incentives)//2] if incentives else 0.0
+            
+            # Stake distribution for concentration
+            stakes = [float(s) for s in metagraph.S] if hasattr(metagraph, 'S') else []
+            total_stake_val = sum(stakes)
+            sorted_stakes = sorted(stakes, reverse=True)
+            top_5_concentration = sum(sorted_stakes[:5]) / total_stake_val if total_stake_val > 0 and len(sorted_stakes) >= 5 else 0.0
+            top_10_concentration = sum(sorted_stakes[:10]) / total_stake_val if total_stake_val > 0 and len(sorted_stakes) >= 10 else 0.0
+            
+            # Network health metrics
+            trust_vals = [float(t) for t in metagraph.T] if hasattr(metagraph, 'T') else []
+            consensus_vals = [float(c) for c in metagraph.C] if hasattr(metagraph, 'C') else []
+            ranks = [float(r) for r in metagraph.R] if hasattr(metagraph, 'R') else []
+            
+            avg_trust = sum(trust_vals) / len(trust_vals) if trust_vals else 0.0
+            avg_consensus = sum(consensus_vals) / len(consensus_vals) if consensus_vals else 0.0
+            avg_rank = sum(ranks) / len(ranks) if ranks else 0.0
+            
+            # Emission (approximate from incentive * total emission)
+            emission = getattr(metagraph, 'emission', None)
+            if emission is not None:
+                emission = float(emission)
+            else:
+                emission = avg_incentive  # Fallback
+            
+            # Neuron utilization (active neurons / max)
+            active_count = sum(1 for a in metagraph.active if a) if hasattr(metagraph, 'active') else n
+            neuron_utilization = active_count / n if n > 0 else 0.0
+            
+            # Miner turnover (placeholder - would need historical data)
+            miner_turnover = 0.0
+            
+            # Registration cost
+            registration_cost = getattr(metagraph, 'registration_cost', 0.0)
+            if hasattr(registration_cost, 'item'):
+                registration_cost = registration_cost.item()
+            registration_cost = float(registration_cost) if registration_cost else 0.0
+            
+            metrics = MetricsSnapshot(
+                netuid=netuid,
+                block=block,
+                miner_count=miner_count,
+                validator_count=validator_count,
+                emission=emission,
+                total_emission=emission * n if emission else 0.0,
+                average_incentive=avg_incentive,
+                median_incentive=median_incentive,
+                top_incentive=top_incentive,
+                total_incentive=total_incentive,
+                total_stake=total_stake_val,
+                average_stake=total_stake_val / n if n > 0 else 0.0,
+                trust=avg_trust,
+                consensus=avg_consensus,
+                rank=avg_rank,
+                registration_cost=registration_cost,
+                neuron_utilization=neuron_utilization,
+                top_5_concentration=top_5_concentration,
+                top_10_concentration=top_10_concentration,
+                miner_turnover=miner_turnover,
+                recorded_at=now,
+            )
+            
+            # Build neuron snapshots
+            neurons: List[NeuronSnapshot] = []
+            hotkeys = metagraph.hotkeys if hasattr(metagraph, 'hotkeys') else []
+            coldkeys = metagraph.coldkeys if hasattr(metagraph, 'coldkeys') else []
+            stakes_arr = metagraph.S if hasattr(metagraph, 'S') else []
+            ranks_arr = metagraph.R if hasattr(metagraph, 'R') else []
+            trust_arr = metagraph.T if hasattr(metagraph, 'T') else []
+            consensus_arr = metagraph.C if hasattr(metagraph, 'C') else []
+            incentives_arr = metagraph.I if hasattr(metagraph, 'I') else []
+            emissions_arr = metagraph.E if hasattr(metagraph, 'E') else []
+            dividends_arr = metagraph.D if hasattr(metagraph, 'D') else []
+            active_arr = metagraph.active if hasattr(metagraph, 'active') else []
+            validator_permit_arr = metagraph.validator_permit if hasattr(metagraph, 'validator_permit') else []
+            last_update_arr = metagraph.last_update if hasattr(metagraph, 'last_update') else []
+            
+            for uid in range(n):
+                try:
+                    neurons.append(NeuronSnapshot(
+                        netuid=netuid,
+                        uid=uid,
+                        hotkey=str(hotkeys[uid]) if uid < len(hotkeys) else "",
+                        coldkey=str(coldkeys[uid]) if uid < len(coldkeys) else None,
+                        stake=float(stakes_arr[uid]) if uid < len(stakes_arr) else 0.0,
+                        rank=float(ranks_arr[uid]) if uid < len(ranks_arr) else 0.0,
+                        trust=float(trust_arr[uid]) if uid < len(trust_arr) else 0.0,
+                        consensus=float(consensus_arr[uid]) if uid < len(consensus_arr) else 0.0,
+                        incentive=float(incentives_arr[uid]) if uid < len(incentives_arr) else 0.0,
+                        emission=float(emissions_arr[uid]) if uid < len(emissions_arr) else 0.0,
+                        dividends=float(dividends_arr[uid]) if uid < len(dividends_arr) else 0.0,
+                        active=bool(active_arr[uid]) if uid < len(active_arr) else True,
+                        validator_permit=bool(validator_permit_arr[uid]) if uid < len(validator_permit_arr) else False,
+                        last_update=int(last_update_arr[uid]) if uid < len(last_update_arr) else block,
+                        recorded_at=now,
+                    ))
+                except Exception as e:
+                    logger.warning("failed_to_parse_neuron", netuid=netuid, uid=uid, error=str(e))
+                    continue
+            
+            logger.info("real_bittensor_get_metagraph_done", netuid=netuid, neurons=len(neurons))
+            return metrics, neurons
+            
+        except Exception as e:
+            logger.error("real_bittensor_get_metagraph_failed", netuid=netuid, error=str(e))
+            return MetricsSnapshot(netuid=netuid), []
 
     async def get_emissions(self, netuid: int, block_range: int) -> List[EmissionSnapshot]:
-        logger.warning("real_bittensor_get_emissions_not_wired", netuid=netuid, block_range=block_range)
-        return []
+        """Fetch emission history for a subnet."""
+        try:
+            subtensor = await self._get_subtensor()
+            
+            # Get current block
+            current_block = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: subtensor.get_current_block()
+            )
+            
+            start_block = current_block - block_range
+            snapshots: List[EmissionSnapshot] = []
+            now = datetime.now(timezone.utc)
+            
+            # Fetch emissions for blocks in range (sample every 100 blocks to avoid too many calls)
+            step = max(1, block_range // 100)
+            for block in range(start_block, current_block + 1, step):
+                try:
+                    emission_data = await asyncio.get_event_loop().run_in_executor(
+                        None,
+                        lambda b=block: subtensor.get_emission_by_block(netuid, b)
+                    )
+                    
+                    if emission_data:
+                        snapshots.append(EmissionSnapshot(
+                            netuid=netuid,
+                            block=block,
+                            emission_amount=float(emission_data.get('emission', 0)),
+                            subnet_emission=float(emission_data.get('subnet_emission', 0)),
+                            owner_emission=float(emission_data.get('owner_emission', 0)),
+                            miner_emission=float(emission_data.get('miner_emission', 0)),
+                            validator_emission=float(emission_data.get('validator_emission', 0)),
+                            recorded_at=now,
+                        ))
+                except Exception as e:
+                    logger.debug("emission_fetch_failed", netuid=netuid, block=block, error=str(e))
+                    continue
+            
+            logger.info("real_bittensor_get_emissions_done", netuid=netuid, count=len(snapshots))
+            return snapshots
+            
+        except Exception as e:
+            logger.error("real_bittensor_get_emissions_failed", netuid=netuid, error=str(e))
+            return []
 
     async def get_incentives(self, netuid: int, block_range: int) -> List[IncentiveSnapshot]:
-        logger.warning("real_bittensor_get_incentives_not_wired", netuid=netuid, block_range=block_range)
-        return []
+        """Fetch incentive history for a subnet."""
+        try:
+            subtensor = await self._get_subtensor()
+            
+            current_block = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: subtensor.get_current_block()
+            )
+            
+            start_block = current_block - block_range
+            snapshots: List[IncentiveSnapshot] = []
+            now = datetime.now(timezone.utc)
+            
+            # Sample every 100 blocks
+            step = max(1, block_range // 100)
+            for block in range(start_block, current_block + 1, step):
+                try:
+                    # Get metagraph at specific block
+                    metagraph = await asyncio.get_event_loop().run_in_executor(
+                        None,
+                        lambda b=block: subtensor.metagraph(netuid, block=b)
+                    )
+                    
+                    if metagraph and hasattr(metagraph, 'I') and hasattr(metagraph, 'hotkeys'):
+                        incentives = [float(i) for i in metagraph.I]
+                        hotkeys = [str(h) for h in metagraph.hotkeys]
+                        stakes = [float(s) for s in metagraph.S] if hasattr(metagraph, 'S') else []
+                        emissions = [float(e) for e in metagraph.E] if hasattr(metagraph, 'E') else []
+                        
+                        for uid, (incentive, hotkey) in enumerate(zip(incentives, hotkeys)):
+                            snapshots.append(IncentiveSnapshot(
+                                netuid=netuid,
+                                uid=uid,
+                                hotkey=hotkey,
+                                incentive=incentive,
+                                emission=emissions[uid] if uid < len(emissions) else 0.0,
+                                stake=stakes[uid] if uid < len(stakes) else 0.0,
+                                block=block,
+                                recorded_at=now,
+                            ))
+                except Exception as e:
+                    logger.debug("incentive_fetch_failed", netuid=netuid, block=block, error=str(e))
+                    continue
+            
+            logger.info("real_bittensor_get_incentives_done", netuid=netuid, count=len(snapshots))
+            return snapshots
+            
+        except Exception as e:
+            logger.error("real_bittensor_get_incentives_failed", netuid=netuid, error=str(e))
+            return []
 
 
 class FakeBittensorClient(BittensorClient):

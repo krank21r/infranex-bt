@@ -1,9 +1,10 @@
-from pydantic_settings import BaseSettings
-from typing import List, Optional
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import List
 import os
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=True)
     # Application
     APP_NAME: str = "Infranex BT"
     APP_ENV: str = "development"
@@ -24,6 +25,8 @@ class Settings(BaseSettings):
     DATABASE_POOL_SIZE: int = 10
     DATABASE_MAX_OVERFLOW: int = 20
     DATABASE_POOL_TIMEOUT: int = 30
+    # Use Supabase PgBouncer pooler (port 6543) for serverless
+    DATABASE_POOLER_URL: str = ""
 
     # Bittensor
     BITTENSOR_NETWORK: str = "testnet"
@@ -31,11 +34,13 @@ class Settings(BaseSettings):
     # in production (e.g. wss://entrypoint-finney.opentensor.ai:443 for finney/mainnet).
     BITTENSOR_RPC_ENDPOINT: str = "wss://test.finney.opentensor.ai:443"
 
-    # Redis
+    # Redis (Upstash for serverless)
     REDIS_URL: str = "redis://localhost:6379/0"
     REDIS_MAX_CONNECTIONS: int = 50
+    UPSTASH_REDIS_REST_URL: str = ""
+    UPSTASH_REDIS_REST_TOKEN: str = ""
 
-    # Celery
+    # Celery (disabled on Vercel - use Cron instead)
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
 
@@ -86,14 +91,29 @@ class Settings(BaseSettings):
     @property
     def database_url_sync(self) -> str:
         """Convert asyncpg URL to sync psycopg2 URL"""
-        if self.DATABASE_URL.startswith("postgresql+asyncpg://"):
-            return self.DATABASE_URL.replace("postgresql+asyncpg://", "postgresql://")
+        url = self.DATABASE_URL
+        if url.startswith("postgresql+asyncpg://"):
+            return url.replace("postgresql+asyncpg://", "postgresql://")
+        return url
+
+    @property
+    def effective_database_url(self) -> str:
+        """
+        Returns the appropriate database URL for the current environment.
+        In production (Vercel), use the pooler URL if available.
+        """
+        if self.APP_ENV == "production" and self.DATABASE_POOLER_URL:
+            return self.DATABASE_POOLER_URL
         return self.DATABASE_URL
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = True
-
+    @property
+    def effective_redis_url(self) -> str:
+        """
+        Returns the appropriate Redis URL.
+        In production, prefer Upstash REST if configured.
+        """
+        if self.APP_ENV == "production" and self.UPSTASH_REDIS_REST_URL:
+            return self.UPSTASH_REDIS_REST_URL
+        return self.REDIS_URL
 
 settings = Settings()

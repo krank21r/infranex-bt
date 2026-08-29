@@ -1,17 +1,15 @@
 """
 Authentication API routes.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.deps import get_db, get_current_user, get_optional_user, get_supabase_admin_client
+from app.api.deps import get_current_user
 from app.core.auth import refresh_access_token, AuthError
+from app.core.config import settings
 from app.schemas.auth import (
     UserProfile,
-    Token,
     TokenRefreshRequest,
     RefreshResponse,
-    AuthResponse,
 )
 from app.schemas.common import APIResponse
 
@@ -78,7 +76,3 @@ async def verify_token(
         success=True,
         data={"valid": True, "user_id": current_user.id},
     )
-
-
-# Import settings for expiry
-from app.core.config import settings

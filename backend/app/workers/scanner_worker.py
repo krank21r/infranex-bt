@@ -1,7 +1,5 @@
 """Scanner worker — delegates to DiscoveryService."""
-from typing import Any, Dict, Optional
 
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.workers.base import BaseWorker, RetryConfig, StructuredLogger
 

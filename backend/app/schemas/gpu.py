@@ -2,7 +2,7 @@
 GPU catalog and provider schemas.
 """
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field
 from datetime import datetime
 from decimal import Decimal
 

@@ -1,7 +1,7 @@
 """
 Repository + extracted subnet requirements.
 """
-from sqlalchemy import String, Integer, Float, Text, Boolean, DateTime, JSON
+from sqlalchemy import Integer, Float, Text, Boolean, DateTime
 from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import Optional

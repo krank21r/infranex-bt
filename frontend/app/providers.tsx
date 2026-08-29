@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { User, Session } from '@supabase/supabase-js'
 import { createBrowserClient } from '@supabase/ssr'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 interface AuthContextType {
   user: User | null
@@ -21,6 +22,15 @@ function getSupabaseUrl(): string | undefined {
 function getSupabaseAnonKey(): string | undefined {
   return process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 }
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+})
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -74,9 +84,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signOut, refreshSession }}>
-      {children}
-    </AuthContext.Provider>
+    <QueryClientProvider client={queryClient}>
+      <AuthContext.Provider value={{ user, session, loading, signOut, refreshSession }}>
+        {children}
+      </AuthContext.Provider>
+    </QueryClientProvider>
   )
 }
 
