@@ -48,6 +48,16 @@ class Settings(BaseSettings):
     GITHUB_TOKEN: str = ""
     GITHUB_API_BASE: str = "https://api.github.com"
     ANALYZER_FETCH_TIMEOUT_SECONDS: float = 20.0
+
+    @model_validator(mode='after')
+    def strip_whitespace(self):
+        """Strip whitespace and newlines from string fields."""
+        for field_name, field_value in self.model_dump().items():
+            if isinstance(field_value, str):
+                stripped = field_value.strip()
+                if stripped != field_value:
+                    setattr(self, field_name, stripped)
+        return self
     # JSON: {"1": "owner/repo", "3": "owner/repo2"} — wins over the curated default map.
     ANALYZER_REPO_OVERRIDES: str = ""
 
