@@ -52,7 +52,8 @@ class Settings(BaseSettings):
     @model_validator(mode='after')
     def strip_whitespace(self):
         """Strip whitespace and newlines from string fields."""
-        for field_name, field_value in self.model_dump().items():
+        for field_name in self.model_fields:
+            field_value = getattr(self, field_name)
             if isinstance(field_value, str):
                 stripped = field_value.strip()
                 if stripped != field_value:
