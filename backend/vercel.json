@@ -35,10 +35,5 @@
       "schedule": "*/15 * * * *"
     }
   ],
-  "regions": ["iad1"],
-  "functions": {
-    "app/main.py": {
-      "maxDuration": 60
-    }
-  }
+  "regions": ["iad1"]
 }
