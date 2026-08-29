@@ -114,8 +114,8 @@ class Settings(BaseSettings):
         In production (Vercel), use the pooler URL if available.
         """
         if self.APP_ENV == "production" and self.DATABASE_POOLER_URL:
-            return self.DATABASE_POOLER_URL
-        return self.DATABASE_URL
+            return self.DATABASE_POOLER_URL.strip()
+        return self.DATABASE_URL.strip()
 
     @property
     def effective_redis_url(self) -> str:
