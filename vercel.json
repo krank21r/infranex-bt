@@ -1,36 +1,23 @@
 {
-  "version": 2,
-  "builds": [
+  "installCommand": "cd frontend && npm install",
+  "buildCommand": "cd frontend && npm run build",
+  "outputDirectory": "frontend/.next",
+  "rewrites": [
     {
-      "src": "backend/app/main.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxLambdaSize": "50mb",
-        "runtime": "python3.11"
-      }
+      "source": "/api/:path*",
+      "destination": "/api"
     },
     {
-      "src": "frontend/package.json",
-      "use": "@vercel/nextjs"
+      "source": "/docs",
+      "destination": "/api"
+    },
+    {
+      "source": "/redoc",
+      "destination": "/api"
+    },
+    {
+      "source": "/openapi.json",
+      "destination": "/api"
     }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "backend/app/main.py"
-    },
-    {
-      "src": "/docs",
-      "dest": "backend/app/main.py"
-    },
-    {
-      "src": "/openapi.json",
-      "dest": "backend/app/main.py"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "frontend/$1"
-    }
-  ],
-  "regions": ["iad1"]
+  ]
 }
