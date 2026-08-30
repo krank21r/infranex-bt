@@ -9,12 +9,12 @@ export function SupabaseProvider({ children }: { children: ReactNode }) {
   const [client, setClient] = useState<SupabaseClient | null>(null)
 
   useEffect(() => {
-    // Dynamic import to avoid SSR issues
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    if (!url || !key) return
+
     import('@supabase/ssr').then(({ createBrowserClient }) => {
-      const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      )
+      const supabase = createBrowserClient(url, key)
       setClient(supabase)
     })
   }, [])

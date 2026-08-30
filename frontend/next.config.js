@@ -17,15 +17,6 @@ const nextConfig = {
   // Optimize for production
   poweredByHeader: false,
   compress: true,
-  // Proxy API calls to backend during development
-  rewrites: async () => {
-    return [
-      {
-        source: '/api/:path*',
-        destination: process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}/api/:path*` : 'http://localhost:8000/api/:path*',
-      },
-    ]
-  },
 }
 
 module.exports = nextConfig

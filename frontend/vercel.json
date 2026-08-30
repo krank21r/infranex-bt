@@ -6,6 +6,12 @@
   "devCommand": "npm run dev",
   "installCommand": "npm install",
   "regions": ["iad1"],
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://infranex-bt-backend.vercel.app/api/:path*"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",

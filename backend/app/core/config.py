@@ -4,6 +4,30 @@ from typing import List
 import os
 
 
+def _bool(v: str | bool | None, default: bool = False) -> bool:
+    if isinstance(v, bool):
+        return v
+    if v is None or v == "":
+        return default
+    return v.strip().lower() in ("true", "1", "yes")
+
+
+def _int(v: str | int | None, default: int = 0) -> int:
+    if isinstance(v, int):
+        return v
+    if v is None or v == "":
+        return default
+    return int(v)
+
+
+def _float(v: str | float | None, default: float = 0.0) -> float:
+    if isinstance(v, (int, float)):
+        return float(v)
+    if v is None or v == "":
+        return default
+    return float(v)
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=True)
     # Application
@@ -49,6 +73,43 @@ class Settings(BaseSettings):
     GITHUB_TOKEN: str = ""
     GITHUB_API_BASE: str = "https://api.github.com"
     ANALYZER_FETCH_TIMEOUT_SECONDS: float = 20.0
+
+    @model_validator(mode='before')
+    @classmethod
+    def handle_empty_env_vars(cls, data):
+        """Convert empty-string env vars to their defaults so Pydantic can parse them."""
+        if not isinstance(data, dict):
+            return data
+        bool_defaults = {"DEBUG": True}
+        int_defaults = {
+            "SCANNER_FAST_INTERVAL_SECONDS": 300,
+            "SCANNER_MEDIUM_INTERVAL_SECONDS": 900,
+            "SCANNER_SLOW_INTERVAL_SECONDS": 86400,
+            "DATABASE_POOL_SIZE": 10,
+            "DATABASE_MAX_OVERFLOW": 20,
+            "DATABASE_POOL_TIMEOUT": 30,
+            "REDIS_MAX_CONNECTIONS": 50,
+            "RATE_LIMIT_REQUESTS": 100,
+            "RATE_LIMIT_WINDOW_SECONDS": 60,
+            "ACCESS_TOKEN_EXPIRE_MINUTES": 30,
+            "REFRESH_TOKEN_EXPIRE_DAYS": 7,
+            "DEFAULT_PAGE_SIZE": 20,
+            "MAX_PAGE_SIZE": 100,
+            "METRICS_PORT": 9090,
+        }
+        float_defaults = {"USD_TO_INR": 83.5, "ANALYZER_FETCH_TIMEOUT_SECONDS": 20.0}
+        str_defaults = {"APP_NAME": "Infranex BT", "APP_ENV": "development", "LOG_LEVEL": "INFO"}
+        for k, v in data.items():
+            if isinstance(v, str) and v.strip() == "":
+                if k in bool_defaults:
+                    data[k] = bool_defaults[k]
+                elif k in int_defaults:
+                    data[k] = int_defaults[k]
+                elif k in float_defaults:
+                    data[k] = float_defaults[k]
+                elif k in str_defaults:
+                    data[k] = str_defaults[k]
+        return data
 
     @model_validator(mode='after')
     def strip_whitespace(self):
