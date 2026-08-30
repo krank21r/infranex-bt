@@ -81,9 +81,14 @@ class DatabaseManager:
             # For serverless (Vercel), use NullPool to avoid connection issues
             if settings.APP_ENV == "production":
                 connect_args = {}
-                # Supabase pooler requires SSL - pass via connect_args for asyncpg
+                # Supabase pooler requires SSL - use require mode and disable cert verification
+                # for serverless environments where the CA bundle may not be available
                 if "pooler.supabase.com" in db_url:
-                    connect_args["ssl"] = True
+                    import ssl
+                    ssl_ctx = ssl.create_default_context()
+                    ssl_ctx.check_hostname = False
+                    ssl_ctx.verify_mode = ssl.CERT_NONE
+                    connect_args["ssl"] = ssl_ctx
                 self._async_engine = create_async_engine(
                     db_url,
                     poolclass=NullPool,
