@@ -77,14 +77,19 @@ class DatabaseManager:
     def get_async_engine(self):
         if self._async_engine is None:
             db_url = self._build_async_db_url()
-            
+
             # For serverless (Vercel), use NullPool to avoid connection issues
             if settings.APP_ENV == "production":
+                connect_args = {}
+                # Supabase pooler requires SSL - pass via connect_args for asyncpg
+                if "pooler.supabase.com" in db_url:
+                    connect_args["ssl"] = True
                 self._async_engine = create_async_engine(
                     db_url,
                     poolclass=NullPool,
                     pool_pre_ping=True,
                     echo=False,
+                    connect_args=connect_args,
                 )
             else:
                 self._async_engine = create_async_engine(
@@ -158,9 +163,14 @@ class DatabaseManager:
         if url:
             if url.startswith("postgresql://"):
                 url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
-            # Supabase pooler requires SSL - asyncpg uses sslmode=require
-            if "pooler.supabase.com" in url and "sslmode" not in url:
-                url += "?sslmode=require"
+            # Remove any sslmode/ssl params from URL - we pass SSL via connect_args
+            if "?" in url:
+                base, query = url.split("?", 1)
+                params = [p for p in query.split("&") if not p.startswith(("sslmode", "ssl="))]
+                if params:
+                    url = f"{base}?{'&'.join(params)}"
+                else:
+                    url = base
             return url
         raise ValueError(
             "DATABASE_URL is not set. Configure the Supabase Postgres direct "
