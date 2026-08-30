@@ -61,23 +61,55 @@ async def readiness_check(
     return ReadinessCheck(ready=all_ready, checks=checks)
 
 
+@router.get("/health/db-test")
+async def db_test(request: Request) -> dict:
+    """Direct database connection test."""
+    from sqlalchemy import text
+    from app.core.database import db_manager
+    
+    result = {"steps": []}
+    
+    try:
+        result["steps"].append("Getting async engine...")
+        engine = db_manager.get_async_engine()
+        result["steps"].append(f"Engine created: {engine.url}")
+        
+        result["steps"].append("Connecting to database...")
+        async with engine.connect() as conn:
+            result["steps"].append("Connected!")
+            result["steps"].append("Executing SELECT 1...")
+            await conn.execute(text("SELECT 1"))
+            result["steps"].append("Query executed successfully!")
+        result["status"] = "healthy"
+    except Exception as e:
+        result["status"] = "error"
+        result["error"] = str(e)
+        result["error_type"] = type(e).__name__
+    
+    return result
+
+
 @router.get("/health/details")
 async def health_details(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
+    """Detailed system health status."""
     import sys
     import platform
+    import time
+    
     db_status = "unknown"
     db_latency = 0
+    db_error = None
     try:
-        import time
         start = time.time()
         await db.execute(text("SELECT 1"))
         db_latency = (time.time() - start) * 1000
         db_status = "healthy"
     except Exception as e:
-        db_status = f"unhealthy: {e}"
+        db_status = f"unhealthy: {type(e).__name__}"
+        db_error = str(e)[:500]
 
     return {
         "service": settings.APP_NAME,
@@ -89,10 +121,14 @@ async def health_details(
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "dependencies": {
             "database": db_status,
+            "database_error": db_error,
             "database_latency_ms": round(db_latency, 2),
             "supabase_url": (settings.SUPABASE_URL[:50] + "...") if settings.SUPABASE_URL else "not_configured",
             "redis_url": settings.REDIS_URL or "not_configured",
             "bittensor_network": settings.BITTENSOR_NETWORK,
+            "database_url_prefix": (settings.DATABASE_URL[:30] + "...") if settings.DATABASE_URL else "not_set",
+            "pooler_url_prefix": (settings.DATABASE_POOLER_URL[:30] + "...") if settings.DATABASE_POOLER_URL else "not_set",
+            "effective_db_url_prefix": (settings.effective_database_url[:30] + "...") if settings.effective_database_url else "not_set",
         },
         "config": {
             "debug": settings.DEBUG,

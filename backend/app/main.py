@@ -1,6 +1,11 @@
 """
 Main FastAPI application entry point.
 """
+import sys
+import os
+# Add backend directory to Python path for Vercel deployment
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,7 +14,6 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from app.core.config import settings
 from app.core.logging import configure_logging, RequestLoggingMiddleware
 from app.core.exceptions import register_exception_handlers
-from app.core.database import init_database, close_database
 from app.api import api_router
 
 
@@ -19,13 +23,22 @@ async def lifespan(app: FastAPI):
     # Startup
     configure_logging()
     
-    # Initialize database connections
-    await init_database()
+    # Initialize database connections (non-fatal)
+    try:
+        from app.core.database import init_database, close_database
+        await init_database()
+    except Exception as e:
+        import logging
+        logging.warning(f"Database initialization failed: {e}")
     
     yield
     
     # Shutdown
-    await close_database()
+    try:
+        from app.core.database import close_database
+        await close_database()
+    except Exception:
+        pass
 
 
 def create_app() -> FastAPI:
@@ -53,7 +66,7 @@ def create_app() -> FastAPI:
     if settings.APP_ENV == "production":
         app.add_middleware(
             TrustedHostMiddleware,
-            allowed_hosts=["*.infranex.com", "infranex.com"],
+            allowed_hosts=["*.infranex.com", "infranex.com", "*.vercel.app"],
         )
     
     # Request logging middleware

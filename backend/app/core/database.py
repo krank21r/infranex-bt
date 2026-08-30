@@ -79,19 +79,22 @@ class DatabaseManager:
             db_url = self._build_async_db_url()
             
             # For serverless (Vercel), use NullPool to avoid connection issues
-            pool_class = NullPool if settings.APP_ENV == "production" else None
-            pool_size = 1 if settings.APP_ENV == "production" else settings.DATABASE_POOL_SIZE
-            max_overflow = 0 if settings.APP_ENV == "production" else settings.DATABASE_MAX_OVERFLOW
-            
-            self._async_engine = create_async_engine(
-                db_url,
-                poolclass=pool_class,
-                pool_size=pool_size,
-                max_overflow=max_overflow,
-                pool_timeout=settings.DATABASE_POOL_TIMEOUT,
-                pool_pre_ping=True,
-                echo=False,
-            )
+            if settings.APP_ENV == "production":
+                self._async_engine = create_async_engine(
+                    db_url,
+                    poolclass=NullPool,
+                    pool_pre_ping=True,
+                    echo=False,
+                )
+            else:
+                self._async_engine = create_async_engine(
+                    db_url,
+                    pool_size=settings.DATABASE_POOL_SIZE,
+                    max_overflow=settings.DATABASE_MAX_OVERFLOW,
+                    pool_timeout=settings.DATABASE_POOL_TIMEOUT,
+                    pool_pre_ping=True,
+                    echo=False,
+                )
         return self._async_engine
 
     def get_async_session_factory(self) -> async_sessionmaker:
@@ -122,14 +125,20 @@ class DatabaseManager:
     def get_sync_engine(self):
         if self._sync_engine is None:
             db_url = self._build_sync_db_url()
-            self._sync_engine = create_engine(
-                db_url,
-                poolclass=NullPool if settings.APP_ENV == "production" else None,
-                pool_size=1 if settings.APP_ENV == "production" else settings.DATABASE_POOL_SIZE,
-                max_overflow=0 if settings.APP_ENV == "production" else settings.DATABASE_MAX_OVERFLOW,
-                pool_timeout=settings.DATABASE_POOL_TIMEOUT,
-                pool_pre_ping=True,
-            )
+            if settings.APP_ENV == "production":
+                self._sync_engine = create_engine(
+                    db_url,
+                    poolclass=NullPool,
+                    pool_pre_ping=True,
+                )
+            else:
+                self._sync_engine = create_engine(
+                    db_url,
+                    pool_size=settings.DATABASE_POOL_SIZE,
+                    max_overflow=settings.DATABASE_MAX_OVERFLOW,
+                    pool_timeout=settings.DATABASE_POOL_TIMEOUT,
+                    pool_pre_ping=True,
+                )
         return self._sync_engine
 
     def get_sync_session_factory(self) -> sessionmaker:
@@ -148,7 +157,10 @@ class DatabaseManager:
         url = settings.effective_database_url
         if url:
             if url.startswith("postgresql://"):
-                return url.replace("postgresql://", "postgresql+asyncpg://", 1)
+                url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+            # Supabase pooler requires SSL - asyncpg uses ssl=true not sslmode
+            if "pooler.supabase.com" in url and "ssl=true" not in url:
+                url += "?ssl=true"
             return url
         raise ValueError(
             "DATABASE_URL is not set. Configure the Supabase Postgres direct "
@@ -161,7 +173,10 @@ class DatabaseManager:
         url = settings.effective_database_url
         if url:
             if url.startswith("postgresql+asyncpg://"):
-                return url.replace("postgresql+asyncpg://", "postgresql://", 1)
+                url = url.replace("postgresql+asyncpg://", "postgresql://", 1)
+            # Supabase pooler requires SSL
+            if "pooler.supabase.com" in url and "sslmode" not in url:
+                url += "?sslmode=require"
             return url
         raise ValueError("DATABASE_URL is not set")
 
@@ -207,12 +222,17 @@ async def get_async_session() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_database():
     """Initialize database connections on startup. Non-fatal if DB is down."""
+    import logging
+    logger = logging.getLogger(__name__)
     if settings.DATABASE_URL or settings.DATABASE_POOLER_URL:
-        ok = await db_manager.ping()
-        if ok:
-            logger.info("Database connection established")
-        else:
-            logger.warning("Database ping failed — continuing in degraded mode")
+        try:
+            ok = await db_manager.ping()
+            if ok:
+                logger.info("Database connection established")
+            else:
+                logger.warning("Database ping failed — continuing in degraded mode")
+        except Exception as e:
+            logger.error("Database initialization error: %s", str(e), exc_info=True)
     else:
         logger.warning(
             "DATABASE_URL not configured — backend will run in mock mode"
