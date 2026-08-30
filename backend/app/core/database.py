@@ -158,9 +158,9 @@ class DatabaseManager:
         if url:
             if url.startswith("postgresql://"):
                 url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
-            # Supabase pooler requires SSL - asyncpg uses ssl=true not sslmode
-            if "pooler.supabase.com" in url and "ssl=true" not in url:
-                url += "?ssl=true"
+            # Supabase pooler requires SSL - asyncpg uses sslmode=require
+            if "pooler.supabase.com" in url and "sslmode" not in url:
+                url += "?sslmode=require"
             return url
         raise ValueError(
             "DATABASE_URL is not set. Configure the Supabase Postgres direct "
