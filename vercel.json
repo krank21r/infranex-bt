@@ -4,15 +4,7 @@
   "buildCommand": "cd frontend && npm run build",
   "rewrites": [
     {
-      "source": "/docs",
-      "destination": "/api"
-    },
-    {
-      "source": "/redoc",
-      "destination": "/api"
-    },
-    {
-      "source": "/openapi.json",
+      "source": "/api/:path*",
       "destination": "/api"
     }
   ]
