@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { api, endpoints } from '@/lib/api'
 import type { Subnet, FilterParams } from '@/types'
-import type { BackendSubnet } from '@/lib/adapters'
+import type { BackendSubnet, BackendOpportunityDetail } from '@/lib/adapters'
 
 export function useSubnets(params?: FilterParams) {
   return useQuery({
@@ -40,7 +40,7 @@ export function useSubnet(id: string | number) {
 export function useSubnetMetrics(id: string | number) {
   return useQuery({
     queryKey: ['subnet-metrics', id],
-    queryFn: async () => api.get<any>(endpoints.subnetMetrics(id)),
+    queryFn: async () => api.get<unknown>(endpoints.subnetMetrics(id)),
     enabled: !!id,
     staleTime: 1000 * 60 * 5,
   })
@@ -49,7 +49,7 @@ export function useSubnetMetrics(id: string | number) {
 export function useSubnetOpportunity(id: string | number) {
   return useQuery({
     queryKey: ['subnet-opportunity', id],
-    queryFn: async () => api.get<any>(endpoints.subnetOpportunity(id)),
+    queryFn: async () => api.get<BackendOpportunityDetail>(endpoints.subnetOpportunity(id)),
     enabled: !!id,
     staleTime: 1000 * 60 * 2,
   })

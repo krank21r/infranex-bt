@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { OpportunityTable } from '@/components/tables/opportunity-table'
-import { RefreshCw, AlertCircle, TrendingUp, ChevronRight } from 'lucide-react'
+import { RefreshCw, AlertCircle, TrendingUp } from 'lucide-react'
 import { useOpportunities, useRecalculateOpportunity } from '@/hooks/useOpportunities'
 import { adaptOpportunityRow } from '@/lib/adapters'
 

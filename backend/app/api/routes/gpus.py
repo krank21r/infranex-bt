@@ -1,15 +1,32 @@
 """
 GPU catalog API routes — thin wrappers over GPUService.
 """
-from typing import Optional
+from typing import Optional, Dict, Any
 from fastapi import APIRouter, Depends, Query, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, get_gpu_service
+from app.api.deps import get_db, get_gpu_service, get_gpu_matching_service, get_subnet_service
 from app.schemas.common import APIResponse, PaginationMeta
 from app.services.gpu_service import GPUService
+from app.services.gpu_matching_service import GPUMatchingService
+from app.services.subnet_service import SubnetService
 
 router = APIRouter(prefix="/gpus", tags=["gpus"])
+
+
+class GPURecommendRequest(BaseModel):
+    """Requirements used to rank available GPU offers.
+
+    If `netuid` is supplied and `requirements` is omitted, the most recent
+    stored SubnetRequirement for that subnet is used to auto-fill.
+    """
+
+    netuid: Optional[int] = None
+    requirements: Optional[Dict[str, Any]] = None
+    preferred_region: Optional[str] = None
+    page: int = 1
+    page_size: int = 10
 
 
 @router.get("", response_model=APIResponse[list[dict]])
@@ -139,3 +156,43 @@ def _serialize_offer(o) -> dict:
         "cpu_cores": o.cpu_cores,
         "is_spot": o.is_spot,
     }
+
+
+@router.post("/recommend", response_model=APIResponse[dict])
+async def recommend_gpus(
+    body: GPURecommendRequest,
+    gpu_service: GPUService = Depends(get_gpu_service),
+    matching_service: GPUMatchingService = Depends(get_gpu_matching_service),
+    subnet_service: SubnetService = Depends(get_subnet_service),
+) -> APIResponse[dict]:
+    """Rank available GPU offers against a subnet's requirements.
+
+    Provide either explicit `requirements` or a `netuid` (the latest stored
+    SubnetRequirement is used). Returns explainable, ranked offers.
+    """
+    requirements: Dict[str, Any] = dict(body.requirements or {})
+
+    if body.netuid is not None and not requirements:
+        req = await subnet_service.get_latest_requirement(body.netuid)
+        if req is not None:
+            requirements = {
+                "min_vram_gb": req.min_vram_gb,
+                "recommended_gpu": req.recommended_gpu,
+                "cuda_version": req.cuda_version,
+            }
+
+    ranked, total = await matching_service.match_offers(
+        requirements=requirements,
+        preferred_region=body.preferred_region,
+        page=body.page,
+        page_size=body.page_size,
+    )
+
+    data = {
+        "netuid": body.netuid,
+        "requirements": requirements,
+        "total_eligible": total,
+        "ranked": [r.to_dict() for r in ranked],
+        "model_version": ranked[0].model_version if ranked else None,
+    }
+    return APIResponse(success=True, data=data)

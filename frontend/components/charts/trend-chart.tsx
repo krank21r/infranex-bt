@@ -4,7 +4,6 @@ import { cn } from '@/lib/utils'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { formatNumber, formatCurrency, formatPercent } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import {
   LineChart,
   Line,
@@ -37,7 +36,6 @@ export function TrendChart({
   change,
   format = 'number',
   className,
-  height = 60,
   color = 'hsl(var(--primary))',
 }: TrendChartProps) {
   const formattedValue = 
@@ -94,7 +92,7 @@ export function TrendChart({
                 />
                 <YAxis hide />
                 <Tooltip
-                  content={({ active, payload }: { active?: boolean; payload?: any[] }) => {
+                  content={({ active, payload }: { active?: boolean; payload?: Array<{ value?: number }> }) => {
                     if (!active || !payload?.length) return null
                     return (
                       <div className="rounded-lg border bg-popover p-2 shadow-lg">

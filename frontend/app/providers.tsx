@@ -35,22 +35,12 @@ const queryClient = new QueryClient({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [supabase, setSupabase] = useState<ReturnType<typeof createBrowserClient> | null>(null)
-
-  // Initialize Supabase client only if env vars are available
-  useEffect(() => {
+  const [supabase] = useState<ReturnType<typeof createBrowserClient> | null>(() => {
     const url = getSupabaseUrl()
     const key = getSupabaseAnonKey()
-
-    if (url && key) {
-      const client = createBrowserClient(url, key)
-      setSupabase(client)
-    } else {
-      // No Supabase config - skip auth
-      setLoading(false)
-    }
-  }, [])
+    return url && key ? createBrowserClient(url, key) : null
+  })
+  const [loading, setLoading] = useState(supabase !== null)
 
   useEffect(() => {
     if (!supabase) return

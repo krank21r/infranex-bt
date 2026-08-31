@@ -7,16 +7,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Separator } from '@/components/ui/separator'
-import { AlertCircle, RefreshCw, ExternalLink, TrendingUp, TrendingDown, Network, Users, Gauge, DollarSign, BarChart3, Loader2, ChevronRight, Info, AlertTriangle, CheckCircle, Clock, Link2, Github, Twitter, Globe } from 'lucide-react'
-import { useSubnet, useSubnetMetrics, useSubnetOpportunity } from '@/hooks/useSubnets'
+import { AlertCircle, RefreshCw, ExternalLink, Network, Users, Gauge, BarChart3, Info, AlertTriangle, Link2, Github, Twitter, Globe } from 'lucide-react'
+import { useSubnet, useSubnetOpportunity } from '@/hooks/useSubnets'
 import { useSubnetChanges } from '@/hooks/useChangeDetection'
 import { MetricCard } from '@/components/cards/metric-card'
 import { OpportunityCard } from '@/components/cards/opportunity-card'
 import { ChangesCard } from '@/components/cards/changes-card'
 import { RevenueChart } from '@/components/charts/revenue-chart'
-import { TrendChart } from '@/components/charts/trend-chart'
-import { formatNumber, formatCurrency, formatPercent, formatTao, formatRelativeTime, getStatusColor, cn } from '@/lib/utils'
+import { formatNumber, formatPercent, formatTao, getStatusColor, cn } from '@/lib/utils'
 import { adaptSubnet, BackendSubnet } from '@/lib/adapters'
 import type { Opportunity } from '@/types'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -28,7 +26,6 @@ export default function SubnetDetailPage() {
   const netuid = Number(params.netuid)
 
   const { data: subnetData, isLoading: subnetLoading, error: subnetError, refetch: refetchSubnet } = useSubnet(netuid)
-  const { data: metricsData, isLoading: metricsLoading } = useSubnetMetrics(netuid)
   const { data: opportunityData, isLoading: opportunityLoading } = useSubnetOpportunity(netuid)
   const { data: changesData } = useSubnetChanges(netuid)
 
@@ -43,7 +40,7 @@ export default function SubnetDetailPage() {
       name: subnetData.name,
       description: subnetData.description,
       subnet_type: 'unknown',
-      owner_hotkey: (subnetData as any)?.owner_hotkey,
+      owner_hotkey: (subnetData as { owner_hotkey?: string })?.owner_hotkey,
       max_neurons: 256, // default
       tempo: subnetData.tempo,
       difficulty: 0,
@@ -71,6 +68,13 @@ export default function SubnetDetailPage() {
 
   const [activeTab, setActiveTab] = useState('overview')
 
+  // Generate mock time-series data for charts (in real app, this would come from API).
+  // Declared before any early returns so hook order is stable across renders.
+  const emissionHistory = useMemo(() => generateTimeSeries(latestMetrics?.emission ?? subnet?.emission ?? 0, 30), [latestMetrics?.emission, subnet?.emission])
+  const stakeHistory = useMemo(() => generateTimeSeries(latestMetrics?.total_stake ?? subnet?.tao_total ?? 0, 30), [latestMetrics?.total_stake, subnet?.tao_total])
+  const incentiveHistory = useMemo(() => generateTimeSeries(latestMetrics?.average_incentive ?? 0, 30), [latestMetrics?.average_incentive])
+  const minerCountHistory = useMemo(() => generateTimeSeries(latestMetrics?.miner_count ?? subnet?.miners_count ?? 0, 30), [latestMetrics?.miner_count, subnet?.miners_count])
+
   if (subnetError) {
     return (
       <DashboardLayout>
@@ -95,16 +99,10 @@ export default function SubnetDetailPage() {
   if (subnetLoading || !subnet) {
     return (
       <DashboardLayout>
-        <SubnetDetailSkeleton netuid={netuid} />
+        <SubnetDetailSkeleton />
       </DashboardLayout>
     )
   }
-
-  // Generate mock time-series data for charts (in real app, this would come from API)
-  const emissionHistory = useMemo(() => generateTimeSeries(latestMetrics?.emission ?? subnet.emission, 30), [latestMetrics?.emission, subnet.emission])
-  const stakeHistory = useMemo(() => generateTimeSeries(latestMetrics?.total_stake ?? subnet.tao_total, 30), [latestMetrics?.total_stake, subnet.tao_total])
-  const incentiveHistory = useMemo(() => generateTimeSeries(latestMetrics?.average_incentive ?? 0, 30), [latestMetrics?.average_incentive])
-  const minerCountHistory = useMemo(() => generateTimeSeries(latestMetrics?.miner_count ?? subnet.miners_count, 30), [latestMetrics?.miner_count, subnet.miners_count])
 
   return (
     <DashboardLayout>
@@ -409,7 +407,7 @@ export default function SubnetDetailPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <NeuronsTable netuid={netuid} />
+                <NeuronsTable />
               </CardContent>
             </Card>
           </TabsContent>
@@ -473,7 +471,7 @@ function MetricSnapshot({ label, value }: { label: string; value: string }) {
   )
 }
 
-function ComponentScoreRow({ component }: { component: any }) {
+function ComponentScoreRow({ component }: { component: { name?: string; score?: number; weighted?: number; weight?: number; explanation?: string } }) {
   const COMPONENT_LABELS: Record<string, string> = {
     economic_potential: 'Economic Potential',
     competition: 'Competition',
@@ -485,7 +483,10 @@ function ComponentScoreRow({ component }: { component: any }) {
     profitability_potential: 'Profitability Potential',
   }
 
-  const label = COMPONENT_LABELS[component.name] ?? component.name
+  const label =
+    (component.name ? COMPONENT_LABELS[component.name] : undefined) ??
+    component.name ??
+    'Component'
   const score = component.score ?? 0
   const weighted = component.weighted ?? 0
   const weight = component.weight ?? 0
@@ -537,7 +538,7 @@ function OpportunitySkeleton() {
   )
 }
 
-function SubnetDetailSkeleton({ netuid }: { netuid: number }) {
+function SubnetDetailSkeleton() {
   return (
     <div className="space-y-6">
       <div>
@@ -555,8 +556,8 @@ function SubnetDetailSkeleton({ netuid }: { netuid: number }) {
 }
 
 // Mock neurons table (replace with real API when available)
-function NeuronsTable({ netuid }: { netuid: number }) {
-  const mockNeurons = useMemo(() => generateMockNeurons(netuid), [netuid])
+function NeuronsTable() {
+  const mockNeurons = useMemo(() => generateMockNeurons(), [])
 
   return (
     <div className="overflow-x-auto">
@@ -620,7 +621,7 @@ function generateTimeSeries(baseValue: number, days: number): Array<{ timestamp:
   return data
 }
 
-function generateMockNeurons(netuid: number) {
+function generateMockNeurons() {
   const validators = 5
   const miners = Math.min(20, 32) // Limit for display
   const neurons = []

@@ -13,6 +13,55 @@ import {
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils'
 
+function RevenueChartTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean
+  payload?: Array<{ value: number; name: string }>
+  label?: string
+}) {
+  if (!active || !payload?.length) return null
+
+  return (
+    <div className="rounded-lg border bg-popover p-3 shadow-lg">
+      <p className="font-medium">{label}</p>
+      {payload.map((entry, index) => (
+        <p key={index} className="text-sm">
+          <span className="font-medium">{entry.name}: </span>
+          {formatCurrency(entry.value)}
+        </p>
+      ))}
+    </div>
+  )
+}
+
+function MultiRevenueChartTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean
+  payload?: Array<{ value: number; name: string; color: string }>
+  label?: string
+}) {
+  if (!active || !payload?.length) return null
+
+  return (
+    <div className="rounded-lg border bg-popover p-3 shadow-lg">
+      <p className="font-medium">{label}</p>
+      {payload.map((entry, index) => (
+        <p key={index} className="text-sm flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
+          <span className="font-medium">{entry.name}: </span>
+          {formatCurrency(entry.value)}
+        </p>
+      ))}
+    </div>
+  )
+}
+
 interface RevenueChartProps {
   data: Array<{
     timestamp: string
@@ -49,22 +98,6 @@ export function RevenueChart({
     name: new Date(item.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
   }))
 
-  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string }>; label?: string }) => {
-    if (!active || !payload?.length) return null
-
-    return (
-      <div className="rounded-lg border bg-popover p-3 shadow-lg">
-        <p className="font-medium">{label}</p>
-        {payload.map((entry, index) => (
-          <p key={index} className="text-sm">
-            <span className="font-medium">{entry.name}: </span>
-            {formatCurrency(entry.value)}
-          </p>
-        ))}
-      </div>
-    )
-  }
-
   return (
     <div className={cn('w-full', className)}>
       <ResponsiveContainer width="100%" height={height}>
@@ -85,7 +118,7 @@ export function RevenueChart({
             tickFormatter={(value) => formatCurrency(value)}
             width={80}
           />
-          {showTooltip && <Tooltip content={<CustomTooltip />} />}
+          {showTooltip && <Tooltip content={<RevenueChartTooltip />} />}
           {showLegend && <Legend />}
           <Area
             type="monotone"
@@ -141,23 +174,6 @@ export function MultiRevenueChart({
     name: new Date(item.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
   }))
 
-  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string; color: string }>; label?: string }) => {
-    if (!active || !payload?.length) return null
-
-    return (
-      <div className="rounded-lg border bg-popover p-3 shadow-lg">
-        <p className="font-medium">{label}</p>
-        {payload.map((entry, index) => (
-          <p key={index} className="text-sm flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
-            <span className="font-medium">{entry.name}: </span>
-            {formatCurrency(entry.value)}
-          </p>
-        ))}
-      </div>
-    )
-  }
-
   return (
     <div className={cn('w-full', className)}>
       <ResponsiveContainer width="100%" height={height}>
@@ -178,7 +194,7 @@ export function MultiRevenueChart({
             tickFormatter={(value) => formatCurrency(value)}
             width={80}
           />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<MultiRevenueChartTooltip />} />
           {showLegend && <Legend />}
           {keys.map((key, index) => (
             <Area

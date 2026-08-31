@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Bell, Moon, Sun, Wifi, WifiOff, User, LogOut, Settings, ChevronDown } from 'lucide-react'
+import { Bell, Moon, Sun, Wifi, User, LogOut, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -14,7 +14,6 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Separator } from '@/components/ui/separator'
-import { cn } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 
 interface HeaderProps {
@@ -22,22 +21,12 @@ interface HeaderProps {
 }
 
 export function Header({ onMenuClick }: HeaderProps) {
-  const [mounted, setMounted] = useState(false)
   const [time, setTime] = useState(new Date())
   const { user, signOut } = useAuth()
 
   useEffect(() => {
-    setMounted(true)
     const interval = setInterval(() => setTime(new Date()), 1000)
     return () => clearInterval(interval)
-  }, [])
-
-  useEffect(() => {
-    const handleStorageChange = () => {
-      setMounted(true)
-    }
-    window.addEventListener('storage', handleStorageChange)
-    return () => window.removeEventListener('storage', handleStorageChange)
   }, [])
 
   const formatTime = (date: Date) => {

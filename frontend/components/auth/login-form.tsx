@@ -143,7 +143,7 @@ export function LoginForm({ onSuccess }: LoginFormProps) {
             />
           </div>
           <p id="email-hint" className="text-xs text-muted-foreground">
-            We'll never share your email
+            We&apos;ll never share your email
           </p>
         </div>
 

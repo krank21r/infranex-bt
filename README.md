@@ -6,82 +6,468 @@
 
 ---
 
-## 🎯 Overview
+## Overview
 
-Infranex BT automates the complete Bittensor mining lifecycle:
-
-```
-DISCOVER → ANALYZE → SCORE → MATCH GPU → CALCULATE PROFIT → APPROVE → TEST → DEPLOY → MONITOR → MEASURE → LEARN
-```
-
-**Key Capabilities:**
-- Continuous Bittensor network scanning (subnets, metagraphs, neurons, incentives)
-- Subnet intelligence scoring with explainable components
-- GitHub repository analysis for technical requirements extraction
-- GPU compatibility matching across providers (RunPod, Vast.ai, TensorDock, E2E)
-- Profitability estimation with confidence intervals
-- Compatibility lab for pre-deployment validation
-- Secure deployment engine with explicit approval gates
-- Real-time miner monitoring and actual vs predicted profitability tracking
-- Feedback loop for continuous scoring improvement
-
----
-
-## 🏗 Architecture
+Infranex BT automates the complete Bittensor mining lifecycle — from subnet discovery to miner deployment, monitoring, and optimization.
 
 ```
-┌─────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│  Bittensor Net  │────▶│  Data Ingestion  │────▶│    Supabase      │
-│  (SDK/RPC)      │     │  (Scanner Worker)│     │  (PostgreSQL)    │
-└─────────────────┘     └──────────────────┘     └────────┬─────────┘
-                                                          │
-                    ┌──────────────────┐                  │
-                    │  GitHub / Market │──────────────────┘
-                    │  Data Workers    │
-                    └──────────────────┘
-                                                          ▼
-┌─────────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│  Deployments    │◀───│  Deployment Eng. │◀───│ Compatibility    │
-│  (GPU Servers)  │     │  (Provider APIs) │     │  Lab (Docker)    │
-└─────────────────┘     └──────────────────┘     └──────────────────┘
-         │                       ▲
-         ▼                       │
-┌─────────────────┐     ┌──────────────────┐
-│  Monitoring     │────▶│  Feedback/       │
-│  (Health/Reward)│     │  Learning Engine │
-└─────────────────┘     └──────────────────┘
+BITTENSOR NETWORK
+        │
+        ▼
+INFRANEX INTELLIGENCE ENGINE
+        │
+        ▼
+SUBNET ANALYZER (Emissions, Competition, Requirements, GPU, Risk, ROI)
+        │
+        ▼
+GPU RECOMMENDATION ("Use H100 80GB", "Provider: X")
+        │
+        ▼
+USER (Register miner → Rent GPU → Connect hotkey)
+        │
+        ▼
+GPU PROVIDER ENGINE (Connect GPU, Detect hardware, Check environment, Configure GPU, Install miner)
+        │
+        ▼
+DEPLOYMENT ENGINE (Subnet config, Dependencies, Docker, Models, Miner config)
+        │
+        ▼
+PRE-FLIGHT ENGINE (GPU, CUDA, Miner, Hotkey, UID, Subnet, Network)
+        │
+        ▼
+MINER RUNNING
+        │
+        ▼
+MONITORING ENGINE (GPU + Miner + Incentive, Rewards + Cost + ROI)
+        │
+        ▼
+OPTIMIZATION ENGINE (Keep / Optimize / Switch)
 ```
 
 ---
 
-## 🛠 Technology Stack
+## MVP Architecture
+
+### Layer 1 — Intelligence Engine
+**Purpose:** Find the best subnets to mine on.
+
+| Component | Description |
+|-----------|-------------|
+| Bittensor Network Client | Connect to subtensor RPC, fetch metagraphs, neurons, emissions |
+| Subnet Analyzer | Score subnets on emissions, competition, requirements, GPU needs, risk, ROI |
+| 3-Pillar Scoring Model | Utility (30%), Technical (35%), Economics (35%) |
+| Decision Engine | RUN (>=75) / WATCH (40-74) / AVOID (<40) |
+
+**Status:** ✅ Built
+
+### Layer 2 — GPU Recommendation
+**Purpose:** Match the best GPU to the best subnet.
+
+| Component | Description |
+|-----------|-------------|
+| GPU Catalog | Available GPU types, VRAM, CUDA compute capability |
+| Provider Comparison | Price, availability, reliability across RunPod, Vast.ai, TensorDock, E2E |
+| Recommendation Engine | "Use H100 80GB from Provider X — estimated $X/hr, Y% ROI" |
+
+**Status:** ⚠️ Partial (mock mode only)
+
+### Layer 3 — User Onboarding
+**Purpose:** Get the user from registration to miner setup.
+
+| Component | Description |
+|-----------|-------------|
+| Register Miner | User creates miner profile, connects wallet |
+| Rent GPU | User selects GPU from recommendation or catalog |
+| Connect Hotkey | User provides Bittensor hotkey for the miner |
+
+**Status:** ⚠️ Partial (auth exists, no miner/hotkey UI flow)
+
+### Layer 4 — GPU Provider Engine
+**Purpose:** Provision and configure real GPU infrastructure.
+
+| Component | Description |
+|-----------|-------------|
+| Connect GPU | SSH/API connection to rented GPU server |
+| Detect Hardware | GPU model, VRAM, CUDA version, driver version |
+| Check Environment | OS, Docker, network, disk space |
+| Configure GPU | Install CUDA drivers, set up environment |
+| Install Miner | Clone subnet repo, install dependencies, configure |
+
+**Status:** ⚠️ Partial (provider adapters exist, no real execution)
+
+### Layer 5 — Deployment Engine
+**Purpose:** Deploy the miner to the configured GPU.
+
+| Component | Description |
+|-----------|-------------|
+| Subnet Configuration | Fetch subnet-specific config (hotkey, netuid, etc.) |
+| Dependencies | Install Python packages, models, data |
+| Docker | Containerize and start the miner |
+| Models | Download required ML models |
+| Miner Configuration | Write config files, set environment variables |
+
+**Status:** ⚠️ Partial (state machine exists, no real Docker/SSH execution)
+
+### Layer 6 — Pre-Flight Engine
+**Purpose:** Validate everything before miner launch.
+
+| Check | Description |
+|-------|-------------|
+| GPU | Correct GPU type detected, VRAM sufficient |
+| CUDA | CUDA toolkit installed, version compatible |
+| Miner | Miner binary/script present and executable |
+| Hotkey | Hotkey is valid and registered on-chain |
+| UID | Miner UID is available in the subnet |
+| Subnet | Subnet is active and accepting miners |
+| Network | Subtensor connectivity confirmed |
+
+**Status:** ❌ Not built
+
+### Layer 7 — Miner Lifecycle
+**Purpose:** Start, stop, restart miners.
+
+| Component | Description |
+|-----------|-------------|
+| Start Miner | Launch miner process in background/screen/tmux |
+| Stop Miner | Graceful shutdown with cleanup |
+| Restart Miner | Stop + start with config reload |
+| Status Check | Is the miner process alive and responding |
+
+**Status:** ❌ Not built
+
+### Layer 8 — Monitoring Engine
+**Purpose:** Track miner performance and earnings in real-time.
+
+| Component | Description |
+|-----------|-------------|
+| GPU Monitoring | Utilization, temperature, memory, power |
+| Miner Monitoring | Process health, logs, uptime |
+| Incentive Tracking | Emissions received, weights set by validators |
+| Reward Tracking | TAO earned, USD equivalent, historical |
+| Cost Tracking | GPU rental cost, total spend |
+| ROI Calculation | Revenue - Cost, trend, comparison to projections |
+
+**Status:** ⚠️ Partial (framework exists, no real telemetry)
+
+### Layer 9 — Optimization Engine
+**Purpose:** Maximize ROI through continuous optimization.
+
+| Component | Description |
+|-----------|-------------|
+| Keep | Continue mining if ROI is positive and trending up |
+| Optimize | Adjust config, switch to better GPU, tune parameters |
+| Switch | Migrate to a different subnet if opportunity score changes |
+| Auto-Switch | Automated migration when ROI drops below threshold |
+
+**Status:** ⚠️ Partial (optimizer logic exists, no real switching)
+
+---
+
+## Technology Stack
 
 | Layer | Technology |
 |-------|------------|
-| **Frontend** | Next.js 15, React 19, TypeScript, Tailwind CSS, shadcn/ui, Recharts |
-| **Backend** | FastAPI, Python 3.11+, Pydantic v2, Supabase, Redis/Valkey |
-| **Database** | Supabase PostgreSQL (with RLS, migrations) |
+| **Frontend** | Next.js 16, React 19, TypeScript, Tailwind CSS, Radix UI, Recharts |
+| **Backend** | FastAPI, Python 3.11+, Pydantic v2, SQLAlchemy, Alembic |
+| **Database** | Supabase PostgreSQL (RLS, migrations) |
 | **Auth** | Supabase Auth (JWT, OAuth) |
-| **Workers** | Python async workers, invoked by Vercel Cron |
-| **Containerization** | Docker multi-stage builds |
-| **CI/CD** | GitHub Actions → Vercel (frontend + backend) |
+| **Workers** | Python async workers, Vercel Cron |
+| **GPU Providers** | RunPod, Vast.ai, TensorDock, E2E Networks |
 | **Bittensor** | Official Python SDK (bittensor>=9.0) |
+| **Deployment** | Vercel (frontend + backend), Supabase (database) |
 
 ---
 
-## 📋 Prerequisites
+## Phase-wise Build Plan
 
-- **Node.js** 20+
-- **Python** 3.11+
-- **Docker** & Docker Compose
-- **Supabase** account (project URL + keys)
-- **Bittensor** testnet/mainnet RPC endpoint
-- **GitHub** token (for subnet repo analysis)
-- **GPU Provider** API keys (RunPod, Vast.ai, etc.) — optional for mock mode
+### Phase 1 — Foundation (Week 1-2)
+**Goal:** Working frontend + backend + database + auth.
+
+| Task | Status |
+|------|--------|
+| Next.js 16 frontend scaffold with App Router | ✅ |
+| FastAPI backend scaffold with CORS | ✅ |
+| Supabase project setup (PostgreSQL) | ✅ |
+| 27+ database tables (subnets, metrics, emissions, GPUs, deployments, miners) | ✅ |
+| SQLAlchemy ORM models for all tables | ✅ |
+| Alembic migration setup | ✅ |
+| Supabase Auth (login, logout, callback) | ✅ |
+| Frontend layout (sidebar, header, dashboard shell) | ✅ |
+| Environment variable configuration (.env) | ✅ |
+
+**Deliverable:** User can log in, see empty dashboard, API returns health checks.
 
 ---
 
-## 🚀 Quick Start (Local Development)
+### Phase 2 — Data Ingestion (Week 3-4)
+**Goal:** Bittensor network data flowing into the database.
+
+| Task | Status |
+|------|--------|
+| Bittensor SDK client (dual-mode: mock/production) | ✅ |
+| Subnet scanner worker (fetch all subnets, metrics) | ✅ |
+| Market data worker (TAO price, FX rates) | ✅ |
+| GitHub analyzer worker (repo analysis, requirements extraction) | ✅ |
+| Vercel Cron configuration (scanner: 5min, market: 1hr, scoring: 15min) | ✅ |
+| Database seed data for testing | ✅ |
+
+**Deliverable:** Subnets, metrics, and market data populate in the database automatically.
+
+---
+
+### Phase 3 — Intelligence Engine (Week 5-6)
+**Goal:** Automated subnet scoring and opportunity detection.
+
+| Task | Status |
+|------|--------|
+| 3-pillar scoring model (Utility 30%, Technical 35%, Economics 35%) | ✅ |
+| Opportunity score calculation (0-100) | ✅ |
+| Decision engine (RUN/WATCH/AVOID) | ✅ |
+| Strategy engine (portfolio constraints) | ✅ |
+| GPU matching service (catalog ranking) | ✅ |
+| Profitability projection (revenue/cost/ROI) | ✅ |
+| Change detection worker (subnets, emissions, competition) | ✅ |
+
+**Deliverable:** Subnets scored, opportunities ranked, GPU recommendations generated.
+
+---
+
+### Phase 4 — Frontend Dashboard (Week 7-8)
+**Goal:** Users can browse and analyze subnets.
+
+| Task | Status |
+|------|--------|
+| Dashboard page (metrics, charts, recent activity) | ✅ |
+| Subnets list page (sortable, filterable table) | ✅ |
+| Subnet detail page (metrics, history, score breakdown) | ✅ |
+| Opportunities page (ranked opportunities with scores) | ✅ |
+| Analytics page (trends, charts) | ✅ |
+| Settings page | ✅ |
+| React Query data fetching hooks | ✅ |
+| Recharts visualizations (revenue, trends) | ✅ |
+
+**Deliverable:** Users can browse subnets, view scores, analyze opportunities.
+
+---
+
+### Phase 5 — GPU Provider Integration (Week 9-10)
+**Goal:** Real GPU providers connected, users can rent GPUs.
+
+| Task | Status | Priority |
+|------|--------|----------|
+| Provider adapter interface (standardized) | ✅ | - |
+| RunPod adapter (real API) | ⚠️ Mock | P0 |
+| Vast.ai adapter (real API) | ⚠️ Mock | P0 |
+| TensorDock adapter (real API) | ⚠️ Mock | P1 |
+| E2E Networks adapter (real API) | ⚠️ Mock | P1 |
+| GPU catalog page (browse available GPUs) | ⚠️ Partial | P0 |
+| GPU recommendation UI ("Best GPU for this subnet") | ❌ | P0 |
+| Provider comparison page | ❌ | P1 |
+| GPU rental flow (select → rent → confirm) | ❌ | P0 |
+
+**Deliverable:** Users can browse GPUs, get recommendations, and rent real GPUs.
+
+---
+
+### Phase 6 — User Miner Flow (Week 11-12)
+**Goal:** Users can register miners and connect hotkeys.
+
+| Task | Status | Priority |
+|------|--------|----------|
+| Miner registration page | ❌ | P0 |
+| Hotkey connection flow | ❌ | P0 |
+| Wallet integration (Bittensor wallet) | ❌ | P0 |
+| Miner profile page | ❌ | P0 |
+| Miner list page (user's miners) | ❌ | P0 |
+| Hotkey validation (on-chain check) | ❌ | P0 |
+
+**Deliverable:** Users can create miners, provide hotkeys, and manage their miner portfolio.
+
+---
+
+### Phase 7 — GPU Provider Engine (Week 13-14)
+**Goal:** Real GPU detection, configuration, and miner installation.
+
+| Task | Status | Priority |
+|------|--------|----------|
+| SSH connection to GPU server | ❌ | P0 |
+| Hardware detection (GPU model, VRAM, CUDA) | ❌ | P0 |
+| Environment check (OS, Docker, disk, network) | ❌ | P0 |
+| CUDA driver installation | ❌ | P0 |
+| Miner software installation | ❌ | P0 |
+| Subnet dependency installation | ❌ | P0 |
+| Model download and setup | ❌ | P0 |
+
+**Deliverable:** Automated GPU server setup from bare machine to miner-ready.
+
+---
+
+### Phase 8 — Deployment Engine (Week 15-16)
+**Goal:** Deploy miners to GPU servers.
+
+| Task | Status | Priority |
+|------|--------|----------|
+| Deployment state machine (real execution) | ⚠️ Partial | P0 |
+| Docker containerization of miners | ❌ | P0 |
+| Miner startup with screen/tmux | ❌ | P0 |
+| Config file generation | ❌ | P0 |
+| Environment variable injection | ❌ | P0 |
+| Deployment approval flow (UI) | ⚠️ Partial | P0 |
+| Deployment status page | ⚠️ Partial | P0 |
+
+**Deliverable:** One-click deployment from opportunity to running miner.
+
+---
+
+### Phase 9 — Pre-Flight Engine (Week 17)
+**Goal:** Validate everything before miner launch.
+
+| Task | Status | Priority |
+|------|--------|----------|
+| GPU validation (correct type, sufficient VRAM) | ❌ | P0 |
+| CUDA validation (version compatibility) | ❌ | P0 |
+| Miner validation (binary exists, executable) | ❌ | P0 |
+| Hotkey validation (registered on-chain) | ❌ | P0 |
+| UID validation (available in subnet) | ❌ | P0 |
+| Subnet validation (active, accepting miners) | ❌ | P0 |
+| Network validation (subtensor connectivity) | ❌ | P0 |
+| Pre-flight UI (checklist with pass/fail) | ❌ | P0 |
+
+**Deliverable:** Green-light checklist before every deployment.
+
+---
+
+### Phase 10 — Monitoring Engine (Week 18-19)
+**Goal:** Real-time monitoring of running miners.
+
+| Task | Status | Priority |
+|------|--------|----------|
+| GPU telemetry collection (utilization, temp, memory, power) | ❌ | P0 |
+| Miner process health monitoring | ❌ | P0 |
+| Emissions tracking (on-chain rewards) | ❌ | P0 |
+| Reward calculation (TAO earned, USD equivalent) | ❌ | P0 |
+| Cost tracking (GPU rental spend) | ❌ | P0 |
+| ROI calculation (revenue - cost) | ❌ | P0 |
+| Monitoring dashboard (real-time charts) | ⚠️ Partial | P0 |
+| Alert system (miner down, GPU hot, low rewards) | ❌ | P1 |
+| SSE streaming for live updates | ⚠️ Partial | P1 |
+
+**Deliverable:** Live dashboard showing GPU health, earnings, and costs.
+
+---
+
+### Phase 11 — Optimization Engine (Week 20-21)
+**Goal:** Automatic optimization and subnet switching.
+
+| Task | Status | Priority |
+|------|--------|----------|
+| ROI threshold monitoring | ❌ | P0 |
+| Config optimization suggestions | ❌ | P1 |
+| GPU upgrade/downgrade recommendations | ❌ | P1 |
+| Subnet switch recommendations | ❌ | P0 |
+| Auto-switch execution (with approval) | ❌ | P2 |
+| A/B testing (run on 2 subnets, compare) | ❌ | P2 |
+| Learning engine (feedback loop, weight adaptation) | ✅ | P1 |
+
+**Deliverable:** System recommends and executes optimizations to maximize ROI.
+
+---
+
+### Phase 12 — Production Hardening (Week 22-24)
+**Goal:** Security, reliability, and production readiness.
+
+| Task | Status | Priority |
+|------|--------|----------|
+| 3-level approval gates (L1/L2/L3) | ✅ | P0 |
+| Audit logging | ✅ | P0 |
+| Error handling and retry logic | ⚠️ Partial | P0 |
+| Rate limiting and abuse protection | ❌ | P0 |
+| Comprehensive test suite (>80% coverage) | ❌ | P0 |
+| Load testing | ❌ | P1 |
+| Security audit | ❌ | P0 |
+| Documentation (API, architecture, deployment) | ⚠️ Partial | P1 |
+| CI/CD pipeline (GitHub Actions) | ❌ | P0 |
+| Monitoring and alerting (Sentry, Datadog) | ❌ | P1 |
+
+**Deliverable:** Production-ready platform with security, tests, and CI/CD.
+
+---
+
+## Current Build Status
+
+```
+████████████████████░░░░░░░░░░  55% Complete
+
+Phase  1-4:  ████████████████████  100%  (Foundation, Data, Intelligence, UI)
+Phase  5-6:  ████████████░░░░░░░░   60%  (GPU Providers, User Miner Flow)
+Phase  7-8:  ████████░░░░░░░░░░░░   40%  (GPU Engine, Deployment)
+Phase  9:    ░░░░░░░░░░░░░░░░░░░░    0%  (Pre-Flight)
+Phase 10:    ████░░░░░░░░░░░░░░░░   20%  (Monitoring)
+Phase 11:    ████░░░░░░░░░░░░░░░░   20%  (Optimization)
+Phase 12:    ████████░░░░░░░░░░░░   40%  (Production Hardening)
+```
+
+---
+
+## Project Structure
+
+```
+infranex-bt/
+├── frontend/                 # Next.js 16 App
+│   ├── app/                  # App Router pages
+│   │   ├── (auth)/          # Auth pages (login, callback, logout)
+│   │   ├── dashboard/       # Dashboard page
+│   │   ├── subnets/         # Subnets list + detail
+│   │   ├── miners/          # Miners list + detail
+│   │   ├── opportunities/   # Opportunities page
+│   │   ├── analytics/       # Analytics page
+│   │   └── settings/        # Settings page
+│   ├── components/
+│   │   ├── ui/              # Radix UI components
+│   │   ├── layout/          # Sidebar, Header, DashboardLayout
+│   │   ├── cards/           # MetricCard, OpportunityCard, ChangesCard
+│   │   ├── tables/          # OpportunityTable
+│   │   └── charts/          # RevenueChart, TrendChart
+│   ├── hooks/               # useAuth, useSubnets, useOpportunities, etc.
+│   ├── lib/                 # API client, Supabase, utils
+│   └── types/               # TypeScript interfaces
+│
+├── backend/                  # FastAPI App
+│   ├── app/
+│   │   ├── api/             # API routes (16 modules)
+│   │   ├── core/            # Config, DB, Auth, Logging
+│   │   ├── models/          # SQLAlchemy ORM (35+ models)
+│   │   ├── schemas/         # Pydantic validation
+│   │   ├── services/        # Business logic (scoring, GPU, profitability)
+│   │   ├── workers/         # Background workers (scanner, scoring, market)
+│   │   ├── intelligence/    # v2.0 3-pillar scoring engine
+│   │   ├── strategy/        # Strategy engine (RUN/WATCH/AVOID)
+│   │   ├── orchestrator/    # Miner lifecycle state machine
+│   │   ├── optimizer/       # Cost optimization, subnet switching
+│   │   ├── recovery/        # Health monitoring, auto-recovery
+│   │   ├── learning/        # Feedback loop, weight adaptation
+│   │   ├── providers/       # GPU provider adapters (Mock, RunPod, Vast.ai, etc.)
+│   │   ├── deployment/      # Deployment state machine
+│   │   ├── approval/        # L1/L2/L3 approval gates
+│   │   └── clients/         # Bittensor SDK client, GitHub fetcher
+│   ├── tests/               # Pytest tests
+│   ├── alembic/             # Database migrations
+│   └── requirements.txt
+│
+├── database/
+│   └── migrations/          # SQL migrations (001_initial, 002_approval, 003_learning)
+│
+├── docs/
+│   └── architecture/        # Architecture docs, scoring docs
+│
+├── .vercel/                 # Vercel deployment config
+├── vercel.json              # Root Vercel config (API rewrites)
+└── README.md
+```
+
+---
+
+## Quick Start
 
 ### 1. Clone & Configure
 
@@ -89,490 +475,116 @@ DISCOVER → ANALYZE → SCORE → MATCH GPU → CALCULATE PROFIT → APPROVE �
 git clone <repository-url>
 cd infranex-bt
 
-# Copy environment template
 cp .env.example .env
-
-# Edit .env with your credentials
-# Required minimum:
-# - SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
-# - BITTENSOR_RPC_ENDPOINT
-# - REDIS_URL
+# Edit .env with your Supabase, Bittensor, and Redis credentials
 ```
 
-### 2. Start with Docker Compose (Recommended)
+### 2. Frontend
 
 ```bash
-# From project root
-docker-compose up -d
-
-# Services:
-# - Frontend: http://localhost:3000
-# - Backend API: http://localhost:8000
-# - API Docs: http://localhost:8000/docs
-# - PostgreSQL: localhost:5432
-# - Redis: localhost:6379
-```
-
-### 3. Or Run Manually
-
-**Backend:**
-```bash
-cd infranex-bt/backend
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-
-# Run migrations (requires Supabase)
-psql $SUPABASE_URL -f ../database/migrations/001_initial_schema.sql
-
-# Start API
-uvicorn app.main:app --reload --port 8000
-
-# Start worker (separate terminal)
-python -m app.workers.runner
-```
-
-**Frontend:**
-```bash
-cd infranex-bt/frontend
+cd frontend
 npm install
-npm run dev
+npm run dev        # http://localhost:3000
 ```
 
----
-
-## 🔐 Environment Variables
-
-### Required (All Environments)
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `SUPABASE_URL` | Supabase project URL | `https://xxx.supabase.co` |
-| `SUPABASE_ANON_KEY` | Supabase anonymous key | `eyJ...` |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key | `eyJ...` |
-| `BITTENSOR_NETWORK` | `testnet` or `finney` | `testnet` |
-| `BITTENSOR_RPC_ENDPOINT` | Subtensor RPC WebSocket | `wss://entrypoint-finney.opentensor.ai:443` |
-| `REDIS_URL` | Redis/Valkey connection | `redis://localhost:6379/0` |
-| `SECRET_KEY` | JWT signing secret (32+ chars) | `random-secret-key` |
-| `DEPLOYMENT_MODE` | `mock` or `production` | `mock` |
-| `DEFAULT_CURRENCY` | Display currency | `INR` |
-| `USD_TO_INR` | USD to INR conversion rate | `83.5` |
-
-### Frontend Specific
-
-| Variable | Description |
-|----------|-------------|
-| `NEXT_PUBLIC_API_URL` | Backend API URL |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase URL (client) |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key (client) |
-| `NEXT_PUBLIC_APP_NAME` | App display name |
-
-### Optional (Production)
-
-| Variable | Description |
-|----------|-------------|
-| `GITHUB_TOKEN` | GitHub PAT for repo analysis |
-| `RUNPOD_API_KEY` | RunPod API key |
-| `VASTAI_API_KEY` | Vast.ai API key |
-| `TENSORDOCK_API_KEY` | TensorDock API key |
-| `E2E_API_KEY` | E2E Networks API key |
-| `MARKET_API_KEY` | Market data API key |
-| `CORS_ORIGINS` | Allowed CORS origins (comma-separated) |
-| `CRON_SECRET` | Shared secret for Vercel Cron auth (`Authorization: Bearer $CRON_SECRET`). **Required in production** — cron routes refuse to run if unset. |
-
----
-
-## 📦 Database Setup (Supabase)
-
-### 1. Create Supabase Project
-
-1. Go to [supabase.com](https://supabase.com) → New Project
-2. Note: Project URL, Anon Key, Service Role Key
-
-### 2. Run Migrations
+### 3. Backend
 
 ```bash
-# Option A: Via Supabase CLI (recommended)
-supabase db reset --linked
-
-# Option B: Direct SQL
-psql "postgresql://postgres:[password]@db.[ref].supabase.co:5432/postgres" \
-  -f database/migrations/001_initial_schema.sql
+cd backend
+pip install -r requirements.txt
+uvicorn app.main:app --reload --port 8000  # http://localhost:8000/docs
 ```
 
-### 3. Enable Realtime (Optional)
+### 4. Database
 
-In Supabase Dashboard → Replication → Enable for tables:
-- `subnet_metrics`
-- `opportunity_scores`
-- `deployments`
-- `miners`
-- `miner_health`
-
-### 4. Configure Auth
-
-- Authentication → Providers → Enable Email, GitHub OAuth
-- Authentication → URL Configuration → Add redirect URLs
-
----
-
-## ☁️ Deployment
-
-### Frontend → Vercel
-
-1. Connect GitHub repo to Vercel
-2. Set Root Directory: `infranex-bt/frontend`
-3. Add Environment Variables (from `.env.example` with `NEXT_PUBLIC_` prefix)
-4. Deploy
-
-**Required Vercel Secrets:**
-- `VERCEL_TOKEN` (from Vercel account settings)
-- `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` (from `vercel inspect`)
-- All `NEXT_PUBLIC_*` variables
-
-### Backend → Vercel (Serverless)
-
-The backend runs as a Python serverless function on Vercel. Scheduled
-work (scanner, market data, scoring) runs on **Vercel Cron** which hits
-authenticated endpoints under `/api/cron/*`.
-
-1. Create a new Vercel project pointing at the repo, **Root Directory: `infranex-bt/backend`**.
-2. Framework preset: **Other** (Vercel auto-detects `api/index.py` and `vercel.json`).
-3. Add all backend environment variables (see table above). Set `APP_ENV=production` and `DEPLOYMENT_MODE=mock` until you are ready to spend real money.
-4. Set a strong random `CRON_SECRET` and add the same value to every cron target in `backend/vercel.json` — Vercel will send it as `Authorization: Bearer $CRON_SECRET` on every scheduled call.
-
-**Required Vercel Secrets:**
-- `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` (for CI deploys)
-- All `SUPABASE_*`, `BITTENSOR_*`, `REDIS_URL`, `SECRET_KEY`, `CRON_SECRET` variables
-
-**Vercel Cron jobs** (defined in `backend/vercel.json`):
-
-| Path | Schedule | Worker |
-|------|----------|--------|
-| `/api/cron/market-data` | every hour | market data worker |
-| `/api/cron/scanner` | every 5 min | subnet scanner |
-| `/api/cron/scoring` | every 15 min | opportunity scoring |
-
-> The cron routes refuse to run if `CRON_SECRET` is unset — fail loud,
-> not silently public.
-
-### Database → Supabase (Managed)
-
-Use Supabase managed PostgreSQL — no separate deployment needed.
-
----
-
-## 🧪 Development Mode
-
-**Default: `DEPLOYMENT_MODE=mock`**
-
-In mock mode:
-- ✅ Real Bittensor read-only data (if RPC configured)
-- ✅ Mock GPU providers (no real provisioning)
-- ✅ Mock deployments (no real infrastructure)
-- ✅ Test wallet configuration
-- ❌ No real money movement
-- ❌ No actual GPU rental
-
-**To enable production:**
-1. Set `DEPLOYMENT_MODE=production`
-2. Configure real GPU provider API keys
-3. Set up secure hotkey management
-4. Review all security settings
-
----
-
-## 📁 Project Structure
-
-```
-infranex-bt/
-├── frontend/                 # Next.js 15 App
-│   ├── app/                  # App Router pages
-│   │   ├── (auth)/          # Auth pages (login, callback)
-│   │   ├── dashboard/       # Dashboard page
-│   │   ├── subnets/         # Subnets pages
-│   │   ├── opportunities/   # Opportunities pages
-│   │   └── api/             # API routes (proxy)
-│   ├── components/
-│   │   ├── ui/              # shadcn/ui components
-│   │   ├── layout/          # Sidebar, Header, Layout
-│   │   ├── cards/           # MetricCard, OpportunityCard
-│   │   ├── tables/          # Data tables
-│   │   └── charts/          # Recharts components
-│   ├── hooks/               # Custom React hooks
-│   ├── lib/                 # Utilities, API client, Supabase
-│   └── types/               # TypeScript interfaces
-│
-├── backend/                  # FastAPI App
-│   ├── app/
-│   │   ├── api/             # API routes
-│   │   │   ├── deps.py      # Dependencies
-│   │   │   └── routes/      # Route modules
-│   │   ├── core/            # Config, DB, Auth, Logging
-│   │   ├── schemas/         # Pydantic models
-│   │   ├── services/        # Business logic
-│   │   ├── workers/         # Background workers
-│   │   └── integrations/    # External integrations
-│   ├── tests/               # Pytest tests
-│   └── requirements.txt
-│
-├── database/
-│   └── migrations/          # Supabase SQL migrations
-│
-├── docker/
-│   ├── Dockerfile.frontend
-│   ├── Dockerfile.backend
-│   └── docker-compose.yml
-│
-├── .github/
-│   └── workflows/           # CI/CD pipelines
-│
-├── docs/
-│   ├── architecture/
-│   ├── api/
-│   └── deployment/
-│
-├── .env.example
-├── docker-compose.yml
-└── README.md
+```bash
+psql $SUPABASE_URL -f database/migrations/001_initial_schema.sql
+psql $SUPABASE_URL -f database/migrations/002_approval_audit_drift.sql
+psql $SUPABASE_URL -f database/migrations/003_learning_engine.sql
+cd backend && alembic stamp head
 ```
 
 ---
 
-## 🔧 API Reference
+## Environment Variables
 
-### Health Checks
-```
-GET  /health              # Full health check
-GET  /health/live         # Liveness probe
-GET  /health/ready        # Readiness probe
-```
-
-### Subnets
-```
-GET  /api/subnets                    # List subnets (paginated)
-GET  /api/subnets/{netuid}           # Subnet detail
-GET  /api/subnets/{netuid}/metrics   # Current metrics
-GET  /api/subnets/{netuid}/history   # Historical metrics
-GET  /api/subnets/{netuid}/score     # Opportunity score
-```
-
-### Opportunities
-```
-GET  /api/opportunities              # List opportunities
-GET  /api/opportunities/{id}         # Opportunity detail
-```
-
-### GPUs & Providers
-```
-GET  /api/gpus                       # GPU catalog
-GET  /api/gpus/{id}                  # GPU detail
-GET  /api/providers                  # Provider list
-GET  /api/providers/{id}/offers      # Current GPU offers
-```
-
-### Deployments
-```
-POST /api/deployments/preview        # Preview deployment (cost, config)
-POST /api/deployments/approve        # Approve & deploy
-GET  /api/deployments                # List deployments
-GET  /api/deployments/{id}           # Deployment detail
-```
-
-### Miners & Monitoring
-```
-GET  /api/miners                     # List miners
-GET  /api/miners/{id}/health         # Miner health history
-```
-
-### Rewards & Profitability
-```
-GET  /api/rewards                    # Reward history
-GET  /api/profitability              # Profitability reports
-```
-
-### Admin
-```
-POST /api/admin/rescan-subnet        # Trigger subnet rescan
-POST /api/scanner/run                # Run full scan
-```
-
-### Approvals (3-level capital protection)
-```
-GET  /api/approvals                  # List approval requests (filter by status, level, action)
-GET  /api/approvals/pending          # Pending requests only (dashboard badge)
-POST /api/approvals/{id}/approve     # Approve an L2/L3 request
-POST /api/approvals/{id}/reject      # Reject an L2/L3 request
-GET  /api/approvals/audit            # Audit log (paginated, with filters)
-```
-
-Infranex classifies every consequential action into one of three levels:
-
-| Level | Meaning | Example actions |
-|-------|---------|-----------------|
-| **L1_auto** | Safe, reversible, no money. Executes immediately and is logged. | refresh metrics, fetch status, score opportunities, log drift observations |
-| **L2_confirm** | Small financial impact (configurable) OR reversible operational change. Needs one human approval. | rent GPU under cap, restart miner, recover container, software update within known-good range |
-| **L3_mandatory** | Capital-intensive, irreversible, or strategy-shifting. Needs explicit approval every time. | deploy new miner, migrate to new subnet, increase spend cap, sign payout |
-
-Rules are codified in `backend/app/approval/classifier.py` and are
-version-stamped. Every decision carries a `risk_score`, `reason`, and
-`payload` so the user sees *why* before they approve. The audit log
-(`/api/approvals/audit`) is the tamper-evident record of what Infranex
-detected, recommended, and what actually changed on the server.
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `SUPABASE_URL` | Yes | Supabase project URL |
+| `SUPABASE_ANON_KEY` | Yes | Supabase anonymous key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Supabase service role key |
+| `BITTENSOR_NETWORK` | Yes | `testnet` or `finney` |
+| `BITTENSOR_RPC_ENDPOINT` | Yes | Subtensor RPC WebSocket |
+| `REDIS_URL` | Yes | Redis/Valkey connection |
+| `SECRET_KEY` | Yes | JWT signing secret |
+| `DEPLOYMENT_MODE` | Yes | `mock` or `production` |
+| `GITHUB_TOKEN` | No | GitHub PAT for repo analysis |
+| `RUNPOD_API_KEY` | No | RunPod API key |
+| `VASTAI_API_KEY` | No | Vast.ai API key |
+| `TENSORDOCK_API_KEY` | No | TensorDock API key |
 
 ---
 
-## 🧰 Development Commands
+## API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Health check |
+| GET | `/api/subnets` | List subnets |
+| GET | `/api/subnets/{netuid}` | Subnet detail |
+| GET | `/api/subnets/{netuid}/score` | Opportunity score |
+| GET | `/api/opportunities` | List opportunities |
+| GET | `/api/gpus` | GPU catalog |
+| POST | `/api/deployments/preview` | Preview deployment |
+| POST | `/api/deployments/approve` | Approve & deploy |
+| GET | `/api/miners` | List miners |
+| GET | `/api/miners/{id}/health` | Miner health |
+| GET | `/api/rewards` | Reward history |
+| GET | `/api/profitability` | Profitability reports |
+| POST | `/api/approvals/{id}/approve` | Approve action |
+
+---
+
+## Security
+
+| Principle | Implementation |
+|-----------|----------------|
+| No Coldkey Storage | Coldkeys never stored in DB, logs, or env |
+| Hotkey Handling | Provided at deployment time only, encrypted in transit |
+| Approval Gates | L1 (auto) / L2 (confirm) / L3 (mandatory) |
+| Audit Logging | All actions logged with user, timestamp, decision |
+| RLS | Row-level security on all user/data tables |
+| No Auto-Spend | Zero automatic financial transactions |
+
+---
+
+## Development Commands
 
 ```bash
 # Frontend
 cd frontend
 npm run dev          # Start dev server
 npm run build        # Production build
-npm run start        # Start production server
-npm run lint         # ESLint
 npm run typecheck    # TypeScript check
+npm run lint         # ESLint
 
 # Backend
 cd backend
 uvicorn app.main:app --reload      # Dev server
 pytest tests/ -v                   # Run tests
 ruff check app/                    # Lint
-mypy app/                          # Type check
 
 # Database
-psql $SUPABASE_URL -f database/migrations/001_initial_schema.sql
-
-# Docker
-docker-compose up -d               # Start all services
-docker-compose logs -f backend     # View backend logs
-docker-compose down -v             # Stop and remove volumes
+psql $DATABASE_URL -f database/migrations/001_initial_schema.sql
+cd backend && alembic upgrade head
 ```
 
 ---
 
-## 🔒 Security Principles
-
-| Principle | Implementation |
-|-----------|----------------|
-| **No Coldkey Storage** | Coldkeys never stored in DB, logs, env, or frontend |
-| **Hotkey Handling** | Hotkeys provided at deployment time only, encrypted in transit |
-| **Secrets Management** | All credentials via environment variables / secret managers |
-| **Approval Gates** | Every deployment requires explicit user confirmation |
-| **Audit Logging** | All actions logged with user, timestamp, decision |
-| **RLS** | Row-level security on all user/data tables |
-| **No Auto-Spend** | Zero automatic financial transactions |
-
----
-
-## 🧪 Running tests
-
-Backend tests use pytest + pytest-asyncio (both already in `requirements.txt`). They cover the L1/L2/L3 classifier decision matrix and a FastAPI smoke test that confirms the app loads and all routers are mounted.
-
-```bash
-cd backend
-python -m pytest tests/ -v
-```
-
-Tests are pure-Python where possible (no database) so they run fast in CI. Database-touching integration tests against a real Postgres will be added in a later pass.
-
----
-
-## 🗃️ Database migrations (Alembic)
-
-The 27+8 tables were created with hand-written SQL in `database/migrations/001_initial_schema.sql` and `002_approval_audit_drift.sql`. From this point forward, **all new schema changes go through Alembic** (`backend/alembic/`).
-
-**For an existing DB that already has the schema applied** (production, staging, your dev DB that ran 001+002):
-
-```bash
-cd backend
-alembic stamp head   # mark the current schema as up-to-date without running anything
-```
-
-**For a brand-new dev DB**:
-
-```bash
-cd backend
-# 1. Apply the original SQL files first (Alembic baseline doesn't recreate them)
-psql "$DATABASE_URL" -f ../database/migrations/001_initial_schema.sql
-psql "$DATABASE_URL" -f ../database/migrations/002_approval_audit_drift.sql
-# 2. Stamp so Alembic knows the schema is current
-alembic stamp head
-```
-
-**For new schema changes going forward**:
-
-```bash
-# Edit app/models/*.py, then:
-alembic revision --autogenerate -m "add foo table"
-# Review the generated file in backend/alembic/versions/ before applying:
-alembic upgrade head
-```
-
-`env.py` reads `DATABASE_URL` from your environment / `.env` (same as the rest of the app), and the 35 ORM models in `app/models/` are auto-discovered via `Base.metadata`.
-
----
-
-## 📊 Phase Status
-
-| Phase | Status | Description |
-|-------|--------|-------------|
-| **Phase 1A** | ✅ Complete | Frontend + Supabase + FastAPI foundation, ORM models for all 27 tables |
-| **Phase 1B** | ✅ Complete | Approval + Audit + Drift schema (`002_approval_audit_drift.sql`, 8 new tables) + SQLAlchemy models + Vercel Cron wiring |
-| **Phase 1C** | ✅ Complete | 3-level approval module live (`backend/app/approval/`), L1/L2/L3 classifier, audit writer, approval router wired into API |
-| **Phase 2** | ✅ Complete | Bittensor Scanner (dual-mode SDK client) |
-| **Phase 3** | ✅ Complete | Intelligence Engine (v1.0 scoring, GPU matching, profitability, monitoring) |
-| **Phase 4** | ✅ Complete | Subnet Analyzer (GitHub integration, requirements extraction) |
-| **Phase 5** | ✅ Complete | GPU Matching + Provider Adapters (RunPod, Vast.ai, TensorDock, E2E) |
-| **Phase 6** | ✅ Complete | Profitability Engine |
-| **Phase 7** | ✅ Complete | Compatibility Lab |
-| **Phase 8** | ✅ Complete | Deployment Engine (lifecycle state machine, health checks) |
-| **Phase 9** | ✅ Complete | Monitoring & Alerts (real-time, SSE) |
-| **Phase 10** | ✅ Complete | Learning Engine (feedback loop, weight adaptation) |
-| **Phase 11** | 🔄 In Progress | v2.0 Scoring Model (3-Pillar: Utility / Technical / Economics) |
-
----
-
-## 📚 Documentation
-
-| Document | Description |
-|----------|-------------|
-| [Architecture Overview](docs/architecture/overview.md) | System architecture, data flow, module inventory |
-| [v2.0 Scoring Engine](docs/architecture/v2-scoring-engine.md) | 3-pillar scoring model (Utility / Technical / Economics) |
-| [Decision Engine](docs/architecture/decision-engine.md) | RUN / WATCH / AVOID decision framework |
-| [Scoring API](docs/api/scoring.md) | Scoring API reference (v2.0) |
-| [Migration Guide](docs/migration-v2.md) | v1.0 → v2.0 migration guide |
-
----
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch: `git checkout -b feature/amazing-feature`
-3. Commit changes: `git commit -m 'Add amazing feature'`
-4. Push to branch: `git push origin feature/amazing-feature`
-5. Open Pull Request
-
-**Code Standards:**
-- Frontend: ESLint + Prettier + TypeScript strict
-- Backend: Ruff + MyPy + Pytest (coverage > 80%)
-- Commits: Conventional Commits (`feat:`, `fix:`, `docs:`, etc.)
-
----
-
-## 📄 License
+## License
 
 Private — Internal Operations Platform
 
 ---
 
-## 🆘 Support
-
-- **Issues**: GitHub Issues
-- **Architecture**: `docs/architecture/`
-- **API Docs**: `http://localhost:8000/docs` (local) or production `/docs`
-- **Database**: Supabase Dashboard → SQL Editor
-
----
-
-**Built with ⚡ for Bittensor Mining Operations**
+**Built for Bittensor Mining Operations**

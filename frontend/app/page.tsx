@@ -16,6 +16,10 @@ import { useWorkerStatus } from '@/hooks/useChangeDetection'
 import { adaptOpportunityRow } from '@/lib/adapters'
 import { WorkerStatusCard } from '@/components/cards/worker-status-card'
 
+// Stable anchor so the illustrative trend chart uses deterministic timestamps
+// (calling Date.now() during render would make rendering non-idempotent).
+const TREND_ANCHOR = Date.now()
+
 export default function DashboardPage() {
   const { data: top, isLoading: loadingTop, error: topError, refetch: refetchTop } = useTopOpportunities(10)
   const { data: subnetsPage, isLoading: loadingSubnets } = useSubnets({ page: 1, page_size: 50 })
@@ -150,7 +154,7 @@ export default function DashboardPage() {
                   data={opportunities.slice(0, 7).map((o, i) => ({
                     name: o.subnet_name,
                     value: o.score,
-                    timestamp: new Date(Date.now() - i * 86400000).toISOString(),
+                    timestamp: new Date(TREND_ANCHOR - i * 86400000).toISOString(),
                   }))}
                 />
               </CardContent>

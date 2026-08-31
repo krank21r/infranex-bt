@@ -295,3 +295,84 @@ export interface Alert {
   resolved_at: string | null
   is_resolved: boolean
 }
+
+// --- GPU Catalog (Phase 5) ---
+
+export interface GPUModel {
+  id: string | null
+  name: string
+  manufacturer: string
+  vram_gb: number
+  cuda_cores: number | null
+  memory_bandwidth_gbps: number | null
+  fp16_tflops: number | null
+  fp32_tflops: number | null
+  tdp_watts: number | null
+  generation: string | null
+  tier: string | null
+}
+
+export interface GPUProvider {
+  id: string | null
+  name: string
+  slug: string
+  is_active: boolean
+  supports_mock: boolean
+}
+
+export interface GPUOffer {
+  id: string | null
+  provider_id: string | null
+  gpu_model_id: string | null
+  gpu_model_name?: string | null
+  offer_id: string | null
+  instance_type: string | null
+  region: string | null
+  hourly_price: number | null
+  monthly_price: number | null
+  currency: string | null
+  availability: string | null
+  vram_gb: number | null
+  ram_gb: number | null
+  cpu_cores: number | null
+  is_spot: boolean | null
+}
+
+export interface GpuCatalogParams {
+  page?: number
+  page_size?: number
+  manufacturer?: string
+  tier?: string
+  min_vram_gb?: number
+  provider_id?: string
+  gpu_model_id?: string
+  region?: string
+  max_hourly_price?: number
+  is_spot?: boolean
+  sort_by?: string
+  sort_order?: 'asc' | 'desc'
+}
+
+export interface GPURequirementInput {
+  min_vram_gb?: number | null
+  recommended_gpu?: string | null
+  cuda_version?: string | null
+  [key: string]: unknown
+}
+
+export interface RankedGPUOffer {
+  offer: GPUOffer
+  total_score: number
+  match_bonus: number
+  region_bonus: number
+  price: number
+  model_version: string
+}
+
+export interface GPURecommendation {
+  netuid: number | null
+  requirements: GPURequirementInput
+  total_eligible: number
+  ranked: RankedGPUOffer[]
+  model_version: string | null
+}

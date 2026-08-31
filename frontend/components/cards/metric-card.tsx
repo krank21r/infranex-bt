@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
-import { formatNumber, formatCurrency, formatPercent, getStatusColor } from '@/lib/utils'
+import { formatNumber, formatCurrency, formatPercent } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/card'
 
 interface MetricCardProps {

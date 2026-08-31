@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Input } from '@/components/ui/input'
-import { formatNumber, formatCurrency, formatPercent, getStatusColor, truncate } from '@/lib/utils'
+import { formatNumber, formatCurrency, formatPercent, getStatusColor } from '@/lib/utils'
 import type { Opportunity, TableColumn } from '@/types'
 
 interface OpportunityTableProps {
@@ -158,7 +158,7 @@ export function OpportunityTable({
 }: OpportunityTableProps) {
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null)
   const [search, setSearch] = useState('')
-  const [filters, setFilters] = useState<Partial<Record<string, string>>>({})
+  const [filters] = useState<Partial<Record<string, string>>>({})
 
   const filteredOpportunities = useMemo(() => {
     let result = opportunities
@@ -190,7 +190,7 @@ export function OpportunityTable({
     }
 
     return result
-  }, [opportunities, search, filters, sortConfig])
+  }, [opportunities, search, filters, sortConfig, sortable])
 
   const handleSort = (key: string) => {
     if (!sortable) return

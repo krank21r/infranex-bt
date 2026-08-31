@@ -16,7 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Menu,
-  X,
+  Cpu,
 } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -25,6 +25,7 @@ const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Opportunities', href: '/opportunities', icon: TrendingUp },
   { name: 'Subnets', href: '/subnets', icon: Network },
+  { name: 'GPUs', href: '/gpus', icon: Cpu },
   { name: 'Miners', href: '/miners', icon: Coins },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'Settings', href: '/settings', icon: Settings },

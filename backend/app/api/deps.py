@@ -22,6 +22,7 @@ from app.schemas.auth import User, TokenData
 from app.services.subnet_service import SubnetService
 from app.services.opportunity_service import OpportunityService
 from app.services.gpu_service import GPUService
+from app.services.gpu_matching_service import GPUMatchingService
 
 
 # --- Database Dependencies ---
@@ -199,3 +200,10 @@ def get_gpu_service(
 ) -> GPUService:
     """Get GPU service instance."""
     return GPUService(db)
+
+
+def get_gpu_matching_service(
+    db: AsyncSession = Depends(get_db),
+) -> GPUMatchingService:
+    """Get GPU matching service instance."""
+    return GPUMatchingService(db)

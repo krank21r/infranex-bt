@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils'
 import { formatNumber, formatCurrency, formatPercent, getStatusColor } from '@/lib/utils'
-import { TrendingUp, AlertTriangle, CheckCircle, ExternalLink } from 'lucide-react'
+import { TrendingUp, AlertTriangle, ExternalLink } from 'lucide-react'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -15,7 +15,6 @@ interface OpportunityCardProps {
 }
 
 export function OpportunityCard({ opportunity, compact = false }: OpportunityCardProps) {
-  const statusColor = getStatusColor(opportunity.status)
   const riskColor = getStatusColor(opportunity.risk_level)
 
   if (compact) {

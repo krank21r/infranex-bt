@@ -3,7 +3,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { CheckCircle, XCircle, AlertTriangle, Activity } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import type { WorkerMetrics } from '@/hooks/useChangeDetection'
 
 function formatTimestamp(ts: number | null): string {
@@ -33,7 +32,6 @@ export function WorkerStatusCard({ workers }: { workers: WorkerMetrics[] }) {
     )
   }
 
-  const running = workers.filter((w) => w.is_running).length
   const healthy = workers.filter((w) => w.is_healthy).length
 
   return (

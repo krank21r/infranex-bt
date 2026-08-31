@@ -1,16 +1,15 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { DashboardLayout } from '@/components/layout/dashboard-layout'
 import { MetricCard } from '@/components/cards/metric-card'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { AlertCircle, Activity, Cpu, Thermometer, AlertTriangle, CheckCircle2, XCircle, RefreshCw } from 'lucide-react'
+import { AlertCircle, Activity, Cpu, Thermometer, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react'
 import { useMonitoringOverview, useActiveAlerts, useResolveAlert, useMonitoringEvents } from '@/hooks/useMonitoring'
 import { RevenueChart } from '@/components/charts/revenue-chart'
 import type { Alert, MonitoringOverview } from '@/types'
-import { getStatusColor } from '@/lib/utils'
 
 function AlertItem({ alert, onResolve }: { alert: Alert; onResolve: (id: string) => void }) {
   const severityColors = {

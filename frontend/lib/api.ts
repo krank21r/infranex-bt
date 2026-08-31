@@ -92,8 +92,16 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<PaginatedResponse<T>> {
     const envelope = await this.requestRaw<{ items: T[] } | T[]>(endpoint, options)
-    const data = (envelope.data as any)
-    const items: T[] = Array.isArray(data) ? data : (data?.items ?? [])
+    const data: unknown = envelope.data
+    let items: T[] = []
+    if (Array.isArray(data)) {
+      items = data
+    } else if (data !== null && typeof data === 'object' && 'items' in data) {
+      const maybeItems = (data as Record<string, unknown>).items
+      if (Array.isArray(maybeItems)) {
+        items = maybeItems as T[]
+      }
+    }
     const m = envelope.meta ?? {}
     const page = m.page ?? 1
     const limit = m.page_size ?? items.length
@@ -150,6 +158,7 @@ export const endpoints = {
   gpuProviders: '/gpus/providers',
   gpuOffers: '/gpus/offers',
   cheapestOffer: '/gpus/offers/cheapest',
+  gpuRecommend: '/gpus/recommend',
 
   providers: '/providers',
   provider: (id: string) => `/providers/${id}`,
