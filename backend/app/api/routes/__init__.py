@@ -1,6 +1,7 @@
 """
 API routes package initialization.
 """
+from app.api.routes.admin import router as admin_router
 from app.api.routes.approvals import router as approvals_router
 from app.api.routes.auth import router as auth_router
 from app.api.routes.cron import router as cron_router
@@ -22,6 +23,7 @@ from app.api.routes.subnets import router as subnets_router
 from app.api.routes.user_miners import router as user_miners_router
 
 __all__ = [
+    "admin_router",
     "approvals_router",
     "auth_router",
     "cron_migration_router",

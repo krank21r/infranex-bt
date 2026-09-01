@@ -4,6 +4,7 @@ API package initialization.
 from fastapi import APIRouter
 
 from app.api.routes import (
+    admin_router,
     approvals_router,
     auth_router,
     cron_migration_router,
@@ -47,5 +48,6 @@ api_router.include_router(optimizer_router)
 api_router.include_router(recovery_router)
 api_router.include_router(learning_router)
 api_router.include_router(user_miners_router)
+api_router.include_router(admin_router)
 
 __all__ = ["api_router"]

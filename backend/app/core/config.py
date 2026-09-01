@@ -136,6 +136,9 @@ class Settings(BaseSettings):
     # Cron (Vercel Cron sends `Authorization: Bearer $CRON_SECRET`)
     CRON_SECRET: str = ""
 
+    # Admin (gate behind /admin/seed and similar operational endpoints)
+    ADMIN_SECRET: str = ""
+
     # Rate Limiting
     RATE_LIMIT_REQUESTS: int = 100
     RATE_LIMIT_WINDOW_SECONDS: int = 60
