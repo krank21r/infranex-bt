@@ -48,11 +48,15 @@ export function useOpportunities(params?: OpportunityListParams) {
             minScore: params?.min_score,
             limit: params?.page_size ?? 50,
           })
-          if (items.length > 0 || !params?.min_score) {
-            return buildFallbackPage(items, params?.page ?? 1, params?.page_size ?? 50)
-          }
-        } catch {
-          // fall through to backend
+          return buildFallbackPage(items, params?.page ?? 1, params?.page_size ?? 50)
+        } catch (err) {
+          // Surface the actual Supabase error so the UI shows it instead of
+          // a generic backend error from the fallback /api call.
+          throw new Error(
+            `Supabase direct query failed: ${
+              err instanceof Error ? err.message : String(err)
+            }`
+          )
         }
       }
       return api.getPaginated<Opportunity>(buildUrl(params))

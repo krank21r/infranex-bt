@@ -10,83 +10,59 @@
 -- the file in supabase/migrations/.
 --
 -- All write operations still require a valid JWT — anon key is read-only.
+--
+-- This script is idempotent and safe to re-run. It skips any table that
+-- does not exist in the target schema, so partial schemas won't break
+-- the rest of the policies.
 -- ============================================
 
--- SUBNETS — public metadata
-ALTER TABLE public.subnets ENABLE ROW LEVEL SECURITY;
+DO $$
+DECLARE
+  t TEXT;
+  tables TEXT[] := ARRAY[
+    'subnets',
+    'subnet_metrics',
+    'opportunity_scores',
+    'score_components',
+    'miners',
+    'repositories',
+    'subnet_requirements',
+    'gpu_models',
+    'gpu_offers',
+    'gpu_providers'
+  ];
+BEGIN
+  FOREACH t IN ARRAY tables LOOP
+    IF EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = t
+    ) THEN
+      EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+      EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', 'anon_read_' || t, t);
+      EXECUTE format(
+        'CREATE POLICY %I ON public.%I FOR SELECT TO anon, authenticated USING (true)',
+        'anon_read_' || t,
+        t
+      );
+      RAISE NOTICE 'Applied anon_read_% policy', t;
+    ELSE
+      RAISE NOTICE 'Skipped (table missing): %', t;
+    END IF;
+  END LOOP;
+END $$;
 
-DROP POLICY IF EXISTS "anon_read_subnets" ON public.subnets;
-CREATE POLICY "anon_read_subnets" ON public.subnets
-  FOR SELECT
-  TO anon, authenticated
-  USING (true);
-
--- SUBNET METRICS — public time-series (latest snapshot only via API filter)
-ALTER TABLE public.subnet_metrics ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "anon_read_subnet_metrics" ON public.subnet_metrics;
-CREATE POLICY "anon_read_subnet_metrics" ON public.subnet_metrics
-  FOR SELECT
-  TO anon, authenticated
-  USING (true);
-
--- OPPORTUNITY SCORES — public scoring output (current snapshot only via filter)
-ALTER TABLE public.opportunity_scores ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "anon_read_opportunity_scores" ON public.opportunity_scores;
-CREATE POLICY "anon_read_opportunity_scores" ON public.opportunity_scores
-  FOR SELECT
-  TO anon, authenticated
-  USING (is_current = true);
-
--- SCORE COMPONENTS — public breakdown for current scores
-ALTER TABLE public.score_components ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "anon_read_score_components" ON public.score_components;
-CREATE POLICY "anon_read_score_components" ON public.score_components
-  FOR SELECT
-  TO anon, authenticated
-  USING (true);
-
--- MINERS — public miner telemetry (hotkey/coldkey exposed, no PII)
-ALTER TABLE public.miners ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "anon_read_miners" ON public.miners;
-CREATE POLICY "anon_read_miners" ON public.miners
-  FOR SELECT
-  TO anon, authenticated
-  USING (true);
-
--- REPOSITORIES — public repo metadata
-ALTER TABLE public.repositories ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "anon_read_repositories" ON public.repositories;
-CREATE POLICY "anon_read_repositories" ON public.repositories
-  FOR SELECT
-  TO anon, authenticated
-  USING (true);
-
--- SUBNET REQUIREMENTS — public requirements
-ALTER TABLE public.subnet_requirements ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "anon_read_subnet_requirements" ON public.subnet_requirements;
-CREATE POLICY "anon_read_subnet_requirements" ON public.subnet_requirements
-  FOR SELECT
-  TO anon, authenticated
-  USING (true);
-
--- GPU MODELS / OFFERS — public market data
-ALTER TABLE public.gpu_models ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "anon_read_gpu_models" ON public.gpu_models;
-CREATE POLICY "anon_read_gpu_models" ON public.gpu_models
-  FOR SELECT TO anon, authenticated USING (true);
-
-ALTER TABLE public.gpu_offers ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "anon_read_gpu_offers" ON public.gpu_offers;
-CREATE POLICY "anon_read_gpu_offers" ON public.gpu_offers
-  FOR SELECT TO anon, authenticated USING (true);
-
-ALTER TABLE public.gpu_providers ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "anon_read_gpu_providers" ON public.gpu_providers;
-CREATE POLICY "anon_read_gpu_providers" ON public.gpu_providers
-  FOR SELECT TO anon, authenticated USING (true);
+-- opportunity_scores: tighten to current rows only.
+-- Applied separately so that a missing score_components table earlier in
+-- the script does not stop opportunity_scores from getting its policy.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'opportunity_scores'
+  ) THEN
+    DROP POLICY IF EXISTS "anon_read_opportunity_scores" ON public.opportunity_scores;
+    CREATE POLICY "anon_read_opportunity_scores" ON public.opportunity_scores
+      FOR SELECT TO anon, authenticated
+      USING (is_current = true);
+  END IF;
+END $$;
