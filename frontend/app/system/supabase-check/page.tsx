@@ -184,13 +184,14 @@ export default function SupabaseCheckPage() {
                 </span>
               </div>
             ) : (
-              <div className="flex flex-col gap-2 text-sm">
-                <Badge variant="destructive">
+              <div className="flex flex-col gap-3 text-sm">
+                <Badge variant="destructive" className="self-start">
                   Not reachable from this browser
                 </Badge>
-                <p className="text-xs text-muted-foreground">
-                  {connection.reason}
-                </p>
+                <div className="rounded-md border border-destructive/30 bg-destructive/[0.06] p-3 font-mono text-xs text-foreground/90">
+                  {connection.reason ?? 'Unknown error'}
+                </div>
+                <EnvSummary />
               </div>
             )}
           </CardContent>
@@ -270,6 +271,32 @@ function ProbeRow({ probe }: { probe: Probe }) {
         Open in Supabase
         <ExternalLink className="h-3 w-3" />
       </a>
+    </div>
+  )
+}
+
+function EnvSummary() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
+  let host = '(unset)'
+  try {
+    if (url) host = new URL(url).host
+  } catch {
+    host = `(invalid URL: ${url.slice(0, 40)})`
+  }
+  const keyPrefix = key ? `${key.slice(0, 24)}…` : '(unset)'
+  const keyLen = key.length
+  return (
+    <div className="rounded-md border border-border/60 bg-card/40 p-3 font-mono text-xs">
+      <p className="text-muted-foreground">
+        URL host: <span className="text-foreground">{host}</span>
+      </p>
+      <p className="text-muted-foreground">
+        Anon key prefix: <span className="text-foreground">{keyPrefix}</span>
+      </p>
+      <p className="text-muted-foreground">
+        Anon key length: <span className="text-foreground">{keyLen}</span>
+      </p>
     </div>
   )
 }
