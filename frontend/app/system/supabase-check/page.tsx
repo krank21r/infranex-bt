@@ -64,7 +64,7 @@ export default function SupabaseCheckPage() {
       const opps = await fetchOpportunities({ limit: 5 })
       results.push({
         label: 'opportunity_scores',
-        status: opps.length > 0 || true ? 'pass' : 'fail',
+        status: 'pass',
         detail:
           opps.length > 0
             ? `Returned ${opps.length} row(s) ordered by score.`
@@ -236,23 +236,30 @@ function ProbeRow({ probe }: { probe: Probe }) {
 
   return (
     <div
-      className={`flex items-start gap-4 rounded-lg border p-4 ${tone}`}
+      className={`flex flex-col gap-2 rounded-lg border p-4 sm:flex-row sm:items-start ${tone}`}
     >
       <Icon
-        className={`mt-0.5 h-5 w-5 ${
+        className={`mt-0.5 h-5 w-5 shrink-0 ${
           probe.status === 'pending' ? 'animate-spin' : ''
         }`}
       />
-      <div className="flex-1">
-        <div className="flex items-center gap-2">
+      <div className="flex-1 min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="mono text-sm text-foreground">{probe.label}</span>
           {typeof probe.rows === 'number' && (
             <Badge variant="outline" className="mono">
               {probe.rows} rows
             </Badge>
           )}
+          {probe.status === 'fail' && (
+            <Badge variant="destructive" className="mono">
+              failed
+            </Badge>
+          )}
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">{probe.detail}</p>
+        <p className="mt-1 text-xs text-muted-foreground break-words">
+          {probe.detail}
+        </p>
       </div>
       <a
         href={`https://supabase.com/dashboard/project/_/editor`}
