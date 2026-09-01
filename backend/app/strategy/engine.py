@@ -5,7 +5,7 @@ Pure decision logic. No DB writes. The caller persists the resulting
 Action through the approval / deployment services.
 """
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 STRATEGY_MODEL_VERSION = "v2.0"
 
@@ -18,17 +18,17 @@ class PortfolioConstraints:
     max_monthly_spend_inr: float = 500_000.0
     max_spend_per_miner_inr: float = 50_000.0
     min_days_between_entries: int = 7
-    allowed_subnet_categories: Optional[List[str]] = None
+    allowed_subnet_categories: list[str] | None = None
 
 
 @dataclass(frozen=True)
 class PortfolioState:
     """Snapshot of current holdings and exposure."""
 
-    current_miners: List[Dict[str, Any]] = field(default_factory=list)
-    pending_deployments: List[Dict[str, Any]] = field(default_factory=list)
+    current_miners: list[dict[str, Any]] = field(default_factory=list)
+    pending_deployments: list[dict[str, Any]] = field(default_factory=list)
     monthly_spend_inr: float = 0.0
-    last_entry_timestamp: Optional[str] = None
+    last_entry_timestamp: str | None = None
 
 
 @dataclass(frozen=True)
@@ -39,15 +39,15 @@ class Action:
     netuid: int
     score: float
     reason: str
-    confidence: Optional[float] = None
-    estimated_monthly_profit_inr: Optional[float] = None
-    estimated_monthly_cost_inr: Optional[float] = None
-    constraints_violated: List[str] = field(default_factory=list)
-    pillar_warnings: List[str] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    confidence: float | None = None
+    estimated_monthly_profit_inr: float | None = None
+    estimated_monthly_cost_inr: float | None = None
+    constraints_violated: list[str] = field(default_factory=list)
+    pillar_warnings: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
     model_version: str = STRATEGY_MODEL_VERSION
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "action_type": self.action_type,
             "netuid": self.netuid,
@@ -76,7 +76,7 @@ class StrategyEngine:
 
     def __init__(
         self,
-        constraints: Optional[PortfolioConstraints] = None,
+        constraints: PortfolioConstraints | None = None,
         *,
         run_threshold: float = 75.0,
         watch_threshold: float = 40.0,
@@ -93,11 +93,11 @@ class StrategyEngine:
         score: float,
         portfolio: PortfolioState,
         *,
-        confidence: Optional[float] = None,
-        estimated_monthly_profit_inr: Optional[float] = None,
-        estimated_monthly_cost_inr: Optional[float] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        pillar_scores: Optional[Dict[str, float]] = None,
+        confidence: float | None = None,
+        estimated_monthly_profit_inr: float | None = None,
+        estimated_monthly_cost_inr: float | None = None,
+        metadata: dict[str, Any] | None = None,
+        pillar_scores: dict[str, float] | None = None,
     ) -> Action:
         """Evaluate a single subnet score and return an Action."""
 
@@ -111,8 +111,8 @@ class StrategyEngine:
             action_type = "avoid"
             reason = f"Score {score:.1f} below AVOID threshold {self.avoid_threshold}"
 
-        constraints_violated: List[str] = []
-        pillar_warnings: List[str] = []
+        constraints_violated: list[str] = []
+        pillar_warnings: list[str] = []
 
         if action_type == "run":
             constraints_violated = self._check_constraints(portfolio, estimated_monthly_cost_inr or 0.0)
@@ -154,11 +154,11 @@ class StrategyEngine:
 
     def evaluate_batch(
         self,
-        opportunities: List[Dict[str, Any]],
+        opportunities: list[dict[str, Any]],
         portfolio: PortfolioState,
-    ) -> List[Action]:
+    ) -> list[Action]:
         """Evaluate a batch of scored subnets and return prioritized actions."""
-        actions: List[Action] = []
+        actions: list[Action] = []
         for opp in opportunities:
             action = self.evaluate(
                 netuid=int(opp.get("netuid", 0)),
@@ -185,9 +185,9 @@ class StrategyEngine:
         self,
         portfolio: PortfolioState,
         estimated_monthly_cost_inr: float,
-    ) -> List[str]:
+    ) -> list[str]:
         """Return list of constraint names that would be violated by a RUN."""
-        violations: List[str] = []
+        violations: list[str] = []
 
         active_count = len(portfolio.current_miners) + len(portfolio.pending_deployments)
         if active_count >= self.constraints.max_concurrent_miners:

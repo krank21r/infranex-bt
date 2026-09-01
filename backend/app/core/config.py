@@ -1,7 +1,7 @@
+import os
+
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import List
-import os
 
 
 def _bool(v: str | bool | None, default: bool = False) -> bool:
@@ -158,7 +158,7 @@ class Settings(BaseSettings):
     METRICS_PORT: int = 9090
 
     @property
-    def cors_origins_list(self) -> List[str]:
+    def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
 
     @property

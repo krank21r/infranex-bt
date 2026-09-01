@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import FrozenSet, Optional
 
 
 class DeploymentState(str, Enum):
@@ -29,7 +28,7 @@ class DeploymentState(str, Enum):
     FAILED = "failed"
 
 
-VALID_TRANSITIONS: dict[DeploymentState, FrozenSet[DeploymentState]] = {
+VALID_TRANSITIONS: dict[DeploymentState, frozenset[DeploymentState]] = {
     DeploymentState.REQUESTED: frozenset({
         DeploymentState.APPROVED,
         DeploymentState.FAILED,
@@ -86,7 +85,7 @@ class TransitionResult:
     allowed: bool
     from_state: DeploymentState
     to_state: DeploymentState
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 def can_transition(from_state: str | DeploymentState, to_state: str | DeploymentState) -> bool:

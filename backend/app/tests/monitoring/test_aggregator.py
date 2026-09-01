@@ -3,9 +3,10 @@ Tests for MonitoringAggregator.
 
 Uses AsyncMock for DB interactions to keep tests fast and deterministic.
 """
-import pytest
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
-from datetime import datetime, timezone
+
+import pytest
 
 from app.monitoring.aggregator import MonitoringAggregator
 
@@ -18,7 +19,7 @@ def _make_miner(miner_id="miner-1", netuid=1, status="running", health_score=85.
     m.status = status
     m.health_score = health_score
     m.uptime_seconds = uptime
-    m.last_health_check = datetime.now(timezone.utc)
+    m.last_health_check = datetime.now(UTC)
     return m
 
 
@@ -42,7 +43,7 @@ def _make_health(miner_id="miner-1", gpu_util=75.0, gpu_temp=60.0, emission=0.5,
     h.trust = trust
     h.health_score = 80.0
     h.errors = errors or []
-    h.recorded_at = datetime.now(timezone.utc)
+    h.recorded_at = datetime.now(UTC)
     return h
 
 

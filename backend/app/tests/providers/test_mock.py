@@ -8,7 +8,6 @@ import pytest
 
 from app.models.deployment import Server
 from app.providers.mock import MockProvider
-
 from app.tests.providers._support import fake_deployment
 
 

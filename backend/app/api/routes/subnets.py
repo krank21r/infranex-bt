@@ -1,8 +1,8 @@
 """
 Subnet API routes — thin wrappers over SubnetService.
 """
-from typing import Optional
-from fastapi import APIRouter, Depends, Query, HTTPException, status
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, get_subnet_service
@@ -19,8 +19,8 @@ async def list_subnets(
     page_size: int = Query(20, ge=1, le=100),
     sort_by: str = Query("netuid"),
     sort_order: str = Query("asc", pattern="^(asc|desc)$"),
-    is_active: Optional[bool] = Query(None),
-    search: Optional[str] = Query(None, description="Search name/description"),
+    is_active: bool | None = Query(None),
+    search: str | None = Query(None, description="Search name/description"),
     subnet_service: SubnetService = Depends(get_subnet_service),
 ) -> APIResponse[list[dict]]:
     subnets, total = await subnet_service.list_subnets(

@@ -11,16 +11,14 @@ These tests are pure-Python (no DB) because the classifier is a pure
 function. If anyone tries to add a side effect here, the tests still
 pass and the side effect is silent - keep it that way.
 """
-import pytest
 
 from app.approval.classifier import (
+    DEFAULT_L2_AMOUNT_INR_CAP,
+    DEFAULT_L3_AMOUNT_INR_CAP,
     ActionContext,
     ActionLevel,
     classify_action,
-    DEFAULT_L2_AMOUNT_INR_CAP,
-    DEFAULT_L3_AMOUNT_INR_CAP,
 )
-
 
 # --- baseline: known action_types map to known levels ------------------
 

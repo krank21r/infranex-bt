@@ -7,22 +7,27 @@ Adds:
   - Pillar score breakdowns, weights, components
   - History, watchlist, compare, and bulk score endpoints
 """
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Path, Body, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from pydantic import BaseModel, Field
-from sqlalchemy import select, desc, asc
+from sqlalchemy import asc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, get_opportunity_service, get_subnet_service
+from app.api.deps import get_db
+from app.approval.classifier import ActionLevel
+from app.intelligence import (
+    DEFAULT_WEIGHTS,
+    PILLAR_WEIGHTS,
+    SCORE_MODEL_VERSION,
+    compute_opportunity_score,
+)
+from app.models import SubnetMetricsHistory
 from app.schemas.common import APIResponse, PaginationMeta
 from app.services.opportunity_service import OpportunityService
 from app.services.subnet_service import SubnetService
-from app.intelligence import compute_opportunity_score, DEFAULT_WEIGHTS, SCORE_MODEL_VERSION, PILLAR_WEIGHTS
-from app.strategy.engine import StrategyEngine, PortfolioState
-from app.approval.classifier import classify_action, ActionContext, ActionLevel
-from app.models import SubnetMetricsHistory, OpportunityScore, ScoreComponent as ScoreComponentORM
+from app.strategy.engine import PortfolioState, StrategyEngine
 
 router = APIRouter(prefix="/v2/opportunities", tags=["opportunities-v2"])
 
@@ -38,18 +43,18 @@ class ScoreRequest(BaseModel):
 
 class ScoreAllResponse(BaseModel):
     status: str
-    netuids: List[int]
+    netuids: list[int]
     estimated_seconds: int
 
 
 class HistoryPoint(BaseModel):
     recorded_at: datetime
     total_score: float
-    pillar_scores: Dict[str, float]
+    pillar_scores: dict[str, float]
 
 
 class CompareRequest(BaseModel):
-    netuids: List[int] = Field(min_length=2, max_length=10, description="Netuids to compare")
+    netuids: list[int] = Field(min_length=2, max_length=10, description="Netuids to compare")
 
 
 # ---------------------------------------------------------------------------
@@ -73,7 +78,7 @@ def _approval_level_for_decision(decision: str) -> str:
     return ActionLevel.L1_AUTO.value
 
 
-def _serialize_components(components: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _serialize_components(components: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         {
             "name": c.get("name"),
@@ -86,14 +91,14 @@ def _serialize_components(components: List[Dict[str, Any]]) -> List[Dict[str, An
     ]
 
 
-def _pillar_scores_from_components(components: List[Dict[str, Any]]) -> Dict[str, float]:
+def _pillar_scores_from_components(components: list[dict[str, Any]]) -> dict[str, float]:
     return {c["name"]: c["score"] for c in components if "name" in c}
 
 
 async def _score_and_decide(
     netuid: int,
     db: AsyncSession,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     service = OpportunityService(db)
     result = await service.score_subnet(netuid)
     if result is None:
@@ -175,9 +180,9 @@ async def get_decision(
 
 @router.get("/decisions", response_model=APIResponse[list[dict]])
 async def list_decisions(
-    decision: Optional[str] = Query(None, pattern="^(RUN|WATCH|AVOID)$"),
-    min_score: Optional[float] = Query(None, ge=0, le=100),
-    max_score: Optional[float] = Query(None, ge=0, le=100),
+    decision: str | None = Query(None, pattern="^(RUN|WATCH|AVOID)$"),
+    min_score: float | None = Query(None, ge=0, le=100),
+    max_score: float | None = Query(None, ge=0, le=100),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -185,7 +190,7 @@ async def list_decisions(
     subnet_service = SubnetService(db)
     netuids = await subnet_service.get_known_netuids()
 
-    decisions: List[Dict[str, Any]] = []
+    decisions: list[dict[str, Any]] = []
     for netuid in netuids:
         scored = await _score_and_decide(netuid, db)
         if scored is None:
@@ -223,7 +228,7 @@ async def get_watchlist(
     subnet_service = SubnetService(db)
     netuids = await subnet_service.get_known_netuids()
 
-    watchlist: List[Dict[str, Any]] = []
+    watchlist: list[dict[str, Any]] = []
     for netuid in netuids:
         scored = await _score_and_decide(netuid, db)
         if scored is None:
@@ -257,10 +262,10 @@ async def score_all(
 async def get_history(
     netuid: int = Path(ge=0),
     days: int = Query(30, ge=1, le=365),
-    pillar: Optional[str] = Query(None, description="Filter to a single pillar name"),
+    pillar: str | None = Query(None, description="Filter to a single pillar name"),
     db: AsyncSession = Depends(get_db),
 ):
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    cutoff = datetime.now(UTC) - timedelta(days=days)
     result = await db.execute(
         select(SubnetMetricsHistory)
         .where(SubnetMetricsHistory.netuid == netuid)
@@ -269,7 +274,7 @@ async def get_history(
     )
     rows = result.scalars().all()
 
-    points: List[Dict[str, Any]] = []
+    points: list[dict[str, Any]] = []
     for row in rows:
         metrics = {
             "emission": getattr(row, "emission", None) or 0.0,
@@ -335,7 +340,7 @@ async def compare_subnets(
     payload: CompareRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    comparisons: List[Dict[str, Any]] = []
+    comparisons: list[dict[str, Any]] = []
     for netuid in payload.netuids:
         scored = await _score_and_decide(netuid, db)
         if scored is None:

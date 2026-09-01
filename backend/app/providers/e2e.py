@@ -10,7 +10,7 @@ which is injectable so tests can mock the external calls.
 """
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
 
@@ -29,9 +29,9 @@ class E2EProvider:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        project_id: Optional[str] = None,
-        client: Optional[httpx.Client] = None,
+        api_key: str | None = None,
+        project_id: str | None = None,
+        client: httpx.Client | None = None,
     ) -> None:
         self.api_key = api_key or os.getenv("E2E_API_KEY")
         self.project_id = project_id or os.getenv("E2E_PROJECT_ID")
@@ -47,13 +47,13 @@ class E2EProvider:
             self._client = httpx.Client(timeout=30.0)
         return self._client
 
-    def _headers(self) -> Dict[str, str]:
+    def _headers(self) -> dict[str, str]:
         headers = {"Authorization": f"Bearer {self.api_key}"}
         if self.project_id:
             headers["Project-ID"] = self.project_id
         return headers
 
-    def _request(self, method: str, path: str, **kwargs: Any) -> Dict[str, Any]:
+    def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         resp = self.client.request(
             method,
             f"{E2E_API_URL}{path}",
@@ -65,7 +65,7 @@ class E2EProvider:
 
     # ---------- API surface ----------
 
-    def list_gpu_plans(self) -> List[Dict[str, Any]]:
+    def list_gpu_plans(self) -> list[dict[str, Any]]:
         """List available E2E GPU plans/sizes."""
         data = self._request("GET", "/compute/gpu-plans")
         return data.get("data", []) or []
@@ -76,7 +76,7 @@ class E2EProvider:
         plan_code: str,
         image: str = "ubuntu-2204-gpu",
         region: str = "cnr",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Create a GPU node."""
         body = {
             "name": name,
@@ -86,13 +86,13 @@ class E2EProvider:
         }
         return self._request("POST", "/compute/nodes", json=body)
 
-    def start_instance(self, instance_id: str) -> Dict[str, Any]:
+    def start_instance(self, instance_id: str) -> dict[str, Any]:
         return self._request("POST", f"/compute/nodes/{instance_id}/start")
 
-    def stop_instance(self, instance_id: str) -> Dict[str, Any]:
+    def stop_instance(self, instance_id: str) -> dict[str, Any]:
         return self._request("POST", f"/compute/nodes/{instance_id}/stop")
 
-    def destroy_instance(self, instance_id: str) -> Dict[str, Any]:
+    def destroy_instance(self, instance_id: str) -> dict[str, Any]:
         return self._request("DELETE", f"/compute/nodes/{instance_id}")
 
     # ---------- GPUProvider protocol ----------
@@ -122,7 +122,7 @@ class E2EProvider:
         server.status = "provisioned"
         return True
 
-    def deploy_miner(self, server: Server, config: Dict[str, Any]) -> bool:
+    def deploy_miner(self, server: Server, config: dict[str, Any]) -> bool:
         if not server.provider_instance_id:
             return False
         server.status = "started"
@@ -142,7 +142,7 @@ class E2EProvider:
         server.status = "terminated"
         return True
 
-    def get_status(self, server: Server) -> Dict[str, Any]:
+    def get_status(self, server: Server) -> dict[str, Any]:
         return {
             "provider": self.name,
             "provider_instance_id": server.provider_instance_id,

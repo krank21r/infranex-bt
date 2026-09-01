@@ -10,8 +10,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from datetime import datetime, timezone
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
 
 from fastapi import Request
 
@@ -62,7 +62,7 @@ async def sse_event_stream(request: Request, client_id: str) -> AsyncGenerator[s
                 break
             try:
                 event = await asyncio.wait_for(queue.get(), timeout=1.0)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 yield ": heartbeat\n\n"
                 continue
             payload = json.dumps(event, default=str)
@@ -77,7 +77,7 @@ async def push_miner_health(summary: MinerHealthSummary) -> None:
     await broadcaster.publish(
         {
             "type": "miner_health",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "payload": summary.model_dump(),
         }
     )
@@ -87,7 +87,7 @@ async def push_alert(alert: Alert) -> None:
     await broadcaster.publish(
         {
             "type": "alert",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "payload": alert.model_dump(),
         }
     )
@@ -97,7 +97,7 @@ async def push_subnet_performance(perf: SubnetPerformance) -> None:
     await broadcaster.publish(
         {
             "type": "subnet_performance",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "payload": perf.model_dump(),
         }
     )

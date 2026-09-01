@@ -26,7 +26,6 @@ an opaque ML model - every decision must be traceable to a rule.
 """
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 
 class ActionLevel(str, Enum):
@@ -70,11 +69,11 @@ MANDATORY_TRIGGER_ACTIONS: frozenset = frozenset({
 @dataclass(frozen=True)
 class ActionContext:
     action_type: str
-    amount_inr: Optional[float] = None
+    amount_inr: float | None = None
     is_reversible: bool = True
     is_dry_run: bool = False
-    risk_score: Optional[float] = None
-    target_subnet: Optional[int] = None
+    risk_score: float | None = None
+    target_subnet: int | None = None
     is_new_subnet: bool = False
 
 
@@ -91,7 +90,7 @@ def classify_action(
     l3_amount_cap_inr: float = DEFAULT_L3_AMOUNT_INR_CAP,
     l2_risk_cap: float = DEFAULT_L2_RISK_CAP,
     l3_risk_cap: float = DEFAULT_L3_RISK_CAP,
-) -> Optional[ActionLevel]:
+) -> ActionLevel | None:
     if ctx.is_dry_run:
         return ActionLevel.L1_AUTO
 

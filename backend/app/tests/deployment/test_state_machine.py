@@ -5,8 +5,8 @@ import pytest
 
 from app.deployment.state_machine import (
     DeploymentState,
-    can_transition,
     assert_can_transition,
+    can_transition,
 )
 
 

@@ -1,8 +1,8 @@
 """
 Opportunity scoring API routes — thin wrappers over OpportunityService.
 """
-from typing import Optional
-from fastapi import APIRouter, Depends, Query, Path, HTTPException, status
+
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
@@ -17,7 +17,7 @@ async def list_opportunities(
     db: AsyncSession = Depends(get_db),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    min_score: Optional[float] = Query(None, ge=0, le=100),
+    min_score: float | None = Query(None, ge=0, le=100),
     sort_by: str = Query("score"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$"),
 ):

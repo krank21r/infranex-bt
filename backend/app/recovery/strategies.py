@@ -12,16 +12,15 @@ Each strategy maps to an L1/L2/L3 action in the classifier:
   escalate_to_human -> L3_mandatory (human approval required)
 """
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Dict
+from datetime import UTC, datetime
+from typing import Any
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.approval.audit import AuditWriter
-from app.approval.classifier import ActionLevel, ActionContext, classify_action
-from app.approval.service import ApprovalService, ApprovalRequestInput
-from app.models import Miner, Deployment, Server
+from app.approval.classifier import ActionContext, ActionLevel, classify_action
+from app.approval.service import ApprovalRequestInput, ApprovalService
+from app.models import Deployment, Miner, Server
 from app.providers.registry import get_provider
 from app.services.deployment_service import DeploymentService
 
@@ -33,10 +32,10 @@ class RecoveryResult:
     message: str
     action_type: str
     action_level: str
-    details: Dict[str, Any]
+    details: dict[str, Any]
     executed_at: str
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "success": self.success,
             "message": self.message,
@@ -48,7 +47,7 @@ class RecoveryResult:
 
 
 def _classify_recovery_action(
-    action_type: str, params: Dict[str, Any]
+    action_type: str, params: dict[str, Any]
 ) -> ActionLevel:
     """Map a recovery action_type to its L1/L2/L3 level."""
     ctx = ActionContext(
@@ -62,7 +61,7 @@ def _classify_recovery_action(
     return level or ActionLevel.L3_MANDATORY
 
 
-async def _audit_log(db: AsyncSession, *, action: str, miner_id: str, reason: str = "", metadata: Dict[str, Any] | None = None) -> None:
+async def _audit_log(db: AsyncSession, *, action: str, miner_id: str, reason: str = "", metadata: dict[str, Any] | None = None) -> None:
     writer = AuditWriter(db)
     await writer.record(
         actor="system:recovery",
@@ -74,7 +73,7 @@ async def _audit_log(db: AsyncSession, *, action: str, miner_id: str, reason: st
     )
 
 
-async def restart_process(db: AsyncSession, action: Dict[str, Any]) -> RecoveryResult:
+async def restart_process(db: AsyncSession, action: dict[str, Any]) -> RecoveryResult:
     """Strategy: restart the miner process."""
     params = action.get("params", {})
     deployment_id = params.get("deployment_id")
@@ -89,7 +88,7 @@ async def restart_process(db: AsyncSession, action: Dict[str, Any]) -> RecoveryR
             action_type="restart_miner",
             action_level=level.value,
             details={"miner_id": miner_id, "deployment_id": deployment_id},
-            executed_at=datetime.now(timezone.utc).isoformat(),
+            executed_at=datetime.now(UTC).isoformat(),
         )
 
     server = None
@@ -126,11 +125,11 @@ async def restart_process(db: AsyncSession, action: Dict[str, Any]) -> RecoveryR
             "new_server_id": new_server.id,
             "new_provider_instance_id": new_server.provider_instance_id,
         },
-        executed_at=datetime.now(timezone.utc).isoformat(),
+        executed_at=datetime.now(UTC).isoformat(),
     )
 
 
-async def redeploy(db: AsyncSession, action: Dict[str, Any]) -> RecoveryResult:
+async def redeploy(db: AsyncSession, action: dict[str, Any]) -> RecoveryResult:
     """Strategy: redeploy the miner (new container / instance)."""
     params = action.get("params", {})
     deployment_id = params.get("deployment_id")
@@ -147,7 +146,7 @@ async def redeploy(db: AsyncSession, action: Dict[str, Any]) -> RecoveryResult:
             action_type=action_type,
             action_level=level.value,
             details={"miner_id": miner_id, "deployment_id": deployment_id},
-            executed_at=datetime.now(timezone.utc).isoformat(),
+            executed_at=datetime.now(UTC).isoformat(),
         )
 
     deployment_service = DeploymentService(db)
@@ -164,7 +163,7 @@ async def redeploy(db: AsyncSession, action: Dict[str, Any]) -> RecoveryResult:
                 "deployment_id": deployment_id,
                 "error": str(exc),
             },
-            executed_at=datetime.now(timezone.utc).isoformat(),
+            executed_at=datetime.now(UTC).isoformat(),
         )
 
     await _audit_log(
@@ -191,11 +190,11 @@ async def redeploy(db: AsyncSession, action: Dict[str, Any]) -> RecoveryResult:
             "final_status": updated.status,
             "server_id": updated.server_id,
         },
-        executed_at=datetime.now(timezone.utc).isoformat(),
+        executed_at=datetime.now(UTC).isoformat(),
     )
 
 
-async def switch_subnet(db: AsyncSession, action: Dict[str, Any]) -> RecoveryResult:
+async def switch_subnet(db: AsyncSession, action: dict[str, Any]) -> RecoveryResult:
     """Strategy: switch miner to an alternative subnet."""
     params = action.get("params", {})
     miner_id = action.get("miner_id")
@@ -214,7 +213,7 @@ async def switch_subnet(db: AsyncSession, action: Dict[str, Any]) -> RecoveryRes
             action_type=action_type,
             action_level=level.value,
             details={"miner_id": miner_id, "target_netuid": target_netuid},
-            executed_at=datetime.now(timezone.utc).isoformat(),
+            executed_at=datetime.now(UTC).isoformat(),
         )
 
     deployment = None
@@ -262,11 +261,11 @@ async def switch_subnet(db: AsyncSession, action: Dict[str, Any]) -> RecoveryRes
             "target_netuid": target_netuid,
             "deployment_id": miner.deployment_id,
         },
-        executed_at=datetime.now(timezone.utc).isoformat(),
+        executed_at=datetime.now(UTC).isoformat(),
     )
 
 
-async def escalate_to_human(db: AsyncSession, action: Dict[str, Any]) -> RecoveryResult:
+async def escalate_to_human(db: AsyncSession, action: dict[str, Any]) -> RecoveryResult:
     """Strategy: escalate to human operator."""
     miner_id = action.get("miner_id")
     reason = action.get("reason", "")
@@ -316,5 +315,5 @@ async def escalate_to_human(db: AsyncSession, action: Dict[str, Any]) -> Recover
             "health_signal": action.get("health_signal", {}),
             "approval_id": approval_id,
         },
-        executed_at=datetime.now(timezone.utc).isoformat(),
+        executed_at=datetime.now(UTC).isoformat(),
     )

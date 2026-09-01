@@ -5,25 +5,27 @@ v2.0 uses the 3-pillar scoring model (utility, technical, economics).
 Falls back to empty data when the database is not configured (mock/dev mode).
 """
 import logging
-from typing import Optional, List, Tuple, Dict, Any
+from typing import Any
 
-from sqlalchemy import select, func, desc, asc
+from sqlalchemy import asc, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.intelligence import (
+    SCORE_MODEL_VERSION,
+    compute_opportunity_score,
+)
 from app.models import (
-    Subnet,
-    SubnetMetrics,
-    MarketData,
-    SubnetRequirement,
     GPUModel,
     GPUOffer,
-    Repository,
+    MarketData,
     OpportunityScore,
-    ScoreComponent as ScoreComponentORM,
+    Repository,
+    Subnet,
+    SubnetMetrics,
+    SubnetRequirement,
 )
-from app.intelligence import (
-    compute_opportunity_score,
-    SCORE_MODEL_VERSION,
+from app.models import (
+    ScoreComponent as ScoreComponentORM,
 )
 
 logger = logging.getLogger(__name__)
@@ -36,7 +38,7 @@ def _to_float(value) -> float:
         return 0.0
 
 
-def _metrics_to_dict(m: SubnetMetrics) -> Dict[str, Any]:
+def _metrics_to_dict(m: SubnetMetrics) -> dict[str, Any]:
     return {
         "netuid": m.netuid,
         "emission": _to_float(m.emission),
@@ -56,7 +58,7 @@ def _metrics_to_dict(m: SubnetMetrics) -> Dict[str, Any]:
     }
 
 
-def _market_to_dict(m: Optional[MarketData]) -> Dict[str, Any]:
+def _market_to_dict(m: MarketData | None) -> dict[str, Any]:
     if m is None:
         return {
             "alpha_price_1d_change": 0.0,
@@ -72,7 +74,7 @@ def _market_to_dict(m: Optional[MarketData]) -> Dict[str, Any]:
     }
 
 
-def _requirements_to_dict(r: Optional[SubnetRequirement]) -> Dict[str, Any]:
+def _requirements_to_dict(r: SubnetRequirement | None) -> dict[str, Any]:
     if r is None:
         return {}
     return {
@@ -96,11 +98,11 @@ def _requirements_to_dict(r: Optional[SubnetRequirement]) -> Dict[str, Any]:
     }
 
 
-def _gpus_to_list(gpus: List[GPUModel]) -> List[Dict[str, Any]]:
+def _gpus_to_list(gpus: list[GPUModel]) -> list[dict[str, Any]]:
     return [{"vram_gb": _to_float(g.vram_gb)} for g in gpus]
 
 
-def _subnet_metadata_to_dict(subnet: Subnet) -> Dict[str, Any]:
+def _subnet_metadata_to_dict(subnet: Subnet) -> dict[str, Any]:
     return {
         "netuid": subnet.netuid,
         "name": subnet.name,
@@ -129,21 +131,21 @@ class OpportunityService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def latest_market(self) -> Optional[MarketData]:
+    async def latest_market(self) -> MarketData | None:
         result = await self.db.execute(
             select(MarketData).order_by(desc(MarketData.recorded_at)).limit(1)
         )
         return result.scalar_one_or_none()
 
-    async def list_requirements(self) -> List[SubnetRequirement]:
+    async def list_requirements(self) -> list[SubnetRequirement]:
         result = await self.db.execute(select(SubnetRequirement))
         return list(result.scalars().all())
 
-    async def list_gpus(self) -> List[GPUModel]:
+    async def list_gpus(self) -> list[GPUModel]:
         result = await self.db.execute(select(GPUModel))
         return list(result.scalars().all())
 
-    async def score_subnet(self, netuid: int) -> Optional[Dict[str, Any]]:
+    async def score_subnet(self, netuid: int) -> dict[str, Any] | None:
         subnet_q = await self.db.execute(
             select(Subnet).where(Subnet.netuid == netuid)
         )
@@ -205,7 +207,7 @@ class OpportunityService:
         return result
 
     async def persist_score(
-        self, netuid: int, score: Dict[str, Any]
+        self, netuid: int, score: dict[str, Any]
     ) -> OpportunityScore:
         pillar_scores = score.get("pillar_scores", {})
         components = score.get("components", [])
@@ -244,7 +246,7 @@ class OpportunityService:
         await self.db.refresh(row)
         return row
 
-    async def get_pillar_breakdown(self, score_id: str) -> Optional[Dict[str, Any]]:
+    async def get_pillar_breakdown(self, score_id: str) -> dict[str, Any] | None:
         result = await self.db.execute(
             select(OpportunityScore).where(OpportunityScore.id == score_id)
         )
@@ -279,11 +281,11 @@ class OpportunityService:
         self,
         page: int = 1,
         page_size: int = 20,
-        min_score: Optional[float] = None,
-        decision: Optional[str] = None,
+        min_score: float | None = None,
+        decision: str | None = None,
         sort_by: str = "score",
         sort_order: str = "desc",
-    ) -> Tuple[List[OpportunityScore], int]:
+    ) -> tuple[list[OpportunityScore], int]:
         query = select(OpportunityScore)
         if min_score is not None:
             query = query.where(OpportunityScore.score >= min_score)
@@ -303,8 +305,8 @@ class OpportunityService:
     async def top_n(
         self,
         limit: int = 10,
-        decision: Optional[str] = None,
-    ) -> List[OpportunityScore]:
+        decision: str | None = None,
+    ) -> list[OpportunityScore]:
         query = select(OpportunityScore)
         if decision is not None:
             query = query.where(OpportunityScore.decision == decision)
@@ -313,7 +315,7 @@ class OpportunityService:
         )
         return list(result.scalars().all())
 
-    async def get_watchlist(self) -> List[OpportunityScore]:
+    async def get_watchlist(self) -> list[OpportunityScore]:
         result = await self.db.execute(
             select(OpportunityScore)
             .where(OpportunityScore.decision == "WATCH")

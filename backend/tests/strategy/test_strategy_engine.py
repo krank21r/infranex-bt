@@ -1,15 +1,12 @@
 """
 Strategy Engine tests.
 """
-import pytest
-from app.strategy.engine import (
-    StrategyEngine,
-    PortfolioConstraints,
-    PortfolioState,
-    Action,
-    STRATEGY_MODEL_VERSION,
-)
 from app.orchestrator.state_machine import MinerState, can_transition
+from app.strategy.engine import (
+    STRATEGY_MODEL_VERSION,
+    PortfolioState,
+    StrategyEngine,
+)
 
 
 class TestStrategyEngine:

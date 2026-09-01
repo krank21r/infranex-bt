@@ -2,13 +2,13 @@
 SQLAlchemy declarative base and common mixins.
 """
 from datetime import datetime
+
 from sqlalchemy import DateTime, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class Base(DeclarativeBase):
     """Declarative base for all ORM models."""
-    pass
 
 
 class TimestampMixin:

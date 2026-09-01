@@ -4,20 +4,19 @@ setup_server, get_status, and parameterized lifecycle across all providers.
 
 Fills gaps in existing provider test coverage.
 """
-import pytest
 from types import SimpleNamespace
+
+import pytest
 
 from app.models.deployment import Server
 from app.providers.base import GPUProvider, offer_from_deployment
-from app.providers.mock import MockProvider
-from app.providers.runpod import RunPodProvider
-from app.providers.vastai import VastAIProvider
-from app.providers.tensordock import TensorDockProvider
 from app.providers.e2e import E2EProvider
+from app.providers.mock import MockProvider
 from app.providers.registry import PROVIDER_REGISTRY
-
+from app.providers.runpod import RunPodProvider
+from app.providers.tensordock import TensorDockProvider
+from app.providers.vastai import VastAIProvider
 from app.tests.providers._support import fake_deployment
-
 
 # ---------- offer_from_deployment ----------
 

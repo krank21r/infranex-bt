@@ -1,6 +1,6 @@
-from logging.config import fileConfig
 import os
 import sys
+from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
 
@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # is what autogenerate inspects. The SQL files in `database/migrations/`
 # remain the source of truth for the existing schema.
 from app.core.config import settings
-from app.models import Base  # noqa: F401 — side effect: registers all models
+from app.models import Base
 
 # Alembic Config object
 config = context.config

@@ -11,6 +11,7 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://infranex-bt.vercel.app'),
   title: {
     default: 'Infranex BT - Bittensor Subnet Intelligence Platform',
     template: '%s | Infranex BT',

@@ -13,11 +13,11 @@ import logging
 import time
 import uuid
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from functools import wraps
-from typing import Any, Callable, Dict, Optional, TypeVar
-
+from typing import Any, TypeVar
 
 # Type variable for generic retry decorator
 T = TypeVar("T")
@@ -32,9 +32,9 @@ class WorkerMetrics:
     runs_success: int = 0
     runs_failed: int = 0
     total_duration_ms: float = 0.0
-    last_run_at: Optional[float] = None
-    last_error: Optional[str] = None
-    retry_counts: Dict[str, int] = field(default_factory=dict)
+    last_run_at: float | None = None
+    last_error: str | None = None
+    retry_counts: dict[str, int] = field(default_factory=dict)
 
     def record_success(self, duration_ms: float) -> None:
         self.runs_total += 1
@@ -66,7 +66,7 @@ class StructuredLogger:
 
     def __init__(self, name: str):
         self.logger = logging.getLogger(name)
-        self._correlation_id: Optional[str] = None
+        self._correlation_id: str | None = None
 
     @property
     def correlation_id(self) -> str:
@@ -100,7 +100,7 @@ class StructuredLogger:
         self.logger.exception(self._format(message, **kwargs))
 
 
-def retry_with_backoff(config: Optional[RetryConfig] = None) -> Callable[[F], F]:
+def retry_with_backoff(config: RetryConfig | None = None) -> Callable[[F], F]:
     """
     Decorator for exponential backoff retry with jitter.
 
@@ -194,7 +194,7 @@ class BaseWorker(ABC):
         self,
         name: str,
         interval_seconds: float = 60.0,
-        retry_config: Optional[RetryConfig] = None,
+        retry_config: RetryConfig | None = None,
     ):
         self.name = name
         self.interval_seconds = interval_seconds
@@ -203,7 +203,7 @@ class BaseWorker(ABC):
         self.metrics = WorkerMetrics(worker_name=name)
         self._running = False
         self._shutdown_event = asyncio.Event()
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
 
     @property
     def is_running(self) -> bool:
@@ -237,7 +237,7 @@ class BaseWorker(ABC):
         if self._task:
             try:
                 await asyncio.wait_for(self._task, timeout=timeout)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self.logger.error(f"Worker {self.name} did not stop gracefully within {timeout}s")
                 self._task.cancel()
                 try:
@@ -277,21 +277,18 @@ class BaseWorker(ABC):
                     self._shutdown_event.wait(),
                     timeout=self.interval_seconds
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Normal interval timeout, continue loop
                 pass
 
     async def on_before_run(self) -> None:
         """Hook called before each run(). Override for pre-flight checks."""
-        pass
 
     async def on_after_run(self) -> None:
         """Hook called after each successful run(). Override for cleanup."""
-        pass
 
     async def on_error(self, error: Exception) -> None:
         """Hook called when run() raises an exception. Override for error handling."""
-        pass
 
     @abstractmethod
     async def run(self) -> None:
@@ -301,7 +298,6 @@ class BaseWorker(ABC):
         Override this method in subclasses to implement the actual work.
         Should be idempotent and handle its own errors appropriately.
         """
-        pass
 
     async def _run_loop_step(self) -> None:
         """Run a single step of the loop (for testing)."""
@@ -312,7 +308,7 @@ class BaseWorker(ABC):
         except Exception as e:
             await self.on_error(e)
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         """Get current worker metrics as dictionary."""
         return {
             "worker_name": self.metrics.worker_name,

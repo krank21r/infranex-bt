@@ -17,14 +17,14 @@ from app.providers.tensordock import TensorDockProvider
 from app.providers.vastai import VastAIProvider
 
 __all__ = [
+    "PROVIDER_REGISTRY",
+    "E2EProvider",
     "GPUProvider",
     "MockProvider",
     "ProductionProvider",
     "RunPodProvider",
-    "VastAIProvider",
     "TensorDockProvider",
-    "E2EProvider",
-    "PROVIDER_REGISTRY",
+    "VastAIProvider",
     "default_mode",
     "get_provider",
     "offer_from_deployment",

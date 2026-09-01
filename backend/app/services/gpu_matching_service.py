@@ -11,16 +11,16 @@ This is a NEW service — it does not augment GPUService. It composes with it
 so the existing read-only catalog layer stays untouched.
 """
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import GPUOffer, GPUModel
 from app.intelligence.gpu_matching import (
-    rank_offers_for_requirements,
     RankedOffer,
+    rank_offers_for_requirements,
 )
+from app.models import GPUModel, GPUOffer
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +31,9 @@ class GPUMatchingService:
 
     async def _fetch_offer_dicts(
         self,
-        min_vram_gb: Optional[float] = None,
+        min_vram_gb: float | None = None,
         availability: str = "available",
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Fetch active offers joined with their GPU model name.
 
         Filters at the SQL level using `min_vram_gb` (cheap prefilter — the
@@ -50,7 +50,7 @@ class GPUMatchingService:
         result = await self.db.execute(stmt)
         rows = result.all()
 
-        dicts: List[Dict[str, Any]] = []
+        dicts: list[dict[str, Any]] = []
         for offer, gpu_name in rows:
             d = {
                 "id": offer.id,
@@ -73,11 +73,11 @@ class GPUMatchingService:
 
     async def match_offers(
         self,
-        requirements: Dict[str, Any],
-        preferred_region: Optional[str] = None,
+        requirements: dict[str, Any],
+        preferred_region: str | None = None,
         page: int = 1,
         page_size: int = 10,
-    ) -> Tuple[List[RankedOffer], int]:
+    ) -> tuple[list[RankedOffer], int]:
         """Rank GPU offers for a subnet's requirements.
 
         Args:

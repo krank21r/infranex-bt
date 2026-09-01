@@ -14,7 +14,6 @@ import pytest
 from app.clients.bittensor import FakeBittensorClient
 from app.clients.snapshots import (
     EmissionSnapshot,
-    IncentiveSnapshot,
     MetricsSnapshot,
     NeuronSnapshot,
     SubnetSnapshot,

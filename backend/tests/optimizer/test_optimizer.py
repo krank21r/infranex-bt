@@ -7,20 +7,17 @@ Pins the contract:
   - suggest_config_tweaks surfaces spot, VRAM, ports, and docker issues.
   - Pure helpers are deterministic and side-effect-free.
 """
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from app.optimizer.optimizer import (
-    Optimizer,
-    CheaperOffer,
-    SubnetAlternative,
-    ConfigSuggestion,
     OPTIMIZER_MODEL_VERSION,
-    _score_cost_savings_pure,
+    Optimizer,
     _evaluate_subnet_alternative_pure,
+    _score_cost_savings_pure,
     _suggest_config_tweaks_pure,
 )
-
 
 # ---------- pure helper tests ----------
 

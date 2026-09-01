@@ -12,11 +12,10 @@ Verifies:
   - POST /api/v2/opportunities/compare returns side-by-side breakdown.
 """
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
-
 
 os.environ.setdefault("DATABASE_URL", "postgresql://localhost/test")
 os.environ.setdefault("SUPABASE_URL", "https://localhost.test")
@@ -228,8 +227,8 @@ def test_score_all_endpoint_returns_status():
 
 def test_history_endpoint_returns_pillar_timeline():
     client = _client()
-    now = datetime.now(timezone.utc)
-    mock_points = [
+    now = datetime.now(UTC)
+    [
         {"recorded_at": now - timedelta(days=2), "total_score": 65.0, "pillar_scores": {"economic_potential": 60.0}},
         {"recorded_at": now - timedelta(days=1), "total_score": 70.0, "pillar_scores": {"economic_potential": 65.0}},
     ]
@@ -241,8 +240,8 @@ def test_history_endpoint_returns_pillar_timeline():
     ]
 
     from app.api.deps import get_db
-    from app.main import app
     from app.api.routes import opportunities_v2
+    from app.main import app
 
     async def _override_get_db():
         session = MagicMock()

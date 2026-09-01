@@ -17,19 +17,21 @@ The test session uses AsyncMock for the DB session — same pattern
 as `test_approval_service.py`. The MonitoringService is patched
 out so the worker does not touch the real monitoring SQL.
 """
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from app.intelligence.monitoring import MigrateSignal as MigrationSignal
 from app.services.approval_service import ACTION_MIGRATE
 from app.workers.migration_worker import (
-    MigrationWorker,
     ACTION_MIGRATE as WORKER_ACTION_MIGRATE,
-    ELIGIBLE_STATUSES,
+)
+from app.workers.migration_worker import (
     AUTO_REASON_PREFIX,
+    ELIGIBLE_STATUSES,
+    MigrationWorker,
     create_migration_worker,
 )
-
 
 # ---------- helpers ----------
 

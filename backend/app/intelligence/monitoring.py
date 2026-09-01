@@ -34,10 +34,10 @@ NOT in scope (deferred):
   - No multi-window analysis (e.g. "1h AND 24h both negative"). One
     rolling window is enough to start.
 """
+from collections.abc import Sequence
 from dataclasses import dataclass
 from statistics import median
-from typing import Any, Dict, Optional, Sequence, Tuple
-
+from typing import Any
 
 # Default model version. Bump on any change to the migrate rule.
 MONITOR_MODEL_VERSION = "v1.0"
@@ -60,14 +60,14 @@ BLOCKS_PER_MONTH = 30_000
 @dataclass(frozen=True)
 class RollingROI:
     """Result of `compute_rolling_roi`."""
-    rolling_roi: Optional[float]   # median(profit / cost) over the window
+    rolling_roi: float | None   # median(profit / cost) over the window
     sample_size: int
     is_negative: bool              # True iff rolling_roi < 0 and sample_size > 0
     monthly_revenue_usd: float     # median revenue across the window
     monthly_cost_usd: float        # passthrough
     model_version: str
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "rolling_roi": self.rolling_roi,
             "sample_size": self.sample_size,
@@ -83,11 +83,11 @@ class MigrateSignal:
     """Result of `should_migrate`. Read-only signal, no side effects."""
     should_migrate: bool
     reason: str
-    rolling_roi: Optional[float]
+    rolling_roi: float | None
     sample_size: int
     model_version: str
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "should_migrate": self.should_migrate,
             "reason": self.reason,
@@ -104,7 +104,7 @@ def record_emission(
     block: int,
     netuid: int,
     tao_per_block: float,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Format one (block, subnet, per-block-TAO) snapshot.
 
     Pure formatter — no DB, no time. The service layer (or the
@@ -126,7 +126,7 @@ def _per_observation_revenue(tao_per_block: float, tao_price_usd: float) -> floa
 
 
 def compute_rolling_roi(
-    observations: Sequence[Tuple[int, float]],
+    observations: Sequence[tuple[int, float]],
     monthly_cost_usd: float,
     tao_price_usd: float,
     *,
@@ -186,7 +186,7 @@ def compute_rolling_roi(
 
 
 def should_migrate(
-    observations: Sequence[Tuple[int, float]],
+    observations: Sequence[tuple[int, float]],
     monthly_cost_usd: float,
     tao_price_usd: float,
     *,

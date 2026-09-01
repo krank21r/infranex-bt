@@ -15,8 +15,8 @@ import { OpportunityCard } from '@/components/cards/opportunity-card'
 import { ChangesCard } from '@/components/cards/changes-card'
 import { RevenueChart } from '@/components/charts/revenue-chart'
 import { formatNumber, formatPercent, formatTao, getStatusColor, cn } from '@/lib/utils'
-import { adaptSubnet, BackendSubnet } from '@/lib/adapters'
-import type { Opportunity } from '@/types'
+import { adaptSubnet, BackendSubnet, BackendOpportunityDetail, BackendScoreComponent } from '@/lib/adapters'
+import type { Opportunity, OpportunityFactor } from '@/types'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Progress } from '@/components/ui/progress'
 import { useMemo, useState } from 'react'
@@ -206,9 +206,9 @@ export default function SubnetDetailPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <InfoRow label="Subnet Type" value={(subnetData as any)?.subnet_type || 'Unknown'} />
-                  <InfoRow label="Difficulty" value={(subnetData as any)?.difficulty ? formatNumber((subnetData as any).difficulty) : '—'} />
-                  <InfoRow label="Registration" value={(subnetData as any)?.registration_open ? 'Open' : 'Closed'} />
+                  <InfoRow label="Subnet Type" value={(subnetData as unknown as { subnet_type?: string })?.subnet_type || 'Unknown'} />
+                  <InfoRow label="Difficulty" value={(subnetData as unknown as { difficulty?: number })?.difficulty ? formatNumber((subnetData as unknown as { difficulty: number }).difficulty) : '—'} />
+                  <InfoRow label="Registration" value={(subnetData as unknown as { registration_open?: boolean })?.registration_open ? 'Open' : 'Closed'} />
                   <InfoRow label="Created" value={subnetData?.created_at ? new Date(subnetData.created_at).toLocaleDateString() : '—'} />
                   <InfoRow label="Updated" value={subnetData?.updated_at ? new Date(subnetData.updated_at).toLocaleDateString() : '—'} />
                   <InfoRow label="Block" value={latestMetrics?.block ? formatNumber(latestMetrics.block) : '—'} />
@@ -318,7 +318,7 @@ export default function SubnetDetailPage() {
                   <CardContent>
                     {opportunityData.components && opportunityData.components.length > 0 ? (
                       <div className="space-y-3">
-                        {opportunityData.components.map((comp: any, idx: number) => (
+                        {opportunityData.components.map((comp: { name?: string; score?: number; weighted?: number; weight?: number; explanation?: string }, idx: number) => (
                           <ComponentScoreRow key={idx} component={comp} />
                         ))}
                       </div>
@@ -668,7 +668,7 @@ function truncate(str: string, length: number): string {
   return `${str.slice(0, length)}...`
 }
 
-function adaptOpportunityDetail(b: any): Opportunity {
+function adaptOpportunityDetail(b: BackendOpportunityDetail): Opportunity {
   const score = Number(b.total_score ?? 0)
   const COMPONENT_LABELS: Record<string, string> = {
     economic_potential: 'Economic Potential',
@@ -687,13 +687,13 @@ function adaptOpportunityDetail(b: any): Opportunity {
     return 'high'
   }
 
-  function deriveFactors(components: any[]): any[] {
+  function deriveFactors(components: BackendScoreComponent[]): OpportunityFactor[] {
     return (components ?? []).map((c) => ({
-      name: COMPONENT_LABELS[c.name] ?? c.name,
-      value: c.weighted,
-      weight: c.weight,
-      impact: c.score >= 60 ? 'positive' : c.score <= 40 ? 'negative' : 'neutral',
-      description: c.explanation ?? '',
+      name: COMPONENT_LABELS[c.name as string] ?? (c.name as string),
+      value: c.weighted as number,
+      weight: c.weight as number,
+      impact: (c.score as number) >= 60 ? 'positive' : (c.score as number) <= 40 ? 'negative' : 'neutral',
+      description: (c.explanation as string) ?? '',
     }))
   }
 

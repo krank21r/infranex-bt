@@ -1,13 +1,14 @@
 """
 Custom exceptions and error handlers for the application.
 """
-from typing import Any, Dict, Optional
-from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
-from starlette.exceptions import HTTPException as StarletteHTTPException
-from pydantic import ValidationError, BaseModel
+from typing import Any
+
 import structlog
+from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 logger = structlog.get_logger(__name__)
 
@@ -16,13 +17,13 @@ logger = structlog.get_logger(__name__)
 
 class AppException(Exception):
     """Base application exception."""
-    
+
     def __init__(
         self,
         message: str,
         status_code: int = status.HTTP_500_INTERNAL_SERVER_ERROR,
         error_code: str = "INTERNAL_ERROR",
-        details: Optional[Dict[str, Any]] = None,
+        details: dict[str, Any] | None = None,
     ):
         self.message = message
         self.status_code = status_code
@@ -33,8 +34,8 @@ class AppException(Exception):
 
 class ValidationException(AppException):
     """Validation error exception."""
-    
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+
+    def __init__(self, message: str, details: dict[str, Any] | None = None):
         super().__init__(
             message=message,
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -45,7 +46,7 @@ class ValidationException(AppException):
 
 class NotFoundException(AppException):
     """Resource not found exception."""
-    
+
     def __init__(self, resource: str, identifier: Any):
         super().__init__(
             message=f"{resource} not found",
@@ -57,8 +58,8 @@ class NotFoundException(AppException):
 
 class ConflictException(AppException):
     """Resource conflict exception."""
-    
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+
+    def __init__(self, message: str, details: dict[str, Any] | None = None):
         super().__init__(
             message=message,
             status_code=status.HTTP_409_CONFLICT,
@@ -69,8 +70,8 @@ class ConflictException(AppException):
 
 class UnauthorizedException(AppException):
     """Unauthorized access exception."""
-    
-    def __init__(self, message: str = "Unauthorized", details: Optional[Dict[str, Any]] = None):
+
+    def __init__(self, message: str = "Unauthorized", details: dict[str, Any] | None = None):
         super().__init__(
             message=message,
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -81,8 +82,8 @@ class UnauthorizedException(AppException):
 
 class ForbiddenException(AppException):
     """Forbidden access exception."""
-    
-    def __init__(self, message: str = "Forbidden", details: Optional[Dict[str, Any]] = None):
+
+    def __init__(self, message: str = "Forbidden", details: dict[str, Any] | None = None):
         super().__init__(
             message=message,
             status_code=status.HTTP_403_FORBIDDEN,
@@ -93,7 +94,7 @@ class ForbiddenException(AppException):
 
 class RateLimitException(AppException):
     """Rate limit exceeded exception."""
-    
+
     def __init__(self, message: str = "Rate limit exceeded", retry_after: int = 60):
         super().__init__(
             message=message,
@@ -105,8 +106,8 @@ class RateLimitException(AppException):
 
 class ExternalServiceException(AppException):
     """External service error exception."""
-    
-    def __init__(self, service: str, message: str, details: Optional[Dict[str, Any]] = None):
+
+    def __init__(self, service: str, message: str, details: dict[str, Any] | None = None):
         super().__init__(
             message=f"{service} error: {message}",
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -117,8 +118,8 @@ class ExternalServiceException(AppException):
 
 class DatabaseException(AppException):
     """Database operation error exception."""
-    
-    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+
+    def __init__(self, message: str, details: dict[str, Any] | None = None):
         super().__init__(
             message=message,
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -132,7 +133,7 @@ class DatabaseException(AppException):
 
 class ErrorDetail(BaseModel):
     """Error detail model."""
-    field: Optional[str] = None
+    field: str | None = None
     message: str
     code: str
 
@@ -142,15 +143,15 @@ class ErrorResponse(BaseModel):
     error: str
     error_code: str
     message: str
-    details: Optional[Dict[str, Any]] = None
-    request_id: Optional[str] = None
+    details: dict[str, Any] | None = None
+    request_id: str | None = None
 
 
 # --- Exception Handlers ---
 
 def register_exception_handlers(app: FastAPI) -> None:
     """Register all exception handlers with the FastAPI app."""
-    
+
     @app.exception_handler(AppException)
     async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
         logger.error(
@@ -170,7 +171,7 @@ def register_exception_handlers(app: FastAPI) -> None:
                 request_id=request.headers.get("X-Request-ID"),
             ).model_dump(),
         )
-    
+
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         logger.warning(
@@ -188,7 +189,7 @@ def register_exception_handlers(app: FastAPI) -> None:
                 request_id=request.headers.get("X-Request-ID"),
             ).model_dump(),
         )
-    
+
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
         logger.warning(
@@ -216,7 +217,7 @@ def register_exception_handlers(app: FastAPI) -> None:
                 request_id=request.headers.get("X-Request-ID"),
             ).model_dump(),
         )
-    
+
     @app.exception_handler(ValidationError)
     async def pydantic_validation_exception_handler(request: Request, exc: ValidationError) -> JSONResponse:
         logger.warning(
@@ -244,7 +245,7 @@ def register_exception_handlers(app: FastAPI) -> None:
                 request_id=request.headers.get("X-Request-ID"),
             ).model_dump(),
         )
-    
+
     @app.exception_handler(Exception)
     async def generic_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         logger.exception(
@@ -271,17 +272,17 @@ def raise_not_found(resource: str, identifier: Any) -> None:
     raise NotFoundException(resource, identifier)
 
 
-def raise_conflict(message: str, details: Optional[Dict[str, Any]] = None) -> None:
+def raise_conflict(message: str, details: dict[str, Any] | None = None) -> None:
     """Raise a ConflictException."""
     raise ConflictException(message, details)
 
 
-def raise_unauthorized(message: str = "Unauthorized", details: Optional[Dict[str, Any]] = None) -> None:
+def raise_unauthorized(message: str = "Unauthorized", details: dict[str, Any] | None = None) -> None:
     """Raise an UnauthorizedException."""
     raise UnauthorizedException(message, details)
 
 
-def raise_forbidden(message: str = "Forbidden", details: Optional[Dict[str, Any]] = None) -> None:
+def raise_forbidden(message: str = "Forbidden", details: dict[str, Any] | None = None) -> None:
     """Raise a ForbiddenException."""
     raise ForbiddenException(message, details)
 

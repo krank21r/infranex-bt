@@ -7,18 +7,22 @@ alerts for the Learning Engine.
 """
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
-    OpportunityScore,
-    ScoreComponent,
     AccuracyTracking as AccuracyTrackingORM,
-    DriftAlert as DriftAlertORM,
+)
+from app.models import (
     Deployment,
+    OpportunityScore,
     Profitability,
+    ScoreComponent,
+)
+from app.models import (
+    DriftAlert as DriftAlertORM,
 )
 
 logger = logging.getLogger(__name__)
@@ -30,21 +34,21 @@ LEARNING_MODEL_VERSION = "v1.0"
 class AccuracyRecord:
     """One predicted-vs-actual comparison."""
     opportunity_score_id: str
-    deployment_id: Optional[str]
+    deployment_id: str | None
     netuid: int
     predicted_score: float
-    actual_roi_7d: Optional[float]
-    actual_roi_14d: Optional[float]
-    actual_roi_30d: Optional[float]
-    actual_roi: Optional[float]
-    error_percentage: Optional[float]
-    absolute_error: Optional[float]
-    component_errors: Dict[str, float]
-    score_model_version: Optional[str]
+    actual_roi_7d: float | None
+    actual_roi_14d: float | None
+    actual_roi_30d: float | None
+    actual_roi: float | None
+    error_percentage: float | None
+    absolute_error: float | None
+    component_errors: dict[str, float]
+    score_model_version: str | None
     evaluation_days: int
     recorded_at: Any
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "opportunity_score_id": self.opportunity_score_id,
             "deployment_id": self.deployment_id,
@@ -68,16 +72,16 @@ class AccuracyMetrics:
     """Aggregated accuracy stats for a model version."""
     model_version: str
     sample_size: int
-    mean_absolute_error: Optional[float]
-    mean_error_percentage: Optional[float]
-    median_error_percentage: Optional[float]
+    mean_absolute_error: float | None
+    mean_error_percentage: float | None
+    median_error_percentage: float | None
     within_10_pct: float
     within_25_pct: float
     within_50_pct: float
-    component_accuracy: Dict[str, Dict[str, Optional[float]]]
+    component_accuracy: dict[str, dict[str, float | None]]
     computed_at: Any
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "model_version": self.model_version,
             "sample_size": self.sample_size,
@@ -103,10 +107,10 @@ class DriftAlert:
     threshold: float
     severity: str
     is_resolved: bool
-    resolved_at: Optional[Any]
+    resolved_at: Any | None
     created_at: Any
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "model_version": self.model_version,
             "metric_name": self.metric_name,
@@ -129,7 +133,7 @@ class AccuracyTracker:
         self,
         opportunity_score_id: str,
         actual_roi_after_days: int,
-    ) -> Optional[AccuracyRecord]:
+    ) -> AccuracyRecord | None:
         """Compare a past OpportunityScore prediction against actual ROI.
 
         Fetches the score row, the linked deployment (if any), and the
@@ -186,7 +190,7 @@ class AccuracyTracker:
                 select(ScoreComponent).where(ScoreComponent.opportunity_score_id == opportunity_score_id)
             )
         ).scalars().all()
-        component_errors: Dict[str, float] = {}
+        component_errors: dict[str, float] = {}
         for c in comp_rows:
             if actual_roi is not None and c.weight and c.weight > 0:
                 component_errors[c.component_name] = abs(
@@ -262,7 +266,7 @@ class AccuracyTracker:
         within_25 = sum(1 for e in errors if e <= 25.0) / len(errors) if errors else 0.0
         within_50 = sum(1 for e in errors if e <= 50.0) / len(errors) if errors else 0.0
 
-        comp_acc: Dict[str, Dict[str, Optional[float]]] = {}
+        comp_acc: dict[str, dict[str, float | None]] = {}
         for r in rows:
             if r.component_errors:
                 for comp_name, err_val in r.component_errors.items():
@@ -291,7 +295,7 @@ class AccuracyTracker:
 
     async def detect_drift(
         self, model_version: str, threshold: float = 0.3
-    ) -> List[DriftAlert]:
+    ) -> list[DriftAlert]:
         """Detect if model accuracy has drifted beyond the given threshold.
 
         Compares recent accuracy metrics against the historical baseline
@@ -317,7 +321,7 @@ class AccuracyTracker:
         baseline_rows = all_rows[:mid]
         recent_rows = all_rows[mid:]
 
-        def _avg_error(rows: List[AccuracyTrackingORM]) -> Optional[float]:
+        def _avg_error(rows: list[AccuracyTrackingORM]) -> float | None:
             vals = [float(r.error_percentage) for r in rows if r.error_percentage is not None]
             if not vals:
                 return None
@@ -326,7 +330,7 @@ class AccuracyTracker:
         baseline_err = _avg_error(baseline_rows)
         recent_err = _avg_error(recent_rows)
 
-        alerts: List[DriftAlert] = []
+        alerts: list[DriftAlert] = []
         if baseline_err is None or recent_err is None or baseline_err == 0:
             return alerts
 

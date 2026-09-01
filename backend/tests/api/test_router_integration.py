@@ -23,10 +23,7 @@ What this file pins:
 The bar: if any router stops being included, or any health
 endpoint regresses, this file catches it.
 """
-import pytest
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
 
 # ---------- helpers ----------
 

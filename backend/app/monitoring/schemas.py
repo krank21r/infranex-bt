@@ -6,10 +6,11 @@ No DB dependency here — these are the in-flight representations.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Any, Optional
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AlertSeverity(str, Enum):
@@ -33,10 +34,10 @@ class Alert(BaseModel):
     alert_type: AlertType
     severity: AlertSeverity
     message: str
-    miner_id: Optional[str] = None
+    miner_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    resolved_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    resolved_at: datetime | None = None
     is_resolved: bool = False
 
 
@@ -47,18 +48,18 @@ class MinerHealthSummary(BaseModel):
     status: str
     netuid: int
     hotkey_address: str
-    health_score: Optional[float] = None
-    uptime_seconds: Optional[int] = None
-    last_health_check: Optional[datetime] = None
+    health_score: float | None = None
+    uptime_seconds: int | None = None
+    last_health_check: datetime | None = None
 
     latest_gpu: dict[str, Any] = Field(default_factory=dict)
-    gpu_utilization_avg: Optional[float] = None
-    gpu_temperature_avg: Optional[float] = None
+    gpu_utilization_avg: float | None = None
+    gpu_temperature_avg: float | None = None
 
-    emission: Optional[float] = None
-    incentive: Optional[float] = None
-    rank: Optional[float] = None
-    trust: Optional[float] = None
+    emission: float | None = None
+    incentive: float | None = None
+    rank: float | None = None
+    trust: float | None = None
 
     active_alerts: int = 0
     recent_errors: list[str] = Field(default_factory=list)
@@ -71,11 +72,11 @@ class SubnetPerformance(BaseModel):
     miner_count: int
     active_miners: int
     down_miners: int
-    avg_health_score: Optional[float] = None
-    avg_gpu_utilization: Optional[float] = None
-    avg_gpu_temperature: Optional[float] = None
-    total_emission: Optional[float] = None
-    total_incentive: Optional[float] = None
+    avg_health_score: float | None = None
+    avg_gpu_utilization: float | None = None
+    avg_gpu_temperature: float | None = None
+    total_emission: float | None = None
+    total_incentive: float | None = None
     active_alerts: int = 0
     miners: list[MinerHealthSummary] = Field(default_factory=list)
 
@@ -93,7 +94,7 @@ class SystemOverview(BaseModel):
     critical_alerts: int
     warning_alerts: int
     info_alerts: int
-    avg_system_health_score: Optional[float] = None
-    total_emission_24h: Optional[float] = None
-    total_incentive_24h: Optional[float] = None
+    avg_system_health_score: float | None = None
+    total_emission_24h: float | None = None
+    total_incentive_24h: float | None = None
     alerts: list[Alert] = Field(default_factory=list)

@@ -1,17 +1,17 @@
 """
 Authentication module for JWT validation and Supabase auth integration.
 """
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
 import jwt
-from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, Any
 from fastapi import Depends, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jwt.exceptions import InvalidTokenError, ExpiredSignatureError
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 
 from app.core.config import settings
 from app.core.database import get_supabase_admin
 from app.schemas.auth import TokenData, User
-
 
 # Security scheme
 security = HTTPBearer(auto_error=False)
@@ -25,31 +25,31 @@ class AuthError(Exception):
         super().__init__(message)
 
 
-def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
     """Create a JWT access token."""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = datetime.now(UTC) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire, "type": "access"})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
 
-def create_refresh_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+def create_refresh_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
     """Create a JWT refresh token."""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
+        expire = datetime.now(UTC) + expires_delta
     else:
-        expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+        expire = datetime.now(UTC) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     to_encode.update({"exp": expire, "type": "refresh"})
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return encoded_jwt
 
 
-def decode_token(token: str) -> Dict[str, Any]:
+def decode_token(token: str) -> dict[str, Any]:
     """Decode and validate a JWT token."""
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
@@ -57,10 +57,10 @@ def decode_token(token: str) -> Dict[str, Any]:
     except ExpiredSignatureError:
         raise AuthError("Token has expired", status.HTTP_401_UNAUTHORIZED)
     except InvalidTokenError as e:
-        raise AuthError(f"Invalid token: {str(e)}", status.HTTP_401_UNAUTHORIZED)
+        raise AuthError(f"Invalid token: {e!s}", status.HTTP_401_UNAUTHORIZED)
 
 
-def verify_supabase_token(token: str) -> Optional[Dict[str, Any]]:
+def verify_supabase_token(token: str) -> dict[str, Any] | None:
     """
     Verify a Supabase JWT token using the JWT secret.
     Supabase tokens are JWTs signed with the project's JWT secret.
@@ -78,7 +78,7 @@ def verify_supabase_token(token: str) -> Optional[Dict[str, Any]]:
     except ExpiredSignatureError:
         raise AuthError("Supabase token has expired", status.HTTP_401_UNAUTHORIZED)
     except InvalidTokenError as e:
-        raise AuthError(f"Invalid Supabase token: {str(e)}", status.HTTP_401_UNAUTHORIZED)
+        raise AuthError(f"Invalid Supabase token: {e!s}", status.HTTP_401_UNAUTHORIZED)
 
 
 async def get_current_user_from_supabase(
@@ -90,27 +90,27 @@ async def get_current_user_from_supabase(
     """
     if not credentials:
         raise AuthError("Not authenticated", status.HTTP_401_UNAUTHORIZED)
-    
+
     token = credentials.credentials
-    
+
     # Verify the Supabase token
     try:
         payload = verify_supabase_token(token)
     except AuthError:
         raise
-    
+
     # Extract user ID from token
     user_id = payload.get("sub")
     if not user_id:
         raise AuthError("Invalid token: missing user ID", status.HTTP_401_UNAUTHORIZED)
-    
+
     # Fetch user from Supabase
     try:
         supabase = await get_supabase_admin()
         user_response = supabase.auth.admin.get_user_by_id(user_id)
         if not user_response.user:
             raise AuthError("User not found", status.HTTP_404_NOT_FOUND)
-        
+
         user_data = user_response.user
         return User(
             id=user_data.id,
@@ -122,19 +122,19 @@ async def get_current_user_from_supabase(
             is_active=True,
         )
     except Exception as e:
-        raise AuthError(f"Failed to fetch user: {str(e)}", status.HTTP_500_INTERNAL_SERVER_ERROR)
+        raise AuthError(f"Failed to fetch user: {e!s}", status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 async def get_current_user_optional(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> Optional[User]:
+) -> User | None:
     """
     Get current user if authenticated, otherwise return None.
     Useful for endpoints that work both with and without auth.
     """
     if not credentials:
         return None
-    
+
     try:
         return await get_current_user_from_supabase(credentials)
     except AuthError:
@@ -148,9 +148,9 @@ def get_token_data(credentials: HTTPAuthorizationCredentials = Depends(security)
     """
     if not credentials:
         raise AuthError("Not authenticated", status.HTTP_401_UNAUTHORIZED)
-    
+
     token = credentials.credentials
-    
+
     try:
         payload = verify_supabase_token(token)
         return TokenData(
@@ -162,7 +162,7 @@ def get_token_data(credentials: HTTPAuthorizationCredentials = Depends(security)
     except AuthError:
         raise
     except Exception as e:
-        raise AuthError(f"Invalid token: {str(e)}", status.HTTP_401_UNAUTHORIZED)
+        raise AuthError(f"Invalid token: {e!s}", status.HTTP_401_UNAUTHORIZED)
 
 
 # --- Permission Helpers ---
@@ -188,27 +188,27 @@ def require_admin(token_data: TokenData = Depends(get_token_data)) -> TokenData:
 
 # --- Token Refresh ---
 
-async def refresh_access_token(refresh_token: str) -> Dict[str, str]:
+async def refresh_access_token(refresh_token: str) -> dict[str, str]:
     """Refresh an access token using a valid refresh token."""
     try:
         payload = decode_token(refresh_token)
         if payload.get("type") != "refresh":
             raise AuthError("Invalid token type", status.HTTP_401_UNAUTHORIZED)
-        
+
         user_id = payload.get("sub")
         if not user_id:
             raise AuthError("Invalid token: missing user ID", status.HTTP_401_UNAUTHORIZED)
-        
+
         # Verify user still exists in Supabase
         supabase = await get_supabase_admin()
         user_response = supabase.auth.admin.get_user_by_id(user_id)
         if not user_response.user:
             raise AuthError("User not found", status.HTTP_404_NOT_FOUND)
-        
+
         # Create new tokens
         new_access_token = create_access_token({"sub": user_id})
         new_refresh_token = create_refresh_token({"sub": user_id})
-        
+
         return {
             "access_token": new_access_token,
             "refresh_token": new_refresh_token,
@@ -217,4 +217,4 @@ async def refresh_access_token(refresh_token: str) -> Dict[str, str]:
     except AuthError:
         raise
     except Exception as e:
-        raise AuthError(f"Token refresh failed: {str(e)}", status.HTTP_500_INTERNAL_SERVER_ERROR)
+        raise AuthError(f"Token refresh failed: {e!s}", status.HTTP_500_INTERNAL_SERVER_ERROR)

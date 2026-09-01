@@ -5,14 +5,14 @@ Wires together the existing services into a coherent flow:
   Strategy -> Approval -> Provision -> Setup -> Deploy -> Monitor -> Optimize/Recover
 """
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Miner
-from app.strategy.engine import PortfolioState, Action
 from app.orchestrator.state_machine import MinerLifecycle, MinerState
+from app.strategy.engine import Action, PortfolioState
 
 logger = logging.getLogger(__name__)
 
@@ -31,14 +31,14 @@ class MinerOrchestrator:
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
-        self._lifecycles: Dict[str, MinerLifecycle] = {}
+        self._lifecycles: dict[str, MinerLifecycle] = {}
 
     def _lifecycle(self, miner_id: str, netuid: int) -> MinerLifecycle:
         if miner_id not in self._lifecycles:
             self._lifecycles[miner_id] = MinerLifecycle(miner_id=miner_id, netuid=netuid)
         return self._lifecycles[miner_id]
 
-    async def process_action(self, action: Action) -> Dict[str, Any]:
+    async def process_action(self, action: Action) -> dict[str, Any]:
         """Process a single Strategy Action.
 
         Routes the action through the appropriate lifecycle states.
@@ -53,7 +53,7 @@ class MinerOrchestrator:
         else:
             return {"status": "unknown", "action": action.to_dict()}
 
-    async def _handle_enter(self, action: Action) -> Dict[str, Any]:
+    async def _handle_enter(self, action: Action) -> dict[str, Any]:
         """Route an ENTER action through approval -> provisioning -> setup -> deploy."""
         netuid = action.netuid
         lifecycle = self._lifecycle("pending", netuid)
@@ -73,7 +73,7 @@ class MinerOrchestrator:
             "model_version": ORCHESTRATOR_MODEL_VERSION,
         }
 
-    async def _handle_exit(self, action: Action) -> Dict[str, Any]:
+    async def _handle_exit(self, action: Action) -> dict[str, Any]:
         """Route an EXIT action — find running miners on the subnet and terminate."""
         netuid = action.netuid
         result = await self.db.execute(
@@ -102,7 +102,7 @@ class MinerOrchestrator:
             "model_version": ORCHESTRATOR_MODEL_VERSION,
         }
 
-    async def tick(self, portfolio: PortfolioState) -> Dict[str, Any]:
+    async def tick(self, portfolio: PortfolioState) -> dict[str, Any]:
         """Run one orchestrator tick.
 
         In a full implementation this would:

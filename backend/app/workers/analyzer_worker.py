@@ -10,14 +10,14 @@ Mock mode is the default; the GitHub client only activates when
 `DEPLOYMENT_MODE == "production"` AND `GITHUB_TOKEN` is set, so tests + dev
 never hit the network.
 """
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.workers.base import BaseWorker, RetryConfig, StructuredLogger
-from app.services.subnet_service import SubnetService
-from app.services.analyzer_service import AnalyzerService
 from app.clients.github import create_github_file_fetcher
+from app.services.analyzer_service import AnalyzerService
+from app.services.subnet_service import SubnetService
+from app.workers.base import BaseWorker, RetryConfig, StructuredLogger
 
 
 class AnalyzerWorker(BaseWorker):
@@ -26,8 +26,8 @@ class AnalyzerWorker(BaseWorker):
     def __init__(
         self,
         interval_seconds: float = 86400.0,  # 24h — repos don't change often
-        config: Optional[Dict[str, Any]] = None,
-        db: Optional[AsyncSession] = None,
+        config: dict[str, Any] | None = None,
+        db: AsyncSession | None = None,
     ):
         retry_config = RetryConfig(
             max_attempts=3,
@@ -42,7 +42,7 @@ class AnalyzerWorker(BaseWorker):
         self.config = config or {}
         self.logger = StructuredLogger("worker.analyzer")
         self.db = db
-        self._subnets: Optional[SubnetService] = SubnetService(db) if db is not None else None
+        self._subnets: SubnetService | None = SubnetService(db) if db is not None else None
         self._fetcher = create_github_file_fetcher()
         self._analyzer = AnalyzerService(fetcher=self._fetcher)
 
@@ -62,7 +62,7 @@ class AnalyzerWorker(BaseWorker):
 
         analyzed = 0
         skipped = 0
-        errors: List[str] = []
+        errors: list[str] = []
         confidence_sum = 0.0
         confidence_count = 0
 
@@ -97,8 +97,8 @@ class AnalyzerWorker(BaseWorker):
 
 def create_analyzer_worker(
     interval_seconds: float = 86400.0,
-    config: Optional[Dict[str, Any]] = None,
-    db: Optional[AsyncSession] = None,
+    config: dict[str, Any] | None = None,
+    db: AsyncSession | None = None,
 ) -> AnalyzerWorker:
     """Create a configured AnalyzerWorker instance."""
     return AnalyzerWorker(interval_seconds=interval_seconds, config=config, db=db)

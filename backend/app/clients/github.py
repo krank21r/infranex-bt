@@ -11,13 +11,12 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Dict, Optional, Tuple
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-_fetcher: Optional["GitHubFileFetcher"] = None
+_fetcher: GitHubFileFetcher | None = None
 
 
 class GitHubFetchError(Exception):
@@ -76,7 +75,7 @@ class RealGitHubFileFetcher(GitHubFileFetcher):
 class FakeGitHubFileFetcher(GitHubFileFetcher):
     """Static fixtures keyed by (owner, repo, path). Returns "" for misses."""
 
-    _FIXTURES: Dict[Tuple[str, str, str], str] = {
+    _FIXTURES: dict[tuple[str, str, str], str] = {
         ("macrocosm-os", "text-prompting", "README.md"): (
             "# text-prompting\n\n"
             "## Hardware\n"

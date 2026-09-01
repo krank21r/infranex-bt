@@ -15,23 +15,23 @@ Decision logic + service-like orchestrator:
     L2/L3 require an approved request or return a pending result.
 """
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.approval.classifier import ActionLevel, ActionContext
+from app.approval.classifier import ActionContext, ActionLevel
 from app.approval.service import request_approval
 from app.models import Miner
 from app.models.audit import ApprovalRequest
 from app.recovery.health_checker import HealthSignal
 from app.recovery.strategies import (
     RecoveryResult,
-    restart_process,
-    redeploy,
-    switch_subnet,
     escalate_to_human,
+    redeploy,
+    restart_process,
+    switch_subnet,
 )
 
 RECOVERY_MODEL_VERSION = "v1.0"
@@ -44,9 +44,9 @@ class RecoveryAction:
     miner_id: str
     reason: str
     action_level: str  # L1_auto | L2_confirm | L3_mandatory
-    params: Dict[str, Any]
+    params: dict[str, Any]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "action_type": self.action_type,
             "miner_id": self.miner_id,
@@ -79,7 +79,7 @@ class RecoveryEngine:
         if miner is None:
             raise LookupError(f"Miner {miner_id} not found")
 
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "miner_id": miner_id,
             "deployment_id": miner.deployment_id,
             "netuid": miner.netuid,
@@ -133,7 +133,7 @@ class RecoveryEngine:
                 action_type=recovery_action.action_type,
                 action_level=recovery_action.action_level,
                 details={"miner_id": recovery_action.miner_id},
-                executed_at=datetime.now(timezone.utc).isoformat(),
+                executed_at=datetime.now(UTC).isoformat(),
             )
 
         payload = {
@@ -144,7 +144,7 @@ class RecoveryEngine:
         return await strategy(self.db, payload)
 
     async def execute_with_approval(
-        self, recovery_action: RecoveryAction, approval_id: Optional[str] = None
+        self, recovery_action: RecoveryAction, approval_id: str | None = None
     ) -> RecoveryResult:
         """Execute a recovery action gated by approval status.
 
@@ -186,7 +186,7 @@ class RecoveryEngine:
                 action_type=recovery_action.action_type,
                 action_level=recovery_action.action_level,
                 details={"miner_id": recovery_action.miner_id, "approval_id": approval_id},
-                executed_at=datetime.now(timezone.utc).isoformat(),
+                executed_at=datetime.now(UTC).isoformat(),
             )
 
         if req.status == "pending":
@@ -200,7 +200,7 @@ class RecoveryEngine:
                     "approval_id": approval_id,
                     "approval_status": "pending",
                 },
-                executed_at=datetime.now(timezone.utc).isoformat(),
+                executed_at=datetime.now(UTC).isoformat(),
             )
 
         if req.status != "approved":
@@ -214,7 +214,7 @@ class RecoveryEngine:
                     "approval_id": approval_id,
                     "approval_status": req.status,
                 },
-                executed_at=datetime.now(timezone.utc).isoformat(),
+                executed_at=datetime.now(UTC).isoformat(),
             )
 
         return await self.execute(recovery_action)

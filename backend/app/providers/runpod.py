@@ -10,7 +10,7 @@ touching the real API.
 """
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
 from tenacity import (
@@ -35,8 +35,8 @@ class RunPodProvider:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        client: Optional[httpx.Client] = None,
+        api_key: str | None = None,
+        client: httpx.Client | None = None,
     ) -> None:
         self.api_key = api_key or os.getenv("RUNPOD_API_KEY")
         self._client = client
@@ -51,7 +51,7 @@ class RunPodProvider:
             self._client = httpx.Client(timeout=30.0)
         return self._client
 
-    def _headers(self) -> Dict[str, str]:
+    def _headers(self) -> dict[str, str]:
         return {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -63,7 +63,7 @@ class RunPodProvider:
         retry=retry_if_exception_type((httpx.TimeoutException, RuntimeError)),
         reraise=True,
     )
-    def _graphql(self, query: str, variables: Dict[str, Any]) -> Dict[str, Any]:
+    def _graphql(self, query: str, variables: dict[str, Any]) -> dict[str, Any]:
         """POST a GraphQL query and return the `data` payload.
 
         Raises ``RuntimeError`` on transport errors or GraphQL errors.
@@ -98,7 +98,7 @@ class RunPodProvider:
             raise RuntimeError(f"RunPod GraphQL error: {msg}")
         return payload.get("data", {})
 
-    def get_gpu_types(self) -> List[Dict[str, Any]]:
+    def get_gpu_types(self) -> list[dict[str, Any]]:
         """List available RunPod GPU types."""
         query = """
         query GpuTypes {
@@ -108,7 +108,7 @@ class RunPodProvider:
         data = self._graphql(query, {})
         return data.get("gpuTypes", []) or []
 
-    def list_gpu_types(self) -> List[Dict[str, Any]]:
+    def list_gpu_types(self) -> list[dict[str, Any]]:
         """Alias for ``get_gpu_types``."""
         return self.get_gpu_types()
 
@@ -117,9 +117,9 @@ class RunPodProvider:
         gpu_type_id: str,
         name: str = "infranex-bt",
         image: str = "runpod/pytorch:latest",
-        env: Optional[Dict[str, str]] = None,
+        env: dict[str, str] | None = None,
         gpu_count: int = 1,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Create (and auto-deploy) a pod. Returns the pod dict."""
         query = """
         mutation Deploy($input: PodFindAndDeployOnDemandInput!) {
@@ -139,7 +139,7 @@ class RunPodProvider:
         data = self._graphql(query, variables)
         return data.get("podFindAndDeployOnDemand", {}) or {}
 
-    def start_pod(self, pod_id: str) -> Dict[str, Any]:
+    def start_pod(self, pod_id: str) -> dict[str, Any]:
         """Resume a stopped pod."""
         query = """
         mutation Resume($podId: String!) { podResume(podId: $podId) { id desiredStatus } }
@@ -147,7 +147,7 @@ class RunPodProvider:
         data = self._graphql(query, {"podId": pod_id})
         return data.get("podResume", {}) or {}
 
-    def stop_pod(self, pod_id: str) -> Dict[str, Any]:
+    def stop_pod(self, pod_id: str) -> dict[str, Any]:
         """Suspend a running pod."""
         query = """
         mutation Suspend($podId: String!) { podSuspend(podId: $podId) { id desiredStatus } }
@@ -155,7 +155,7 @@ class RunPodProvider:
         data = self._graphql(query, {"podId": pod_id})
         return data.get("podSuspend", {}) or {}
 
-    def destroy_pod(self, pod_id: str) -> Dict[str, Any]:
+    def destroy_pod(self, pod_id: str) -> dict[str, Any]:
         """Terminate a pod and release the GPU."""
         query = """
         mutation Terminate($podId: String!) { podTerminate(podId: $podId) }
@@ -163,7 +163,7 @@ class RunPodProvider:
         data = self._graphql(query, {"podId": pod_id})
         return data.get("podTerminate", {}) or {}
 
-    def get_pod_status(self, pod_id: str) -> Dict[str, Any]:
+    def get_pod_status(self, pod_id: str) -> dict[str, Any]:
         """Query the current status of a pod from RunPod."""
         query = """
         query Pod($podId: String!) {
@@ -200,7 +200,7 @@ class RunPodProvider:
         server.status = "provisioned"
         return bool(server.provider_instance_id)
 
-    def deploy_miner(self, server: Server, config: Dict[str, Any]) -> bool:
+    def deploy_miner(self, server: Server, config: dict[str, Any]) -> bool:
         if not server.provider_instance_id:
             return False
         server.status = "started"
@@ -220,7 +220,7 @@ class RunPodProvider:
         server.status = "terminated"
         return True
 
-    def get_status(self, server: Server) -> Dict[str, Any]:
+    def get_status(self, server: Server) -> dict[str, Any]:
         if not server.provider_instance_id:
             return {
                 "provider": self.name,

@@ -2,7 +2,7 @@
 Tests for deployment setup automation.
 """
 
-from app.deployment.setup import validate_compatibility, generate_setup_script
+from app.deployment.setup import generate_setup_script, validate_compatibility
 
 
 def test_validate_compatibility_returns_true_for_matching_server():

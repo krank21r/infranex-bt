@@ -1,10 +1,10 @@
 """
 Common schemas used across the API.
 """
-from typing import Generic, TypeVar, Optional
-from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
+from typing import Generic, TypeVar
 
+from pydantic import BaseModel, ConfigDict, Field
 
 T = TypeVar("T")
 
@@ -13,11 +13,11 @@ class PaginationParams(BaseModel):
     """Pagination parameters for list endpoints."""
     page: int = Field(default=1, ge=1, description="Page number (1-indexed)")
     page_size: int = Field(default=20, ge=1, le=100, description="Items per page")
-    
+
     @property
     def offset(self) -> int:
         return (self.page - 1) * self.page_size
-    
+
     @property
     def limit(self) -> int:
         return self.page_size
@@ -37,8 +37,8 @@ class APIResponse(BaseModel, Generic[T]):
     """Standard API response wrapper."""
     success: bool = True
     data: T
-    meta: Optional[PaginationMeta] = None
-    message: Optional[str] = None
+    meta: PaginationMeta | None = None
+    message: str | None = None
 
 
 class ErrorResponse(BaseModel):
@@ -46,8 +46,8 @@ class ErrorResponse(BaseModel):
     error: str
     error_code: str
     message: str
-    details: Optional[dict] = None
-    request_id: Optional[str] = None
+    details: dict | None = None
+    request_id: str | None = None
 
 
 class SuccessResponse(BaseModel):
@@ -60,13 +60,12 @@ class SuccessResponse(BaseModel):
 
 class SortParams(BaseModel):
     """Sorting parameters."""
-    sort_by: Optional[str] = Field(default=None, description="Field to sort by")
+    sort_by: str | None = Field(default=None, description="Field to sort by")
     sort_order: str = Field(default="desc", pattern="^(asc|desc)$", description="Sort order")
 
 
 class FilterParams(BaseModel):
     """Base filter parameters."""
-    pass
 
 
 # --- Common Response Models ---
@@ -107,7 +106,7 @@ class BaseSchema(BaseModel):
 class TimestampMixin(BaseModel):
     """Mixin for created_at/updated_at timestamps."""
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
 
 
 class IDMixin(BaseModel):

@@ -5,7 +5,7 @@ human-readable summaries for the dashboard and alert engine.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -127,7 +127,7 @@ class MonitoringAggregator:
         subnets = {m.netuid for m in all_miners}
         scores = [m.health_score for m in all_miners if m.health_score is not None]
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         cutoff = now - timedelta(hours=24)
 
         emission_24h = 0.0

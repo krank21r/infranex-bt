@@ -4,12 +4,11 @@ GPU service — read queries against the real ORM models.
 Falls back to empty data when the database is not configured (mock/dev mode).
 """
 import logging
-from typing import Optional, List, Tuple
 
-from sqlalchemy import select, func, desc, asc, and_
+from sqlalchemy import and_, asc, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import GPUModel, GPUProvider, GPUOffer
+from app.models import GPUModel, GPUOffer, GPUProvider
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +23,12 @@ class GPUService:
         self,
         page: int = 1,
         page_size: int = 50,
-        manufacturer: Optional[str] = None,
-        min_vram_gb: Optional[float] = None,
-        min_fp16_tflops: Optional[float] = None,
-        tier: Optional[str] = None,
-        is_active: Optional[bool] = True,
-    ) -> Tuple[List[GPUModel], int]:
+        manufacturer: str | None = None,
+        min_vram_gb: float | None = None,
+        min_fp16_tflops: float | None = None,
+        tier: str | None = None,
+        is_active: bool | None = True,
+    ) -> tuple[list[GPUModel], int]:
         query = select(GPUModel)
         if manufacturer:
             query = query.where(GPUModel.manufacturer == manufacturer)
@@ -50,7 +49,7 @@ class GPUService:
         result = await self.db.execute(query)
         return list(result.scalars().all()), total
 
-    async def get_model(self, gpu_id: str) -> Optional[GPUModel]:
+    async def get_model(self, gpu_id: str) -> GPUModel | None:
         result = await self.db.execute(
             select(GPUModel).where(GPUModel.id == gpu_id)
         )
@@ -59,8 +58,8 @@ class GPUService:
     # --- Providers ---
 
     async def list_providers(
-        self, is_active: Optional[bool] = True
-    ) -> List[GPUProvider]:
+        self, is_active: bool | None = True
+    ) -> list[GPUProvider]:
         query = select(GPUProvider)
         if is_active is not None:
             query = query.where(GPUProvider.is_active == is_active)
@@ -68,7 +67,7 @@ class GPUService:
         result = await self.db.execute(query)
         return list(result.scalars().all())
 
-    async def get_provider(self, provider_id: str) -> Optional[GPUProvider]:
+    async def get_provider(self, provider_id: str) -> GPUProvider | None:
         result = await self.db.execute(
             select(GPUProvider).where(GPUProvider.id == provider_id)
         )
@@ -80,16 +79,16 @@ class GPUService:
         self,
         page: int = 1,
         page_size: int = 50,
-        provider_id: Optional[str] = None,
-        gpu_model_id: Optional[str] = None,
-        region: Optional[str] = None,
-        min_vram_gb: Optional[float] = None,
-        max_hourly_price: Optional[float] = None,
-        availability: Optional[str] = "available",
-        is_spot: Optional[bool] = None,
+        provider_id: str | None = None,
+        gpu_model_id: str | None = None,
+        region: str | None = None,
+        min_vram_gb: float | None = None,
+        max_hourly_price: float | None = None,
+        availability: str | None = "available",
+        is_spot: bool | None = None,
         sort_by: str = "hourly_price",
         sort_order: str = "asc",
-    ) -> Tuple[List[GPUOffer], int]:
+    ) -> tuple[list[GPUOffer], int]:
         query = select(GPUOffer)
         if provider_id:
             query = query.where(GPUOffer.provider_id == provider_id)
@@ -117,8 +116,8 @@ class GPUService:
         return list(result.scalars().all()), total
 
     async def cheapest_offer_for_vram(
-        self, min_vram_gb: float = 24.0, region: Optional[str] = None
-    ) -> Optional[GPUOffer]:
+        self, min_vram_gb: float = 24.0, region: str | None = None
+    ) -> GPUOffer | None:
         """Cheapest available offer meeting a minimum VRAM bar."""
         query = select(GPUOffer).where(
             and_(

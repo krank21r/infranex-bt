@@ -50,9 +50,8 @@ def validate_compatibility(
         if server_vram < float(min_vram):
             missing.append(f"vram_gb={server_vram} < required {min_vram}")
 
-    if requirements.get("docker_required"):
-        if not server.get("docker_supported"):
-            missing.append("docker_required but not supported")
+    if requirements.get("docker_required") and not server.get("docker_supported"):
+        missing.append("docker_required but not supported")
 
     if requirements.get("nvidia_runtime_required"):
         if "nvidia" not in (server.get("gpu_model") or "").lower():
@@ -86,7 +85,7 @@ def generate_setup_script(requirements: dict[str, Any]) -> str:
     ports = requirements.get("ports") or [8091]
 
     dockerfile_lines = [
-        "FROM python:{}".format(python_version),
+        f"FROM python:{python_version}",
         "WORKDIR /app",
         "COPY requirements.txt .",
         "RUN pip install --no-cache-dir -r requirements.txt",

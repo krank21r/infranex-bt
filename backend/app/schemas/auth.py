@@ -1,11 +1,11 @@
 """
 Authentication schemas.
 """
-from typing import Optional, List
-from pydantic import Field, EmailStr
 from datetime import datetime
 
-from app.schemas.common import BaseSchema, TimestampMixin, IDMixin
+from pydantic import EmailStr, Field
+
+from app.schemas.common import BaseSchema, IDMixin, TimestampMixin
 
 
 class Token(BaseSchema):
@@ -19,9 +19,9 @@ class Token(BaseSchema):
 class TokenData(BaseSchema):
     """Decoded token data."""
     sub: str = Field(description="Subject (user ID)")
-    email: Optional[EmailStr] = None
+    email: EmailStr | None = None
     role: str = Field(default="authenticated")
-    exp: Optional[int] = Field(default=None, description="Expiration timestamp")
+    exp: int | None = Field(default=None, description="Expiration timestamp")
     type: str = Field(default="access")
 
 
@@ -33,8 +33,8 @@ class TokenRefreshRequest(BaseSchema):
 class User(BaseSchema, IDMixin, TimestampMixin):
     """User model."""
     email: EmailStr
-    full_name: Optional[str] = None
-    avatar_url: Optional[str] = None
+    full_name: str | None = None
+    avatar_url: str | None = None
     is_active: bool = True
     is_verified: bool = False
     role: str = "user"
@@ -45,8 +45,8 @@ class UserProfile(BaseSchema):
     """User profile response."""
     id: str
     email: EmailStr
-    full_name: Optional[str] = None
-    avatar_url: Optional[str] = None
+    full_name: str | None = None
+    avatar_url: str | None = None
     created_at: datetime
     is_verified: bool = False
     role: str = "user"
@@ -54,9 +54,9 @@ class UserProfile(BaseSchema):
 
 class UserUpdate(BaseSchema):
     """User update request."""
-    full_name: Optional[str] = None
-    avatar_url: Optional[str] = None
-    metadata: Optional[dict] = None
+    full_name: str | None = None
+    avatar_url: str | None = None
+    metadata: dict | None = None
 
 
 class AuthResponse(BaseSchema):
@@ -80,13 +80,13 @@ class SupabaseUser(BaseSchema):
     aud: str
     role: str
     email: EmailStr
-    email_confirmed_at: Optional[str] = None
-    phone: Optional[str] = None
-    confirmed_at: Optional[str] = None
-    last_sign_in_at: Optional[str] = None
+    email_confirmed_at: str | None = None
+    phone: str | None = None
+    confirmed_at: str | None = None
+    last_sign_in_at: str | None = None
     app_metadata: dict = Field(default_factory=dict)
     user_metadata: dict = Field(default_factory=dict)
-    identities: List[dict] = Field(default_factory=list)
+    identities: list[dict] = Field(default_factory=list)
     created_at: str
     updated_at: str
     is_anonymous: bool = False

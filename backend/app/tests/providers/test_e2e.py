@@ -13,7 +13,6 @@ import pytest
 
 from app.models.deployment import Server
 from app.providers.e2e import E2E_API_URL, E2EProvider
-
 from app.tests.providers._support import fake_deployment, magic_client
 
 

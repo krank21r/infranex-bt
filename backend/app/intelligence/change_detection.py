@@ -13,10 +13,9 @@ Change types detected:
     registration_change  — registration cost or openness changed
     concentration_shift  — top-N concentration changed beyond threshold
 """
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
-
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
 MODEL_VERSION = "v1.0"
 
@@ -45,7 +44,7 @@ class SubnetStateDiff:
 class ChangeDetectionResult:
     """Result of comparing two subnet states."""
     netuid: int
-    changes: List[SubnetStateDiff]
+    changes: list[SubnetStateDiff]
     has_significant_change: bool
     highest_impact: str
     detected_at: str
@@ -64,7 +63,7 @@ def _impact_from_ratio(ratio: float) -> str:
     return "critical"
 
 
-def _ratio(old: Optional[float], new: Optional[float]) -> float:
+def _ratio(old: float | None, new: float | None) -> float:
     if old is None and new is None:
         return 0.0
     if old is None or new is None:
@@ -75,12 +74,12 @@ def _ratio(old: Optional[float], new: Optional[float]) -> float:
 
 
 def _compare_metrics(
-    old_metrics: Dict[str, Any],
-    new_metrics: Dict[str, Any],
-    thresholds: Dict[str, float],
+    old_metrics: dict[str, Any],
+    new_metrics: dict[str, Any],
+    thresholds: dict[str, float],
     detected_at: str,
-) -> List[SubnetStateDiff]:
-    changes: List[SubnetStateDiff] = []
+) -> list[SubnetStateDiff]:
+    changes: list[SubnetStateDiff] = []
 
     metric_fields = [
         ("emission", "emission_shift"),
@@ -121,12 +120,12 @@ def _compare_metrics(
 
 
 def _compare_market(
-    old_market: Dict[str, Any],
-    new_market: Dict[str, Any],
+    old_market: dict[str, Any],
+    new_market: dict[str, Any],
     threshold: float,
     detected_at: str,
-) -> List[SubnetStateDiff]:
-    changes: List[SubnetStateDiff] = []
+) -> list[SubnetStateDiff]:
+    changes: list[SubnetStateDiff] = []
 
     market_fields = [
         "alpha_price_1d_change",
@@ -162,11 +161,11 @@ def _compare_market(
 
 
 def _compare_requirements(
-    old_req: Dict[str, Any],
-    new_req: Dict[str, Any],
+    old_req: dict[str, Any],
+    new_req: dict[str, Any],
     detected_at: str,
-) -> List[SubnetStateDiff]:
-    changes: List[SubnetStateDiff] = []
+) -> list[SubnetStateDiff]:
+    changes: list[SubnetStateDiff] = []
 
     req_fields = [
         "min_vram_gb",
@@ -209,11 +208,11 @@ def _compare_requirements(
 
 
 def _compare_registration(
-    old_metrics: Dict[str, Any],
-    new_metrics: Dict[str, Any],
+    old_metrics: dict[str, Any],
+    new_metrics: dict[str, Any],
     detected_at: str,
-) -> List[SubnetStateDiff]:
-    changes: List[SubnetStateDiff] = []
+) -> list[SubnetStateDiff]:
+    changes: list[SubnetStateDiff] = []
 
     old_cost = old_metrics.get("registration_cost")
     new_cost = new_metrics.get("registration_cost")
@@ -247,10 +246,10 @@ def _compare_registration(
 
 def detect_subnet_changes(
     netuid: int,
-    old_state: Dict[str, Any],
-    new_state: Dict[str, Any],
-    thresholds: Optional[Dict[str, float]] = None,
-    detected_at: Optional[str] = None,
+    old_state: dict[str, Any],
+    new_state: dict[str, Any],
+    thresholds: dict[str, float] | None = None,
+    detected_at: str | None = None,
 ) -> ChangeDetectionResult:
     """Compare old and new subnet state, return structured diffs.
 
@@ -265,7 +264,7 @@ def detect_subnet_changes(
         ChangeDetectionResult with all detected changes
     """
     thresholds = thresholds or DEFAULT_THRESHOLDS
-    detected_at = detected_at or datetime.now(timezone.utc).isoformat()
+    detected_at = detected_at or datetime.now(UTC).isoformat()
 
     old_metrics = old_state.get("metrics") or {}
     new_metrics = new_state.get("metrics") or {}
@@ -274,7 +273,7 @@ def detect_subnet_changes(
     old_req = old_state.get("requirements") or {}
     new_req = new_state.get("requirements") or {}
 
-    changes: List[SubnetStateDiff] = []
+    changes: list[SubnetStateDiff] = []
 
     changes.extend(_compare_metrics(
         old_metrics, new_metrics, thresholds, detected_at,

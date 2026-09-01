@@ -4,7 +4,6 @@ Miner Orchestrator route integration tests.
 Verifies:
   - All orchestrator endpoints are registered in OpenAPI.
 """
-import pytest
 from fastapi.testclient import TestClient
 
 

@@ -30,18 +30,17 @@ NOT in scope (deferred):
     reads it).
 """
 import logging
-from typing import List, Optional, Tuple
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Deployment
 from app.intelligence.monitoring import (
-    MigrateSignal,
-    should_migrate,
     DEFAULT_MIN_OBSERVATIONS,
     DEFAULT_ROLLING_WINDOW,
+    MigrateSignal,
+    should_migrate,
 )
+from app.models import Deployment
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +54,7 @@ class MonitoringService:
         netuid: int,
         *,
         limit: int = DEFAULT_ROLLING_WINDOW,
-    ) -> List[Tuple[int, float]]:
+    ) -> list[tuple[int, float]]:
         """Pull trailing (block, tao_per_block) observations for a subnet.
 
         Soft-imports `SubnetEmissionHistory`. If the table is absent
@@ -81,7 +80,7 @@ class MonitoringService:
         # The pure layer expects oldest -> newest; we fetched newest first.
         return [(int(b), float(t)) for b, t in reversed(rows)]
 
-    async def _fetch_deployment_cost(self, deployment_id: int) -> Optional[dict]:
+    async def _fetch_deployment_cost(self, deployment_id: int) -> dict | None:
         """Pull netuid + estimated_monthly_cost from a Deployment row."""
         stmt = select(
             Deployment.netuid,
@@ -102,7 +101,7 @@ class MonitoringService:
         *,
         history_limit: int = DEFAULT_ROLLING_WINDOW,
         min_observations: int = DEFAULT_MIN_OBSERVATIONS,
-    ) -> Optional[MigrateSignal]:
+    ) -> MigrateSignal | None:
         """Compute the migrate signal for one Deployment.
 
         Returns None if the Deployment row is missing. Returns a False

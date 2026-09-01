@@ -4,18 +4,17 @@ Subnet service — CRUD + metrics queries against the real ORM models.
 Falls back to empty data when the database is not configured (mock/dev mode).
 """
 import logging
-from typing import Optional, List, Tuple
 
-from sqlalchemy import select, func, or_, desc, asc
+from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
-    Subnet,
-    SubnetMetrics,
-    Neuron,
     Emission,
     Incentive,
+    Neuron,
     Repository,
+    Subnet,
+    SubnetMetrics,
     SubnetRequirement,
 )
 
@@ -32,9 +31,9 @@ class SubnetService:
         page_size: int = 20,
         sort_by: str = "netuid",
         sort_order: str = "asc",
-        is_active: Optional[bool] = None,
-        search: Optional[str] = None,
-    ) -> Tuple[List[Subnet], int]:
+        is_active: bool | None = None,
+        search: str | None = None,
+    ) -> tuple[list[Subnet], int]:
         query = select(Subnet)
 
         if is_active is not None:
@@ -55,11 +54,11 @@ class SubnetService:
         result = await self.db.execute(query)
         return list(result.scalars().all()), total
 
-    async def get_subnet(self, netuid: int) -> Optional[Subnet]:
+    async def get_subnet(self, netuid: int) -> Subnet | None:
         result = await self.db.execute(select(Subnet).where(Subnet.netuid == netuid))
         return result.scalar_one_or_none()
 
-    async def latest_metrics(self, netuid: int) -> Optional[SubnetMetrics]:
+    async def latest_metrics(self, netuid: int) -> SubnetMetrics | None:
         result = await self.db.execute(
             select(SubnetMetrics)
             .where(SubnetMetrics.netuid == netuid)
@@ -85,7 +84,7 @@ class SubnetService:
         await self.db.refresh(subnet)
         return subnet
 
-    async def get_known_netuids(self) -> List[int]:
+    async def get_known_netuids(self) -> list[int]:
         """Return all netuids currently tracked in the subnets table."""
         result = await self.db.execute(select(Subnet.netuid).order_by(Subnet.netuid))
         return [row[0] for row in result.all()]
@@ -164,7 +163,7 @@ class SubnetService:
 
     # --- Phase 4: repository + requirement persistence (Analyzer) ---
 
-    async def get_repository(self, netuid: int, url: str) -> Optional[Repository]:
+    async def get_repository(self, netuid: int, url: str) -> Repository | None:
         result = await self.db.execute(
             select(Repository).where(
                 Repository.netuid == netuid,
@@ -173,7 +172,7 @@ class SubnetService:
         )
         return result.scalar_one_or_none()
 
-    async def get_latest_requirement(self, netuid: int) -> Optional[SubnetRequirement]:
+    async def get_latest_requirement(self, netuid: int) -> SubnetRequirement | None:
         """Return the most-recently-recorded SubnetRequirement for a netuid, or None."""
         result = await self.db.execute(
             select(SubnetRequirement)
@@ -230,7 +229,7 @@ class SubnetService:
         await self.db.refresh(row)
         return row
 
-    async def get_unanalyzed_netuids(self) -> List[int]:
+    async def get_unanalyzed_netuids(self) -> list[int]:
         """Return netuids that have no Repository row yet (first-pass prioritization)."""
         result = await self.db.execute(
             select(Subnet.netuid).outerjoin(

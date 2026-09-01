@@ -11,16 +11,14 @@ Pins the happy-path contract for the pure projector:
 Service-layer mocking is intentionally out of scope for the 1-test
 min-viable contract — the pure layer is the authoritative computation.
 """
-import pytest
 
 from app.intelligence.profitability import (
-    project_revenue,
-    project_profitability,
-    SERVICE_MODEL_VERSION,
     DEFAULT_BLOCKS_PER_MONTH,
     DEFAULT_FULL_CONFIDENCE_BLOCKS,
+    SERVICE_MODEL_VERSION,
+    project_profitability,
+    project_revenue,
 )
-
 
 # ---------- helpers ----------
 

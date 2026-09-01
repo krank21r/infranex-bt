@@ -12,14 +12,14 @@ import asyncio
 import logging
 import random
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.deployment import Deployment, Server
 from app.deployment.state_machine import DeploymentState
+from app.models.deployment import Deployment, Server
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +27,12 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class HealthCheckResult:
     deployment_id: str
-    server_id: Optional[str]
+    server_id: str | None
     healthy: bool
     miner_running: bool
     subnet_connected: bool
     checked_at: datetime
-    error: Optional[str] = None
+    error: str | None = None
     details: dict[str, Any] = None
 
     def __post_init__(self) -> None:
@@ -88,7 +88,7 @@ class HealthChecker:
                 healthy=healthy,
                 miner_running=miner_running,
                 subnet_connected=subnet_connected,
-                checked_at=datetime.now(timezone.utc),
+                checked_at=datetime.now(UTC),
                 details={
                     "ip_address": server.ip_address,
                     "ssh_port": server.ssh_port,
@@ -103,7 +103,7 @@ class HealthChecker:
                 healthy=False,
                 miner_running=False,
                 subnet_connected=False,
-                checked_at=datetime.now(timezone.utc),
+                checked_at=datetime.now(UTC),
                 error=str(exc),
             )
 

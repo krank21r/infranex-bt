@@ -14,20 +14,18 @@ Write paths (require authenticated user):
 L1 actions never reach this API; they are auto-approved at insert time
 inside ApprovalService.create and the audit log already has the row.
 """
-from typing import Optional, List
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc, func
 
-from app.api.deps import get_db, get_current_user
+from app.api.deps import get_current_user, get_db
+from app.approval import ActionLevel, ApprovalService
+from app.models.audit import ApprovalRequest, AuditLog
 from app.schemas.auth import User
 from app.schemas.common import APIResponse, PaginationMeta
-from app.approval import ApprovalService, ActionLevel
-from app.models.audit import ApprovalRequest, AuditLog
-
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
 
@@ -38,33 +36,33 @@ class ApprovalOut(BaseModel):
     level: str
     status: str
     requested_by: str
-    approved_by: Optional[str] = None
-    subject_type: Optional[str] = None
-    subject_id: Optional[str] = None
-    reason: Optional[str] = None
-    risk_score: Optional[float] = None
-    expires_at: Optional[datetime] = None
-    decided_at: Optional[datetime] = None
-    decision_note: Optional[str] = None
+    approved_by: str | None = None
+    subject_type: str | None = None
+    subject_id: str | None = None
+    reason: str | None = None
+    risk_score: float | None = None
+    expires_at: datetime | None = None
+    decided_at: datetime | None = None
+    decision_note: str | None = None
     created_at: datetime
     updated_at: datetime
 
 
 class DecisionIn(BaseModel):
-    decision_note: Optional[str] = Field(default=None, max_length=2000)
+    decision_note: str | None = Field(default=None, max_length=2000)
 
 
 class AuditOut(BaseModel):
     id: str
     actor: str
     action: str
-    target_type: Optional[str] = None
-    target_id: Optional[str] = None
-    before: Optional[dict] = None
-    after: Optional[dict] = None
-    reason: Optional[str] = None
-    correlation_id: Optional[str] = None
-    related_approval_id: Optional[str] = None
+    target_type: str | None = None
+    target_id: str | None = None
+    before: dict | None = None
+    after: dict | None = None
+    reason: str | None = None
+    correlation_id: str | None = None
+    related_approval_id: str | None = None
     metadata: dict = Field(default_factory=dict)
     created_at: datetime
 
@@ -106,9 +104,9 @@ def _audit_to_out(row: AuditLog) -> AuditOut:
     )
 
 
-@router.get("/pending", response_model=APIResponse[List[ApprovalOut]])
+@router.get("/pending", response_model=APIResponse[list[ApprovalOut]])
 async def list_pending(
-    level: Optional[ActionLevel] = None,
+    level: ActionLevel | None = None,
     limit: int = 50,
     offset: int = 0,
     user: User = Depends(get_current_user),
@@ -123,9 +121,9 @@ async def list_pending(
 
 @router.get("/audit", response_model=APIResponse[list[AuditOut]])
 async def list_audit(
-    actor: Optional[str] = None,
-    action: Optional[str] = None,
-    target_id: Optional[str] = None,
+    actor: str | None = None,
+    action: str | None = None,
+    target_id: str | None = None,
     page: int = 1,
     page_size: int = 50,
     user: User = Depends(get_current_user),

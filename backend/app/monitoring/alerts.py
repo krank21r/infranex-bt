@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone, timedelta
-from typing import Any, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,8 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Miner, MinerHealth
 from app.monitoring.schemas import (
     Alert,
-    AlertType,
     AlertSeverity,
+    AlertType,
 )
 
 logger = logging.getLogger(__name__)
@@ -51,9 +51,9 @@ class AlertEngine:
         self,
         severity: AlertSeverity,
         message: str,
-        miner_id: Optional[str] = None,
-        metadata: Optional[dict[str, Any]] = None,
-        alert_type: Optional[AlertType] = None,
+        miner_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        alert_type: AlertType | None = None,
     ) -> Alert:
         alert = Alert(
             id=str(uuid.uuid4()),
@@ -66,12 +66,12 @@ class AlertEngine:
         self._store[alert.id] = alert
         return alert
 
-    def resolve_alert(self, alert_id: str) -> Optional[Alert]:
+    def resolve_alert(self, alert_id: str) -> Alert | None:
         alert = self._store.get(alert_id)
         if not alert:
             return None
         alert.is_resolved = True
-        alert.resolved_at = datetime.now(timezone.utc)
+        alert.resolved_at = datetime.now(UTC)
         return alert
 
     def get_active_alerts(self) -> list[Alert]:
@@ -89,10 +89,10 @@ class AlertEngine:
         latest = (await self.db.execute(latest_health_stmt)).scalar_one_or_none()
 
         miner_id = str(miner.id)
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         last_check = miner.last_health_check
         if last_check and last_check.tzinfo is None:
-            last_check = last_check.replace(tzinfo=timezone.utc)
+            last_check = last_check.replace(tzinfo=UTC)
 
         if not latest or not last_check or (now - last_check) > timedelta(minutes=10):
             if miner.status not in ("stopped", "deregistered"):

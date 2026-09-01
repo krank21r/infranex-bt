@@ -4,7 +4,6 @@ Learning Engine route integration tests.
 Verifies:
   - All learning endpoints are registered in OpenAPI.
 """
-import pytest
 from fastapi.testclient import TestClient
 
 

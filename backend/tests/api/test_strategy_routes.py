@@ -7,7 +7,6 @@ Verifies:
   - POST /api/strategy/evaluate-batch returns sorted Actions.
   - POST /api/strategy/evaluate returns 422 when required fields are missing.
 """
-import pytest
 from fastapi.testclient import TestClient
 
 

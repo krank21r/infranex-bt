@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import sys
 import types
-import pytest
 from unittest.mock import AsyncMock, MagicMock
-from datetime import datetime, timezone
+
+import pytest
 
 _STUB_MODULES = {
     "sqlalchemy": [
@@ -67,13 +67,13 @@ for mod_name, attrs in _STUB_MODULES.items():
         if not hasattr(m, attr):
             setattr(m, attr, default)
 
-from app.services.deployment_service import (
-    DeploymentService,
-    CostProjection,
-    DEFAULT_DEPLOYMENT_MODE,
-)
-from app.providers import MockProvider, PROVIDER_REGISTRY
 from app.deployment.state_machine import DeploymentState
+from app.providers import PROVIDER_REGISTRY, MockProvider
+from app.services.deployment_service import (
+    DEFAULT_DEPLOYMENT_MODE,
+    CostProjection,
+    DeploymentService,
+)
 
 
 def _make_db() -> AsyncMock:
@@ -86,7 +86,7 @@ def _make_db() -> AsyncMock:
         pk = getattr(obj, "id", None)
         if pk is None:
             pk = f"mock-{len(store)+1:04d}"
-            setattr(obj, "id", pk)
+            obj.id = pk
         store[pk] = obj
 
     async def _get(model, pk):

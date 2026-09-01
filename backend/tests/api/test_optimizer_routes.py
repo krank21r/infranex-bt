@@ -4,7 +4,6 @@ Optimizer route integration tests.
 Verifies:
   - All optimizer endpoints are registered in OpenAPI.
 """
-import pytest
 from fastapi.testclient import TestClient
 
 

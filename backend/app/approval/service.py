@@ -15,14 +15,15 @@ COMMENT on approval_requests.
 """
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Optional, Dict, Any, List
+from datetime import UTC, datetime
+from typing import Any
 
-from sqlalchemy import select, update, insert, and_
+from sqlalchemy import and_, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit import ApprovalRequest
-from .classifier import ActionLevel, ActionContext, classify_action
+
+from .classifier import ActionContext, ActionLevel, classify_action
 
 
 @dataclass
@@ -30,12 +31,12 @@ class ApprovalRequestInput:
     action_type: str
     level: ActionLevel
     requested_by: str
-    subject_type: Optional[str] = None
-    subject_id: Optional[str] = None
-    payload: Optional[Dict[str, Any]] = None
-    reason: Optional[str] = None
-    risk_score: Optional[float] = None
-    expires_at: Optional[datetime] = None
+    subject_type: str | None = None
+    subject_id: str | None = None
+    payload: dict[str, Any] | None = None
+    reason: str | None = None
+    risk_score: float | None = None
+    expires_at: datetime | None = None
 
 
 class ApprovalService:
@@ -49,7 +50,7 @@ class ApprovalService:
             "auto_approved" if req.level == ActionLevel.L1_AUTO else "pending"
         )
         decided_at = (
-            datetime.now(timezone.utc) if req.level == ActionLevel.L1_AUTO else None
+            datetime.now(UTC) if req.level == ActionLevel.L1_AUTO else None
         )
         await self._session.execute(
             insert(ApprovalRequest).values(
@@ -73,11 +74,11 @@ class ApprovalService:
     async def list_pending(
         self,
         *,
-        requested_by: Optional[str] = None,
-        level: Optional[ActionLevel] = None,
+        requested_by: str | None = None,
+        level: ActionLevel | None = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> List[ApprovalRequest]:
+    ) -> list[ApprovalRequest]:
         stmt = select(ApprovalRequest).where(ApprovalRequest.status == "pending")
         if requested_by is not None:
             stmt = stmt.where(ApprovalRequest.requested_by == requested_by)
@@ -91,7 +92,7 @@ class ApprovalService:
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
 
-    async def get(self, approval_id: str) -> Optional[ApprovalRequest]:
+    async def get(self, approval_id: str) -> ApprovalRequest | None:
         result = await self._session.execute(
             select(ApprovalRequest).where(ApprovalRequest.id == approval_id)
         )
@@ -103,7 +104,7 @@ class ApprovalService:
         approval_id: str,
         approver_user_id: str,
         approve: bool,
-        decision_note: Optional[str] = None,
+        decision_note: str | None = None,
     ) -> bool:
         """Apply a human decision. Returns True if the row was updated."""
         new_status = "approved" if approve else "rejected"
@@ -118,7 +119,7 @@ class ApprovalService:
             .values(
                 status=new_status,
                 approved_by=approver_user_id,
-                decided_at=datetime.now(timezone.utc),
+                decided_at=datetime.now(UTC),
                 decision_note=decision_note,
             )
         )
@@ -136,7 +137,7 @@ class ApprovalService:
             )
             .values(
                 status="cancelled",
-                decided_at=datetime.now(timezone.utc),
+                decided_at=datetime.now(UTC),
             )
         )
         await self._session.commit()
@@ -150,11 +151,11 @@ async def request_approval(
     ctx: ActionContext,
     *,
     requested_by: str,
-    subject_type: Optional[str] = None,
-    subject_id: Optional[str] = None,
-    payload: Optional[Dict[str, Any]] = None,
-    reason: Optional[str] = None,
-    expires_at: Optional[datetime] = None,
+    subject_type: str | None = None,
+    subject_id: str | None = None,
+    payload: dict[str, Any] | None = None,
+    reason: str | None = None,
+    expires_at: datetime | None = None,
 ) -> tuple[str, ActionLevel]:
     """Classify the action and insert the request in one call.
 

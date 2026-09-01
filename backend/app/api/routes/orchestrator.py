@@ -1,13 +1,14 @@
 """
 Miner Orchestrator API routes — thin wrappers over MinerOrchestrator.
 """
-from typing import Any, Dict
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from typing import Any
+
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
-from app.schemas.common import APIResponse
 from app.orchestrator.orchestrator import MinerOrchestrator
+from app.schemas.common import APIResponse
 from app.strategy.engine import Action, PortfolioState
 
 router = APIRouter(prefix="/orchestrator", tags=["orchestrator"])
@@ -26,7 +27,7 @@ async def run_orchestrator_tick(
 @router.post("/process", response_model=APIResponse[dict])
 async def process_action(
     db: AsyncSession = Depends(get_db),
-    payload: Dict[str, Any] = Body(...),
+    payload: dict[str, Any] = Body(...),
 ):
     action_data = payload.get("action")
     if not action_data:

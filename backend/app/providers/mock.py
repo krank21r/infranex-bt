@@ -7,7 +7,7 @@ Simulates the full server lifecycle without touching any external API:
 import asyncio
 import logging
 import time
-from typing import Any, Dict
+from typing import Any
 
 from app.models.deployment import Server
 from app.providers.base import offer_from_deployment
@@ -22,7 +22,7 @@ class MockProvider:
 
     def __init__(self) -> None:
         self._seq = 0
-        self._servers: Dict[str, Dict[str, Any]] = {}
+        self._servers: dict[str, dict[str, Any]] = {}
 
     def _next_provider_id(self) -> str:
         self._seq += 1
@@ -52,7 +52,7 @@ class MockProvider:
         server.status = "provisioned"
         return True
 
-    def deploy_miner(self, server: Server, config: Dict[str, Any]) -> bool:
+    def deploy_miner(self, server: Server, config: dict[str, Any]) -> bool:
         time.sleep(0.05)
         state = self._servers.get(server.provider_instance_id)
         if state is None:
@@ -77,7 +77,7 @@ class MockProvider:
         server.status = "terminated"
         return True
 
-    def get_status(self, server: Server) -> Dict[str, Any]:
+    def get_status(self, server: Server) -> dict[str, Any]:
         state = self._servers.get(server.provider_instance_id, {})
         return {
             "provider": self.name,

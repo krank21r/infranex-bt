@@ -1,11 +1,12 @@
 """
 Miner Orchestrator tests.
 """
+from unittest.mock import AsyncMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 
 from app.orchestrator.orchestrator import MinerOrchestrator
-from app.orchestrator.state_machine import MinerLifecycle, MinerState, can_transition
+from app.orchestrator.state_machine import MinerLifecycle, MinerState
 from app.strategy.engine import Action, PortfolioState
 
 

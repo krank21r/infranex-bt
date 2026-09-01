@@ -30,6 +30,7 @@ export function useSubnet(id: string | number) {
     queryKey: ['subnet', id],
     queryFn: async () => {
       // /subnets/{netuid} returns subnet + latest_metrics in one payload
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return api.get<Subnet & { latest_metrics?: any }>(endpoints.subnet(id))
     },
     enabled: !!id,

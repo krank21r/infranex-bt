@@ -16,10 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
 from app.workers import (
-    create_scanner_worker,
-    create_market_data_worker,
-    create_scoring_worker,
     create_analyzer_worker,
+    create_market_data_worker,
+    create_scanner_worker,
+    create_scoring_worker,
 )
 
 router = APIRouter(prefix="/cron", tags=["cron"])

@@ -376,3 +376,208 @@ export interface GPURecommendation {
   ranked: RankedGPUOffer[]
   model_version: string | null
 }
+
+// --- User Miners (Phase 6) ---
+
+export type UserMinerStatus =
+  | 'active'
+  | 'inactive'
+  | 'pending'
+  | 'stopped'
+  | 'error'
+  | 'deregistered'
+
+export interface UserMiner {
+  id: string
+  user_id: string
+  name: string
+  hotkey: string
+  netuid: number
+  subnet_name: string
+  status: UserMinerStatus
+  created_at: string
+  updated_at?: string
+  total_earnings: number
+  uptime_percent: number
+  description?: string
+  tags?: string[]
+  on_chain_uid?: number | null
+}
+
+export interface HotkeyValidationResult {
+  valid: boolean
+  on_chain: boolean
+  uid: number | null
+  netuid: number | null
+  message: string
+}
+
+export interface MinerRegistration {
+  name: string
+  hotkey: string
+  netuid: number
+  description?: string
+  tags?: string[]
+}
+
+export interface MinerUpdate {
+  name?: string
+  description?: string
+  tags?: string[]
+  status?: UserMinerStatus
+}
+
+// --- Deployments (Phase 11) ---
+
+export type DeploymentStatus =
+  | 'requested'
+  | 'approved'
+  | 'provisioning'
+  | 'provisioned'
+  | 'setup'
+  | 'ready'
+  | 'deploying'
+  | 'started'
+  | 'stopping'
+  | 'stopped'
+  | 'terminated'
+  | 'failed'
+
+export type DeploymentStepStatus = 'pending' | 'running' | 'success' | 'failed' | 'skipped'
+
+export type DeploymentStepName =
+  | 'request'
+  | 'approve'
+  | 'provision'
+  | 'setup'
+  | 'deploy'
+  | 'health_check'
+  | 'monitor'
+  | 'stop'
+  | 'terminate'
+
+export interface DeploymentStep {
+  name: DeploymentStepName | string
+  label: string
+  status: DeploymentStepStatus
+  order: number
+  started_at?: string | null
+  completed_at?: string | null
+  duration_seconds?: number | null
+  output?: string | null
+  error?: string | null
+}
+
+export interface Deployment {
+  id: string
+  user_id?: string | null
+  netuid: number
+  subnet_name?: string | null
+  gpu_model_id?: string | null
+  gpu_name?: string | null
+  provider_id?: string | null
+  provider_name?: string | null
+  opportunity_score_id?: string | null
+  compatibility_test_id?: string | null
+  status: DeploymentStatus
+  server_id?: string | null
+  hotkey_address?: string | null
+  deployment_config?: Record<string, unknown> | null
+  estimated_monthly_cost?: number | null
+  estimated_monthly_revenue?: number | null
+  currency?: string | null
+  approved_at?: string | null
+  provisioned_at?: string | null
+  started_at?: string | null
+  stopped_at?: string | null
+  terminated_at?: string | null
+  error_message?: string | null
+  extra_metadata?: Record<string, unknown>
+  steps?: DeploymentStep[]
+  approval_request_id?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DeploymentServer {
+  id: string
+  deployment_id?: string | null
+  provider_id?: string | null
+  provider_instance_id?: string | null
+  name?: string | null
+  region?: string | null
+  status?: string | null
+  ip_address?: string | null
+  ssh_port?: number | null
+  gpu_model?: string | null
+  gpu_count?: number
+  vram_gb?: number | null
+  ram_gb?: number | null
+  cpu_cores?: number | null
+  storage_gb?: number | null
+  hourly_cost?: number | null
+  currency?: string | null
+  provisioned_at?: string | null
+  terminated_at?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface DeploymentCreateInput {
+  netuid: number
+  gpu_model_id?: string
+  provider_id?: string
+  opportunity_score_id?: string
+  compatibility_test_id?: string
+  hotkey_address?: string
+  deployment_config?: Record<string, unknown>
+  estimated_monthly_cost?: number
+  estimated_monthly_revenue?: number
+  currency?: string
+}
+
+export interface DeploymentProvisionInput {
+  offer: Record<string, unknown>
+}
+
+export interface DeploymentTerminateInput {
+  reason?: string
+  force?: boolean
+}
+
+export interface DeploymentActionResult {
+  deployment: Deployment
+  approval_request_id?: string | null
+  approval_required?: boolean
+  approval_level?: 'L1' | 'L2' | 'L3' | null
+}
+
+export interface ApprovalRequest {
+  id: string
+  action_type: string
+  level: 'L1' | 'L2' | 'L3'
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled' | 'expired'
+  requested_by: string
+  approved_by?: string | null
+  subject_type?: string | null
+  subject_id?: string | null
+  reason?: string | null
+  risk_score?: number | null
+  expires_at?: string | null
+  decided_at?: string | null
+  decision_note?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ApprovalDecisionInput {
+  decision_note?: string
+}
+
+export interface DeploymentFilters {
+  status?: DeploymentStatus | 'all'
+  netuid?: number | null
+  search?: string
+  page?: number
+  page_size?: number
+}

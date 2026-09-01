@@ -9,9 +9,9 @@ from __future__ import annotations
 import sys
 import types
 from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 _STUB_MODULES = {
     "sqlalchemy": [
@@ -66,15 +66,13 @@ for mod_name, attrs in _STUB_MODULES.items():
         if not hasattr(m, attr):
             setattr(m, attr, default)
 
+from app.recovery.recovery import RECOVERY_MODEL_VERSION, RecoveryAction, RecoveryEngine
 from app.recovery.strategies import (
-    RecoveryResult,
-    restart_process,
-    redeploy,
-    switch_subnet,
     escalate_to_human,
+    redeploy,
+    restart_process,
+    switch_subnet,
 )
-from app.recovery.recovery import RecoveryEngine, RecoveryAction, RECOVERY_MODEL_VERSION
-
 
 # ---------- helpers ----------
 
@@ -93,7 +91,7 @@ class FakeDB:
         pk = getattr(obj, "id", None)
         if pk is None:
             pk = f"mock-{len(self.store)+1:04d}"
-            setattr(obj, "id", pk)
+            obj.id = pk
         self.store[pk] = obj
 
     async def flush(self) -> None:

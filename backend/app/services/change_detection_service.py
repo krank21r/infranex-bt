@@ -8,8 +8,7 @@ and raises approval requests for critical shifts.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -79,11 +78,11 @@ class ChangeDetectionService:
 
     async def detect_for_all(
         self,
-        netuids: List[int],
+        netuids: list[int],
         source: str = "scanner",
-    ) -> List[ChangeDetectionResult]:
+    ) -> list[ChangeDetectionResult]:
         """Detect changes for multiple subnets."""
-        results: List[ChangeDetectionResult] = []
+        results: list[ChangeDetectionResult] = []
         for netuid in netuids:
             try:
                 result = await self.detect_for_subnet(netuid, source)
@@ -96,7 +95,7 @@ class ChangeDetectionService:
                 )
         return results
 
-    async def _get_baseline(self, netuid: int) -> Dict[str, Any]:
+    async def _get_baseline(self, netuid: int) -> dict[str, Any]:
         """Fetch the last known baseline snapshot from SubnetVersion."""
         stmt = (
             select(SubnetVersion)
@@ -126,7 +125,7 @@ class ChangeDetectionService:
             "recorded_at": version.recorded_at.isoformat() if version and version.recorded_at else None,
         }
 
-    async def _get_current_state(self, netuid: int) -> Dict[str, Any]:
+    async def _get_current_state(self, netuid: int) -> dict[str, Any]:
         """Fetch current subnet state from latest metrics, market, requirements."""
         subnet_stmt = select(Subnet).where(Subnet.netuid == netuid)
         subnet_result = await self.db.execute(subnet_stmt)
@@ -243,7 +242,7 @@ class ChangeDetectionService:
             )
         )
 
-    async def _get_affected_miners(self, netuid: int) -> List[str]:
+    async def _get_affected_miners(self, netuid: int) -> list[str]:
         """Get deployment IDs for miners running on this subnet."""
         stmt = select(Deployment.id).where(
             Deployment.netuid == netuid,
@@ -253,7 +252,7 @@ class ChangeDetectionService:
         return [str(row) for row in result.scalars().all()]
 
 
-def _metrics_to_dict(m: SubnetMetrics) -> Dict[str, Any]:
+def _metrics_to_dict(m: SubnetMetrics) -> dict[str, Any]:
     return {
         "emission": m.emission,
         "average_incentive": m.average_incentive,
@@ -271,7 +270,7 @@ def _metrics_to_dict(m: SubnetMetrics) -> Dict[str, Any]:
     }
 
 
-def _market_to_dict(m: MarketData) -> Dict[str, Any]:
+def _market_to_dict(m: MarketData) -> dict[str, Any]:
     return {
         "alpha_price_1d_change": m.alpha_price_1d_change,
         "liquidity": m.liquidity,
@@ -281,7 +280,7 @@ def _market_to_dict(m: MarketData) -> Dict[str, Any]:
     }
 
 
-def _requirements_to_dict(r: SubnetRequirement) -> Dict[str, Any]:
+def _requirements_to_dict(r: SubnetRequirement) -> dict[str, Any]:
     return {
         "min_vram_gb": r.min_vram_gb,
         "recommended_gpu": r.recommended_gpu,

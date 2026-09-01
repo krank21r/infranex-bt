@@ -14,11 +14,12 @@ The pure functions are the authoritative computation and the test surface.
 The Optimizer class is a thin DB-reading orchestrator (no writes).
 """
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.intelligence import compute_opportunity_score
 from app.models import (
     Deployment,
     GPUModel,
@@ -27,7 +28,6 @@ from app.models import (
     Subnet,
     SubnetMetrics,
 )
-from app.intelligence import compute_opportunity_score
 
 OPTIMIZER_MODEL_VERSION = "v1.0"
 
@@ -43,11 +43,11 @@ class CheaperOffer:
     new_hourly_price: float
     savings_per_hour: float
     savings_per_month: float
-    offer: Dict[str, Any]
+    offer: dict[str, Any]
     confidence: float
     explanation: str
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "deployment_id": self.deployment_id,
             "current_hourly_price": round(self.current_hourly_price, 4),
@@ -75,7 +75,7 @@ class SubnetAlternative:
     is_open: bool
     recommendation: str  # "better" | "similar" | "worse"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "netuid": self.netuid,
             "name": self.name,
@@ -100,7 +100,7 @@ class ConfigSuggestion:
     reason: str
     impact: str  # "low" | "medium" | "high"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "key": self.key,
             "current_value": self.current_value,
@@ -129,9 +129,9 @@ def _clamp(value: float, lo: float = 0.0, hi: float = 100.0) -> float:
 def _score_cost_savings_pure(
     current_hourly: float,
     candidate_hourly: float,
-    candidate_offer: Dict[str, Any],
-    requirements: Dict[str, Any],
-) -> Optional[CheaperOffer]:
+    candidate_offer: dict[str, Any],
+    requirements: dict[str, Any],
+) -> CheaperOffer | None:
     """Pure: compute savings from switching to a cheaper offer.
 
     Returns None if candidate is not cheaper.
@@ -164,9 +164,9 @@ def _score_cost_savings_pure(
 
 def _evaluate_subnet_alternative_pure(
     current_score: float,
-    utility_data: Dict[str, Any],
-    technical_data: Dict[str, Any],
-    economics_data: Dict[str, Any],
+    utility_data: dict[str, Any],
+    technical_data: dict[str, Any],
+    economics_data: dict[str, Any],
 ) -> SubnetAlternative:
     """Pure: score one alternative subnet against the current one."""
     opp = compute_opportunity_score(
@@ -199,11 +199,11 @@ def _evaluate_subnet_alternative_pure(
 
 
 def _suggest_config_tweaks_pure(
-    deployment_config: Dict[str, Any],
-    miner_metadata: Dict[str, Any],
-) -> List[ConfigSuggestion]:
+    deployment_config: dict[str, Any],
+    miner_metadata: dict[str, Any],
+) -> list[ConfigSuggestion]:
     """Pure: analyze config + miner metadata and return tweak suggestions."""
-    suggestions: List[ConfigSuggestion] = []
+    suggestions: list[ConfigSuggestion] = []
 
     offer = deployment_config.get("offer", {})
 
@@ -281,7 +281,7 @@ class Optimizer:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def find_cost_savings(self, deployment_id: str) -> Optional[CheaperOffer]:
+    async def find_cost_savings(self, deployment_id: str) -> CheaperOffer | None:
         """Scan the GPU catalog for a cheaper offer that still meets requirements.
 
         Returns the best cheaper offer, or None if no cheaper option exists.
@@ -314,7 +314,7 @@ class Optimizer:
 
         rows = (await self.db.execute(stmt)).all()
 
-        best: Optional[CheaperOffer] = None
+        best: CheaperOffer | None = None
         for offer, gpu_name in rows:
             candidate = {
                 "id": offer.id,
@@ -355,7 +355,7 @@ class Optimizer:
 
         return best
 
-    async def evaluate_subnet_alternatives(self, netuid: int) -> List[SubnetAlternative]:
+    async def evaluate_subnet_alternatives(self, netuid: int) -> list[SubnetAlternative]:
         """Score other active subnets as migration alternatives."""
         current = (
             (await self.db.execute(select(SubnetMetrics).where(SubnetMetrics.netuid == netuid)))
@@ -410,7 +410,7 @@ class Optimizer:
         )
         current_score = opp["total_score"]
 
-        alternatives: List[SubnetAlternative] = []
+        alternatives: list[SubnetAlternative] = []
 
         other_rows = (
             (await self.db.execute(
@@ -471,7 +471,7 @@ class Optimizer:
         alternatives.sort(key=lambda a: -a.score_delta)
         return alternatives[:10]
 
-    async def suggest_config_tweaks(self, miner_id: str) -> List[ConfigSuggestion]:
+    async def suggest_config_tweaks(self, miner_id: str) -> list[ConfigSuggestion]:
         """Return config tweak suggestions for a miner."""
         miner = (
             (await self.db.execute(select(Miner).where(Miner.id == miner_id)))

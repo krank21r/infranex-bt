@@ -12,7 +12,7 @@ Per the spec:
   - "Store: score, component scores, weights, timestamp, model version"
 """
 from dataclasses import dataclass
-from typing import Dict, Any, List
+from typing import Any, Dict, List
 
 SCORE_MODEL_VERSION = "v2.0"
 
@@ -36,9 +36,9 @@ class ScoreComponent:
     weighted: float
     explanation: str
     pillar: str = ""
-    components: List[Dict[str, Any]] | None = None
+    components: list[dict[str, Any]] | None = None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "score": round(self.score, 2),
@@ -73,7 +73,7 @@ DEFAULT_WEIGHTS = {
 }
 
 
-def score_economic_potential(metrics: Dict[str, Any]) -> ScoreComponent:
+def score_economic_potential(metrics: dict[str, Any]) -> ScoreComponent:
     emission = float(metrics.get("emission") or 0)
     avg_incentive = float(metrics.get("average_incentive") or 0)
     total_stake = float(metrics.get("total_stake") or 0)
@@ -89,7 +89,7 @@ def score_economic_potential(metrics: Dict[str, Any]) -> ScoreComponent:
     )
 
 
-def score_competition(metrics: Dict[str, Any]) -> ScoreComponent:
+def score_competition(metrics: dict[str, Any]) -> ScoreComponent:
     top5 = float(metrics.get("top_5_concentration") or 0)
     top10 = float(metrics.get("top_10_concentration") or 0)
     turnover = float(metrics.get("miner_turnover") or 0)
@@ -111,7 +111,7 @@ def score_competition(metrics: Dict[str, Any]) -> ScoreComponent:
     )
 
 
-def score_reward_stability(metrics: Dict[str, Any]) -> ScoreComponent:
+def score_reward_stability(metrics: dict[str, Any]) -> ScoreComponent:
     top = float(metrics.get("top_incentive") or 0)
     median = float(metrics.get("median_incentive") or 0)
     avg = float(metrics.get("average_incentive") or 0)
@@ -132,7 +132,7 @@ def score_reward_stability(metrics: Dict[str, Any]) -> ScoreComponent:
     )
 
 
-def score_market_conditions(market: Dict[str, Any]) -> ScoreComponent:
+def score_market_conditions(market: dict[str, Any]) -> ScoreComponent:
     price_change_24h = float(market.get("alpha_price_1d_change") or 0)
     liquidity = float(market.get("liquidity") or 0)
     volume_mcap = float(market.get("volume_market_cap_ratio") or 0)
@@ -148,7 +148,7 @@ def score_market_conditions(market: Dict[str, Any]) -> ScoreComponent:
     )
 
 
-def score_new_miner_accessibility(metrics: Dict[str, Any]) -> ScoreComponent:
+def score_new_miner_accessibility(metrics: dict[str, Any]) -> ScoreComponent:
     reg_cost = float(metrics.get("registration_cost") or 0)
     util = float(metrics.get("neuron_utilization") or 0)
     miner_count = float(metrics.get("miner_count") or 0)
@@ -164,7 +164,7 @@ def score_new_miner_accessibility(metrics: Dict[str, Any]) -> ScoreComponent:
     )
 
 
-def score_network_health(metrics: Dict[str, Any]) -> ScoreComponent:
+def score_network_health(metrics: dict[str, Any]) -> ScoreComponent:
     trust = float(metrics.get("trust") or 0)
     consensus = float(metrics.get("consensus") or 0)
     validators = float(metrics.get("validator_count") or 0)
@@ -180,7 +180,7 @@ def score_network_health(metrics: Dict[str, Any]) -> ScoreComponent:
     )
 
 
-def score_hardware_suitability(requirements: Dict[str, Any], gpus: List[Dict[str, Any]]) -> ScoreComponent:
+def score_hardware_suitability(requirements: dict[str, Any], gpus: list[dict[str, Any]]) -> ScoreComponent:
     min_vram = float(requirements.get("min_vram_gb") or 0)
     if min_vram <= 0 or not gpus:
         return ScoreComponent(
@@ -205,7 +205,7 @@ def score_hardware_suitability(requirements: Dict[str, Any], gpus: List[Dict[str
     )
 
 
-def score_profitability_potential(metrics: Dict[str, Any], market: Dict[str, Any]) -> ScoreComponent:
+def score_profitability_potential(metrics: dict[str, Any], market: dict[str, Any]) -> ScoreComponent:
     emission = float(metrics.get("emission") or 0)
     avg_incentive = float(metrics.get("average_incentive") or 0)
     tao_usd = float(market.get("tao_price_usd") or 0) or 100.0
@@ -224,7 +224,7 @@ def score_profitability_potential(metrics: Dict[str, Any], market: Dict[str, Any
     )
 
 
-def score_utility(utility_data: Dict[str, Any]) -> ScoreComponent:
+def score_utility(utility_data: dict[str, Any]) -> ScoreComponent:
     subnet = utility_data.get("subnet", {})
     readme = utility_data.get("readme_analysis", "") or ""
     metadata = utility_data.get("metadata", {}) or {}
@@ -279,13 +279,13 @@ def score_utility(utility_data: Dict[str, Any]) -> ScoreComponent:
     )
 
 
-def score_technical(technical_data: Dict[str, Any]) -> ScoreComponent:
+def score_technical(technical_data: dict[str, Any]) -> ScoreComponent:
     requirements = technical_data.get("requirements", {}) or {}
     gpus = technical_data.get("gpus", []) or []
     extraction_confidence = _to_float(technical_data.get("extraction_confidence"))
 
     min_vram = _to_float(requirements.get("min_vram_gb"))
-    recommended_gpu = (requirements.get("recommended_gpu") or "").lower()
+    (requirements.get("recommended_gpu") or "").lower()
     cuda_version = (requirements.get("cuda_version") or "").strip()
     ram_gb = _to_float(requirements.get("ram_gb"))
     storage_gb = _to_float(requirements.get("storage_gb"))
@@ -344,7 +344,7 @@ def score_technical(technical_data: Dict[str, Any]) -> ScoreComponent:
     )
 
 
-def score_economics(economics_data: Dict[str, Any]) -> ScoreComponent:
+def score_economics(economics_data: dict[str, Any]) -> ScoreComponent:
     metrics = economics_data.get("metrics", {}) or {}
     market = economics_data.get("market", {}) or {}
     gpu_cost_hourly = _to_float(economics_data.get("gpu_cost_hourly"))
@@ -402,10 +402,10 @@ def score_economics(economics_data: Dict[str, Any]) -> ScoreComponent:
 
 
 def compute_opportunity_score(
-    utility_data: Dict[str, Any],
-    technical_data: Dict[str, Any],
-    economics_data: Dict[str, Any],
-) -> Dict[str, Any]:
+    utility_data: dict[str, Any],
+    technical_data: dict[str, Any],
+    economics_data: dict[str, Any],
+) -> dict[str, Any]:
     utility = score_utility(utility_data)
     technical = score_technical(technical_data)
     economics = score_economics(economics_data)

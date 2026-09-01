@@ -1,29 +1,30 @@
 """
 API dependencies for FastAPI endpoints.
 """
-from typing import Optional, AsyncGenerator
-from collections import defaultdict
 import time
+from collections import defaultdict
+from collections.abc import AsyncGenerator
+
+from fastapi import Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
-from fastapi import Depends, Query, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
-from app.core.database import get_async_session as _get_async_session, get_supabase, get_supabase_admin
 from app.core.auth import (
     get_current_user_from_supabase,
     get_current_user_optional,
     get_token_data,
-    require_role,
     require_admin,
+    require_role,
 )
-from app.schemas.common import PaginationParams, PaginationMeta, SortParams
-from app.schemas.auth import User, TokenData
-from app.services.subnet_service import SubnetService
-from app.services.opportunity_service import OpportunityService
-from app.services.gpu_service import GPUService
+from app.core.config import settings
+from app.core.database import get_async_session as _get_async_session
+from app.core.database import get_supabase, get_supabase_admin
+from app.schemas.auth import TokenData, User
+from app.schemas.common import PaginationMeta, PaginationParams, SortParams
 from app.services.gpu_matching_service import GPUMatchingService
-
+from app.services.gpu_service import GPUService
+from app.services.opportunity_service import OpportunityService
+from app.services.subnet_service import SubnetService
 
 # --- Database Dependencies ---
 
@@ -54,7 +55,7 @@ async def get_current_user(
 
 async def get_optional_user(
     current_user = Depends(get_current_user_optional),
-) -> Optional[User]:
+) -> User | None:
     """Get current user if authenticated, otherwise None."""
     return current_user
 
@@ -105,7 +106,7 @@ def create_pagination_meta(
 # --- Sorting Dependencies ---
 
 def get_sort_params(
-    sort_by: Optional[str] = Query(None, description="Field to sort by"),
+    sort_by: str | None = Query(None, description="Field to sort by"),
     sort_order: str = Query("desc", pattern="^(asc|desc)$", description="Sort order"),
 ) -> SortParams:
     """Get sorting parameters from query."""
@@ -116,10 +117,10 @@ def get_sort_params(
 
 class FilterDependency:
     """Base class for filter dependencies."""
-    
+
     def __init__(self, filter_model):
         self.filter_model = filter_model
-    
+
     def __call__(self, **filters) -> BaseModel:
         # Filter out None values
         filtered = {k: v for k, v in filters.items() if v is not None}
@@ -159,13 +160,13 @@ async def rate_limit(
     """Simple in-memory rate limiter."""
     client_ip = get_client_ip(request)
     now = time.time()
-    
+
     # Clean old entries
     _rate_limit_store[client_ip] = [
         ts for ts in _rate_limit_store[client_ip]
         if now - ts < window_seconds
     ]
-    
+
     if len(_rate_limit_store[client_ip]) >= max_requests:
         oldest = _rate_limit_store[client_ip][0]
         retry_after = int(window_seconds - (now - oldest)) + 1
@@ -174,7 +175,7 @@ async def rate_limit(
             detail=f"Rate limit exceeded. Try again in {retry_after} seconds.",
             headers={"Retry-After": str(retry_after)},
         )
-    
+
     _rate_limit_store[client_ip].append(now)
 
 

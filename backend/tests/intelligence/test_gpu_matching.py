@@ -10,15 +10,15 @@ Pins the contract:
   - ranking is stable across rerun.
   - service-level match_offers paginates and returns (page, total).
 """
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from app.intelligence.gpu_matching import (
-    rank_offers_for_requirements,
     MATCH_MODEL_VERSION,
+    rank_offers_for_requirements,
 )
 from app.services.gpu_matching_service import GPUMatchingService
-
 
 # ---------- helpers ----------
 

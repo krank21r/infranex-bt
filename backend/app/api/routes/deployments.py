@@ -12,12 +12,13 @@ Endpoints:
 """
 from __future__ import annotations
 
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy import select, desc, func
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, get_current_user
+from app.api.deps import get_current_user, get_db
+from app.deployment.state_machine import DeploymentState
+from app.models import Deployment, Server
 from app.schemas.auth import User
 from app.schemas.common import APIResponse, PaginationMeta
 from app.schemas.deployment import (
@@ -26,9 +27,7 @@ from app.schemas.deployment import (
     ServerResponse,
     TerminateInput,
 )
-from app.models import Deployment, Server
 from app.services.deployment_service import DeploymentService
-from app.deployment.state_machine import DeploymentState
 
 router = APIRouter(prefix="/deployments", tags=["deployments"])
 
@@ -124,8 +123,8 @@ async def create_deployment(
 
 @router.get("", response_model=APIResponse[list[DeploymentResponse]])
 async def list_deployments(
-    status: Optional[DeploymentState] = None,
-    netuid: Optional[int] = None,
+    status: DeploymentState | None = None,
+    netuid: int | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     user: User = Depends(get_current_user),

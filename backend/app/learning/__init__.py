@@ -11,14 +11,14 @@ Modules:
   adapter    — WeightAdapter: bounded weight adjustment proposals
   feedback   — FeedbackLoop: periodic end-to-end learning cycle
 """
-from app.learning.aggregator import PerformanceAggregator
-from app.learning.tracker import AccuracyTracker
 from app.learning.adapter import WeightAdapter
+from app.learning.aggregator import PerformanceAggregator
 from app.learning.feedback import FeedbackLoop
+from app.learning.tracker import AccuracyTracker
 
 __all__ = [
-    "PerformanceAggregator",
     "AccuracyTracker",
-    "WeightAdapter",
     "FeedbackLoop",
+    "PerformanceAggregator",
+    "WeightAdapter",
 ]

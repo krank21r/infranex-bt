@@ -11,15 +11,15 @@ Pins the contract that the service now:
 
 Pure-Python. AsyncSession is mocked.
 """
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
+from app.intelligence import SCORE_MODEL_VERSION
 from app.services.opportunity_service import (
     OpportunityService,
     _requirements_to_dict,
 )
-from app.intelligence import SCORE_MODEL_VERSION
-
 
 # ---------- helpers ----------
 

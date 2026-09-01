@@ -6,13 +6,13 @@ Pins the contract:
   - RecoveryWorker dispatches to RecoveryEngine
   - BaseWorker lifecycle hooks are called correctly
 """
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.workers.auto_stop_worker import AutoStopWorker, create_auto_stop_worker
-from app.workers.recovery_worker import RecoveryWorker, create_recovery_worker
 from app.workers.base import BaseWorker
-
+from app.workers.recovery_worker import RecoveryWorker, create_recovery_worker
 
 # ---------- lifecycle hooks ----------
 

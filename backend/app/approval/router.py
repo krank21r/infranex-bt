@@ -14,14 +14,15 @@ This keeps the policy decision (what level) and the execution decision
 (when to run) in one place, so every engine behaves the same way.
 """
 import inspect
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Optional, Awaitable, Callable, Any
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .classifier import ActionContext, ActionLevel, classify_action
-from .service import ApprovalService, ApprovalRequestInput
 from .audit import AuditWriter
+from .classifier import ActionContext, ActionLevel, classify_action
+from .service import ApprovalRequestInput, ApprovalService
 
 
 @dataclass
@@ -30,7 +31,7 @@ class ApprovalResult:
     level: ActionLevel
     executed: bool
     output: Any = None
-    error: Optional[str] = None
+    error: str | None = None
 
 
 ActionCallable = Callable[..., Awaitable[Any]]
@@ -49,11 +50,11 @@ class ApprovalRouter:
         ctx: ActionContext,
         *,
         requested_by: str,
-        subject_type: Optional[str] = None,
-        subject_id: Optional[str] = None,
-        reason: Optional[str] = None,
-        action: Optional[ActionCallable] = None,
-        action_kwargs: Optional[dict] = None,
+        subject_type: str | None = None,
+        subject_id: str | None = None,
+        reason: str | None = None,
+        action: ActionCallable | None = None,
+        action_kwargs: dict | None = None,
     ) -> ApprovalResult:
         level = classify_action(ctx) or ActionLevel.L3_MANDATORY
 
@@ -98,7 +99,7 @@ class ApprovalRouter:
         *,
         approval_id: str,
         action: ActionCallable,
-        action_kwargs: Optional[dict] = None,
+        action_kwargs: dict | None = None,
     ) -> ApprovalResult:
         row = await self._approvals.get(approval_id)
         if row is None:
@@ -129,8 +130,8 @@ class ApprovalRouter:
         *,
         approval_id: str,
         level: ActionLevel,
-        subject_type: Optional[str],
-        subject_id: Optional[str],
+        subject_type: str | None,
+        subject_id: str | None,
         action: ActionCallable,
         action_kwargs: dict,
     ) -> ApprovalResult:

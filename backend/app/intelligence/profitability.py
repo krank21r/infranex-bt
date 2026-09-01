@@ -23,8 +23,7 @@ a parameter; the service layer chooses it (default = a full day of
 blocks, ~7200).
 """
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
-
+from typing import Any
 
 # Default model version. Bump on any change to the revenue / ROI math.
 SERVICE_MODEL_VERSION = "v1.0"
@@ -48,7 +47,7 @@ class RevenueProjection:
     sample_size: int
     model_version: str
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "monthly_revenue_usd": self.monthly_revenue_usd,
             "confidence": self.confidence,
@@ -62,14 +61,14 @@ class ProfitabilityProjection:
     """Full projection: revenue + cost + ROI + confidence."""
     monthly_revenue_usd: float
     monthly_cost_usd: float
-    monthly_profit_usd: Optional[float]
-    roi: Optional[float]   # profit / cost
+    monthly_profit_usd: float | None
+    roi: float | None   # profit / cost
     confidence: float
     currency: str
     sample_size: int
     model_version: str
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "monthly_revenue_usd": self.monthly_revenue_usd,
             "monthly_cost_usd": self.monthly_cost_usd,
@@ -82,7 +81,7 @@ class ProfitabilityProjection:
         }
 
 
-def _avg(values: List[float]) -> float:
+def _avg(values: list[float]) -> float:
     """Plain arithmetic mean. Empty list -> 0.0."""
     if not values:
         return 0.0
@@ -97,7 +96,7 @@ def _confidence(sample_size: int, target: int) -> float:
 
 
 def project_revenue(
-    emission_history: List[float],
+    emission_history: list[float],
     tao_price_usd: float,
     *,
     blocks_per_month: int = DEFAULT_BLOCKS_PER_MONTH,
@@ -128,7 +127,7 @@ def project_revenue(
 
 
 def project_profitability(
-    emission_history: List[float],
+    emission_history: list[float],
     monthly_cost_usd: float,
     currency: str,
     tao_price_usd: float,

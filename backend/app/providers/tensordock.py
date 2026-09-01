@@ -10,7 +10,7 @@ which is injectable so tests can mock the external calls.
 """
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
 
@@ -29,9 +29,9 @@ class TensorDockProvider:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        api_secret: Optional[str] = None,
-        client: Optional[httpx.Client] = None,
+        api_key: str | None = None,
+        api_secret: str | None = None,
+        client: httpx.Client | None = None,
     ) -> None:
         self.api_key = api_key or os.getenv("TENSORDOCK_API_KEY")
         self.api_secret = api_secret or os.getenv("TENSORDOCK_API_SECRET")
@@ -49,14 +49,14 @@ class TensorDockProvider:
             self._client = httpx.Client(timeout=30.0)
         return self._client
 
-    def _headers(self) -> Dict[str, str]:
+    def _headers(self) -> dict[str, str]:
         # TensorDock auth is key + secret pairs on each request.
-        headers: Dict[str, str] = {"Authorization": f"Bearer {self.api_key}"}
+        headers: dict[str, str] = {"Authorization": f"Bearer {self.api_key}"}
         if self.api_secret:
             headers["X-API-Secret"] = self.api_secret
         return headers
 
-    def _request(self, method: str, path: str, **kwargs: Any) -> Dict[str, Any]:
+    def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         resp = self.client.request(
             method,
             f"{TENSORDOCK_API_URL}{path}",
@@ -68,7 +68,7 @@ class TensorDockProvider:
 
     # ---------- API surface ----------
 
-    def search_offers(self, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def search_offers(self, params: dict[str, Any] | None = None) -> list[dict[str, Any]]:
         """List available TensorDock GPU offers."""
         data = self._request("GET", "/search", params=params or {})
         return data.get("offers", []) or []
@@ -81,7 +81,7 @@ class TensorDockProvider:
         vcpu: int = 4,
         ram: int = 16,
         storage: int = 50,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Rent a GPU instance on the TensorDock marketplace."""
         body = {
             "gpu_model": gpu_model,
@@ -93,13 +93,13 @@ class TensorDockProvider:
         }
         return self._request("POST", "/rent", json=body)
 
-    def start_instance(self, instance_id: str) -> Dict[str, Any]:
+    def start_instance(self, instance_id: str) -> dict[str, Any]:
         return self._request("POST", f"/start/{instance_id}")
 
-    def stop_instance(self, instance_id: str) -> Dict[str, Any]:
+    def stop_instance(self, instance_id: str) -> dict[str, Any]:
         return self._request("POST", f"/stop/{instance_id}")
 
-    def destroy_instance(self, instance_id: str) -> Dict[str, Any]:
+    def destroy_instance(self, instance_id: str) -> dict[str, Any]:
         return self._request("POST", f"/destroy/{instance_id}")
 
     # ---------- GPUProvider protocol ----------
@@ -127,7 +127,7 @@ class TensorDockProvider:
         server.status = "provisioned"
         return True
 
-    def deploy_miner(self, server: Server, config: Dict[str, Any]) -> bool:
+    def deploy_miner(self, server: Server, config: dict[str, Any]) -> bool:
         if not server.provider_instance_id:
             return False
         server.status = "started"
@@ -147,7 +147,7 @@ class TensorDockProvider:
         server.status = "terminated"
         return True
 
-    def get_status(self, server: Server) -> Dict[str, Any]:
+    def get_status(self, server: Server) -> dict[str, Any]:
         return {
             "provider": self.name,
             "provider_instance_id": server.provider_instance_id,

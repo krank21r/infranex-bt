@@ -19,8 +19,7 @@ explainable: every rank is the sum of two named bonuses plus a deterministic
 price tie-break.
 """
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
-
+from typing import Any
 
 # Default model version for the ranker. Bump on logic changes.
 MATCH_MODEL_VERSION = "v1.0"
@@ -29,13 +28,13 @@ MATCH_MODEL_VERSION = "v1.0"
 @dataclass(frozen=True)
 class RankedOffer:
     """One offer with its rank, score, and explainable breakdown."""
-    offer: Dict[str, Any]
+    offer: dict[str, Any]
     total_score: float
     match_bonus: float
     region_bonus: float
     price: float
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "offer": self.offer,
             "total_score": self.total_score,
@@ -54,7 +53,7 @@ def _to_float(value) -> float:
         return 0.0
 
 
-def _eligible_vram(requirements: Dict[str, Any], offer: Dict[str, Any]) -> bool:
+def _eligible_vram(requirements: dict[str, Any], offer: dict[str, Any]) -> bool:
     """True iff offer.vram_gb >= requirements.min_vram_gb (or no bar set)."""
     min_vram = _to_float(requirements.get("min_vram_gb"))
     offer_vram = _to_float(offer.get("vram_gb"))
@@ -64,10 +63,10 @@ def _eligible_vram(requirements: Dict[str, Any], offer: Dict[str, Any]) -> bool:
 
 
 def _score_offer(
-    requirements: Dict[str, Any],
-    offer: Dict[str, Any],
-    preferred_region: Optional[str],
-) -> Tuple[float, float, float]:
+    requirements: dict[str, Any],
+    offer: dict[str, Any],
+    preferred_region: str | None,
+) -> tuple[float, float, float]:
     """Return (match_bonus, region_bonus, total_score) for one offer."""
     rec_gpu = (requirements.get("recommended_gpu") or "").strip()
     offer_gpu = (offer.get("gpu_model_name") or "").strip()
@@ -82,10 +81,10 @@ def _score_offer(
 
 
 def rank_offers_for_requirements(
-    requirements: Dict[str, Any],
-    offers: List[Dict[str, Any]],
-    preferred_region: Optional[str] = None,
-) -> List[RankedOffer]:
+    requirements: dict[str, Any],
+    offers: list[dict[str, Any]],
+    preferred_region: str | None = None,
+) -> list[RankedOffer]:
     """Rank GPU offers for a subnet's requirements.
 
     Args:
@@ -101,7 +100,7 @@ def rank_offers_for_requirements(
     """
     eligible = [o for o in offers if _eligible_vram(requirements, o)]
 
-    ranked: List[RankedOffer] = []
+    ranked: list[RankedOffer] = []
     for offer in eligible:
         match_bonus, region_bonus, total = _score_offer(
             requirements, offer, preferred_region

@@ -11,14 +11,11 @@ Pins the v2.0 decision contract:
 
 Pure Python. No DB, no async.
 """
-import pytest
 
 from app.strategy.engine import (
-    StrategyEngine,
-    PortfolioConstraints,
-    PortfolioState,
-    Action,
     STRATEGY_MODEL_VERSION,
+    PortfolioState,
+    StrategyEngine,
 )
 
 

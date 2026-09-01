@@ -10,17 +10,14 @@ Pins the two load-bearing invariants of the migrator:
      "suppress startup noise" floor; if it ever regresses, every
      freshly-deployed miner will migrate on its first empty block.
 """
-import pytest
 
 from app.intelligence.monitoring import (
-    should_migrate,
-    compute_rolling_roi,
-    record_emission,
-    MONITOR_MODEL_VERSION,
-    DEFAULT_MIN_OBSERVATIONS,
     BLOCKS_PER_MONTH,
+    DEFAULT_MIN_OBSERVATIONS,
+    MONITOR_MODEL_VERSION,
+    record_emission,
+    should_migrate,
 )
-
 
 # ---------- helpers ----------
 

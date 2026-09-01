@@ -5,11 +5,10 @@ All network access goes through the injected `httpx.Client`, so we
 assert on the request shape (URL + GraphQL query presence) and the
 resulting `Server` without leaving the process.
 """
-import pytest
 import httpx
+import pytest
 
 from app.providers.runpod import RUNPOD_API_URL, RunPodProvider
-
 from app.tests.providers._support import fake_deployment, magic_client
 
 

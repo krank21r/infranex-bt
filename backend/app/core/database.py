@@ -11,8 +11,8 @@ For serverless (Vercel), uses Supabase PgBouncer pooler (port 6543) via
 DATABASE_POOLER_URL. For local development, uses direct connection.
 """
 import logging
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Optional, AsyncGenerator
 
 try:
     import asyncpg
@@ -21,15 +21,15 @@ except ImportError:
     asyncpg = None
     ASYNCPG_AVAILABLE = False
 
-from supabase import create_client, Client
+from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import (
-    create_async_engine,
     AsyncSession,
     async_sessionmaker,
+    create_async_engine,
 )
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
+from supabase import Client, create_client
 
 from app.core.config import settings
 
@@ -40,13 +40,13 @@ class DatabaseManager:
     """Manages database connections (Supabase REST + async SQLAlchemy)."""
 
     def __init__(self):
-        self._supabase_client: Optional[Client] = None
-        self._supabase_admin_client: Optional[Client] = None
+        self._supabase_client: Client | None = None
+        self._supabase_admin_client: Client | None = None
         self._async_engine = None
-        self._async_session_factory: Optional[async_sessionmaker] = None
+        self._async_session_factory: async_sessionmaker | None = None
         self._sync_engine = None
-        self._sync_session_factory: Optional[sessionmaker] = None
-        self._asyncpg_pool: Optional["asyncpg.Pool"] = None
+        self._sync_session_factory: sessionmaker | None = None
+        self._asyncpg_pool: asyncpg.Pool | None = None
 
     # --- Supabase Clients ---
 

@@ -17,9 +17,6 @@ from app.intelligence import (
     SCORE_MODEL_VERSION,
     ScoreComponent,
     compute_opportunity_score,
-    score_utility,
-    score_technical,
-    score_economics,
     score_economic_potential,
     score_hardware_suitability,
 )

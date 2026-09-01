@@ -7,15 +7,15 @@ adjustment exceeds 20% per iteration.
 """
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.intelligence import DEFAULT_WEIGHTS
 from app.models import (
     WeightAdjustment as WeightAdjustmentORM,
 )
-from app.intelligence import DEFAULT_WEIGHTS
 
 logger = logging.getLogger(__name__)
 
@@ -36,14 +36,14 @@ class ComponentAdjustment:
 class WeightAdjustment:
     """Full proposed weight change set for one model version."""
     model_version: str
-    previous_weights: Dict[str, float]
-    new_weights: Dict[str, float]
-    adjustments: List[ComponentAdjustment]
+    previous_weights: dict[str, float]
+    new_weights: dict[str, float]
+    adjustments: list[ComponentAdjustment]
     reason: str
     applied: bool
     created_at: Any
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "model_version": self.model_version,
             "previous_weights": self.previous_weights,
@@ -71,7 +71,7 @@ class WeightAdapter:
     async def suggest_weight_adjustments(
         self,
         model_version: str,
-        accuracy_report: Dict[str, Any],
+        accuracy_report: dict[str, Any],
     ) -> WeightAdjustment:
         """Propose bounded weight adjustments based on component accuracy.
 
@@ -136,7 +136,7 @@ class WeightAdapter:
                 created_at=None,
             )
 
-        adjustments: List[ComponentAdjustment] = []
+        adjustments: list[ComponentAdjustment] = []
         proposed_weights = dict(current_weights)
 
         for comp_name, err in comp_errors.items():

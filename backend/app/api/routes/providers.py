@@ -1,8 +1,8 @@
 """
 GPU Provider API routes — thin wrappers over GPUService.
 """
-from typing import Optional
-from fastapi import APIRouter, Depends, Query, HTTPException, status
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, get_gpu_service
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/providers", tags=["providers"])
 @router.get("", response_model=APIResponse[list[dict]])
 async def list_providers(
     db: AsyncSession = Depends(get_db),
-    is_active: Optional[bool] = Query(True),
+    is_active: bool | None = Query(True),
     gpu_service: GPUService = Depends(get_gpu_service),
 ) -> APIResponse[list[dict]]:
     providers = await gpu_service.list_providers(is_active=is_active)
@@ -43,8 +43,8 @@ async def get_provider_offers(
     db: AsyncSession = Depends(get_db),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
-    region: Optional[str] = Query(None),
-    is_spot: Optional[bool] = Query(None),
+    region: str | None = Query(None),
+    is_spot: bool | None = Query(None),
     sort_by: str = Query("hourly_price"),
     sort_order: str = Query("asc", pattern="^(asc|desc)$"),
     gpu_service: GPUService = Depends(get_gpu_service),

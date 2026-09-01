@@ -16,12 +16,12 @@ Design constraints:
     authorized it. This is the bridge between pillar 1 and pillar 2.
 """
 import uuid
-from typing import Optional, Dict, Any
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Any
+
 from sqlalchemy import insert
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit import AuditLog
-
 
 ACTOR_SYSTEM_DISCOVERY = "system:discovery"
 ACTOR_SYSTEM_DECISION = "system:decision"
@@ -41,14 +41,14 @@ class AuditWriter:
         *,
         actor: str,
         action: str,
-        target_type: Optional[str] = None,
-        target_id: Optional[str] = None,
-        before: Optional[Dict[str, Any]] = None,
-        after: Optional[Dict[str, Any]] = None,
-        reason: Optional[str] = None,
-        correlation_id: Optional[str] = None,
-        related_approval_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        target_type: str | None = None,
+        target_id: str | None = None,
+        before: dict[str, Any] | None = None,
+        after: dict[str, Any] | None = None,
+        reason: str | None = None,
+        correlation_id: str | None = None,
+        related_approval_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
     ) -> str:
         row_id = str(uuid.uuid4())
         await self._session.execute(

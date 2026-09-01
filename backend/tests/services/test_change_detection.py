@@ -8,22 +8,20 @@ Pins the contract:
   - Thresholds control sensitivity
   - should_trigger_rescore / should_raise_approval work correctly
 """
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+
 from app.intelligence.change_detection import (
-    ChangeDetectionResult,
-    SubnetStateDiff,
     MODEL_VERSION,
-    DEFAULT_THRESHOLDS,
-    detect_subnet_changes,
-    should_trigger_rescore,
-    should_raise_approval,
+    ChangeDetectionResult,
     _impact_from_ratio,
     _ratio,
+    detect_subnet_changes,
+    should_raise_approval,
+    should_trigger_rescore,
 )
 from app.services.change_detection_service import ChangeDetectionService
-
 
 # ---------- pure logic tests ----------
 

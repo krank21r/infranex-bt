@@ -9,7 +9,6 @@ import pytest
 
 from app.models.deployment import Server
 from app.providers.vastai import VASTAI_API_URL, VastAIProvider
-
 from app.tests.providers._support import fake_deployment, magic_client
 
 

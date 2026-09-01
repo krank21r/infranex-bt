@@ -4,12 +4,12 @@ Authentication API routes.
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import get_current_user
-from app.core.auth import refresh_access_token, AuthError
+from app.core.auth import AuthError, refresh_access_token
 from app.core.config import settings
 from app.schemas.auth import (
-    UserProfile,
-    TokenRefreshRequest,
     RefreshResponse,
+    TokenRefreshRequest,
+    UserProfile,
 )
 from app.schemas.common import APIResponse
 

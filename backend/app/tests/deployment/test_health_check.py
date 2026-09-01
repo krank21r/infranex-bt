@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import sys
 import types
-import pytest
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
-from datetime import datetime, timezone
+
+import pytest
 
 _STUB_MODULES = {
     "sqlalchemy": [
@@ -84,8 +85,8 @@ def _deployment(status: str = DeploymentState.STARTED.value, netuid: int = 7) ->
     d.id = "dep-1"
     d.netuid = netuid
     d.status = status
-    d.created_at = datetime.now(timezone.utc)
-    d.updated_at = datetime.now(timezone.utc)
+    d.created_at = datetime.now(UTC)
+    d.updated_at = datetime.now(UTC)
     return d
 
 
@@ -97,8 +98,8 @@ def _server(status: str = "running", ip: str = "10.0.0.1", ssh_port: int = 22) -
     s.ip_address = ip
     s.ssh_port = ssh_port
     s.gpu_model = "NVIDIA A100"
-    s.created_at = datetime.now(timezone.utc)
-    s.updated_at = datetime.now(timezone.utc)
+    s.created_at = datetime.now(UTC)
+    s.updated_at = datetime.now(UTC)
     return s
 
 
@@ -127,7 +128,7 @@ async def test_run_once_skips_non_started_deployments():
 
 
 def test_health_check_result_defaults_details():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     result = HealthCheckResult(
         deployment_id="dep-1",
         server_id="srv-1",

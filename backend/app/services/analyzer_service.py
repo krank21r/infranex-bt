@@ -17,7 +17,6 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
 
 from app.clients.github import GitHubFileFetcher
 from app.core.config import settings
@@ -28,14 +27,14 @@ logger = logging.getLogger(__name__)
 
 # Curated map for the 3 fake subnets the rest of the platform already uses.
 # Real production subnets come from ANALYZER_REPO_OVERRIDES (env JSON).
-DEFAULT_SUBNET_REPOS: Dict[int, Tuple[str, str, str]] = {
+DEFAULT_SUBNET_REPOS: dict[int, tuple[str, str, str]] = {
     1: ("macrocosm-os", "text-prompting", "main"),
     3: ("macrocosm-os", "image-alchemy", "main"),
     64: ("macrocosm-os", "finetune", "main"),
 }
 
 # Files we always try to fetch. (path, kind) — kind groups which parser section runs.
-FETCH_TARGETS: List[Tuple[str, str]] = [
+FETCH_TARGETS: list[tuple[str, str]] = [
     ("README.md", "readme"),
     ("requirements.txt", "requirements_txt"),
     ("pyproject.toml", "pyproject"),
@@ -57,34 +56,34 @@ class ExtractedField:
 @dataclass
 class ExtractedRequirements:
     """All 17 SubnetRequirement fields as Optional[ExtractedField]."""
-    python_version: Optional[ExtractedField] = None
-    cuda_version: Optional[ExtractedField] = None
-    pytorch_version: Optional[ExtractedField] = None
-    min_vram_gb: Optional[ExtractedField] = None
-    recommended_gpu: Optional[ExtractedField] = None
-    ram_gb: Optional[ExtractedField] = None
-    cpu_cores: Optional[ExtractedField] = None
-    storage_gb: Optional[ExtractedField] = None
-    docker_required: Optional[ExtractedField] = None
-    nvidia_runtime_required: Optional[ExtractedField] = None
-    ports: Optional[ExtractedField] = None
-    env_variables: Optional[ExtractedField] = None
-    startup_command: Optional[ExtractedField] = None
-    miner_command: Optional[ExtractedField] = None
-    dependencies: Optional[ExtractedField] = None
-    raw_requirements: Optional[ExtractedField] = None
+    python_version: ExtractedField | None = None
+    cuda_version: ExtractedField | None = None
+    pytorch_version: ExtractedField | None = None
+    min_vram_gb: ExtractedField | None = None
+    recommended_gpu: ExtractedField | None = None
+    ram_gb: ExtractedField | None = None
+    cpu_cores: ExtractedField | None = None
+    storage_gb: ExtractedField | None = None
+    docker_required: ExtractedField | None = None
+    nvidia_runtime_required: ExtractedField | None = None
+    ports: ExtractedField | None = None
+    env_variables: ExtractedField | None = None
+    startup_command: ExtractedField | None = None
+    miner_command: ExtractedField | None = None
+    dependencies: ExtractedField | None = None
+    raw_requirements: ExtractedField | None = None
     extraction_confidence: float = 0.0
 
 
 class AnalyzerService:
     """Orchestrates repo resolution + fetch + parse. Stateless."""
 
-    def __init__(self, fetcher: Optional[GitHubFileFetcher] = None) -> None:
+    def __init__(self, fetcher: GitHubFileFetcher | None = None) -> None:
         self.fetcher = fetcher
 
     # ---------- 1. Repo resolution ----------
 
-    def _parse_overrides(self) -> Dict[int, Tuple[str, str, str]]:
+    def _parse_overrides(self) -> dict[int, tuple[str, str, str]]:
         """Parse ANALYZER_REPO_OVERRIDES (JSON: {"1": "owner/repo", ...})."""
         raw = settings.ANALYZER_REPO_OVERRIDES or ""
         if not raw.strip():
@@ -94,7 +93,7 @@ class AnalyzerService:
         except json.JSONDecodeError as e:
             logger.warning("analyzer_overrides_invalid_json err=%s", e)
             return {}
-        out: Dict[int, Tuple[str, str, str]] = {}
+        out: dict[int, tuple[str, str, str]] = {}
         for k, v in (data or {}).items():
             try:
                 netuid = int(k)
@@ -105,7 +104,7 @@ class AnalyzerService:
                 out[netuid] = (owner.strip(), repo.strip(), "main")
         return out
 
-    def resolve_repo(self, netuid: int) -> Optional[Tuple[str, str, str]]:
+    def resolve_repo(self, netuid: int) -> tuple[str, str, str] | None:
         """Return (owner, repo, branch) or None if no mapping."""
         overrides = self._parse_overrides()
         if netuid in overrides:
@@ -115,7 +114,7 @@ class AnalyzerService:
     # ---------- 2. Parsing (pure, regex-only) ----------
 
     @staticmethod
-    def _parse_python_version(setup_py: str, environment_yml: str, pyproject: str) -> Optional[ExtractedField]:
+    def _parse_python_version(setup_py: str, environment_yml: str, pyproject: str) -> ExtractedField | None:
         m = re.search(r'python_requires\s*=\s*["\']>=\s*([0-9.]+)', setup_py)
         if m:
             return ExtractedField(value=m.group(1), confidence=0.9)
@@ -128,14 +127,14 @@ class AnalyzerService:
         return None
 
     @staticmethod
-    def _parse_cuda_version(dockerfile: str) -> Optional[ExtractedField]:
+    def _parse_cuda_version(dockerfile: str) -> ExtractedField | None:
         m = re.search(r"FROM\s+nvidia/cuda:([0-9.]+)", dockerfile)
         if m:
             return ExtractedField(value=m.group(1), confidence=0.95)
         return None
 
     @staticmethod
-    def _parse_pytorch_version(requirements_txt: str, pyproject: str) -> Optional[ExtractedField]:
+    def _parse_pytorch_version(requirements_txt: str, pyproject: str) -> ExtractedField | None:
         m = re.search(r"^torch\s*([<>=~!]=+|=)\s*([0-9.]+)", requirements_txt, re.MULTILINE)
         if m:
             return ExtractedField(value=m.group(2), confidence=0.9)
@@ -145,7 +144,7 @@ class AnalyzerService:
         return None
 
     @staticmethod
-    def _parse_vram(readme: str) -> Optional[ExtractedField]:
+    def _parse_vram(readme: str) -> ExtractedField | None:
         patterns = [
             r"(?:min(?:imum)?\s*(?:vram|gpu memory)[^0-9]*?|requires?\s+)([0-9]+)\s*gb",
             r"([0-9]+)\s*gb\s+vram",
@@ -161,14 +160,14 @@ class AnalyzerService:
         return None
 
     @staticmethod
-    def _parse_recommended_gpu(readme: str) -> Optional[ExtractedField]:
+    def _parse_recommended_gpu(readme: str) -> ExtractedField | None:
         m = re.search(r"(?:recommended\s+gpu|gpu)[:\s]+(NVIDIA\s+[A-Za-z0-9 ]+?)(?:\n|$)", readme, re.IGNORECASE)
         if m:
             return ExtractedField(value=m.group(1).strip(), confidence=0.4)
         return None
 
     @staticmethod
-    def _parse_ram(readme: str) -> Optional[ExtractedField]:
+    def _parse_ram(readme: str) -> ExtractedField | None:
         m = re.search(r"\b(?:ram|memory)[:\s]+([0-9]+)\s*gb", readme, re.IGNORECASE)
         if m:
             try:
@@ -178,7 +177,7 @@ class AnalyzerService:
         return None
 
     @staticmethod
-    def _parse_cpu(readme: str) -> Optional[ExtractedField]:
+    def _parse_cpu(readme: str) -> ExtractedField | None:
         m = re.search(r"cpu\s*cores?[:\s]+([0-9]+)", readme, re.IGNORECASE)
         if m:
             try:
@@ -188,7 +187,7 @@ class AnalyzerService:
         return None
 
     @staticmethod
-    def _parse_storage(readme: str) -> Optional[ExtractedField]:
+    def _parse_storage(readme: str) -> ExtractedField | None:
         m = re.search(r"storage[:\s]+([0-9]+)\s*gb", readme, re.IGNORECASE)
         if m:
             try:
@@ -198,7 +197,7 @@ class AnalyzerService:
         return None
 
     @staticmethod
-    def _parse_docker_required(readme: str, dockerfile: str) -> Optional[ExtractedField]:
+    def _parse_docker_required(readme: str, dockerfile: str) -> ExtractedField | None:
         if re.search(r"FROM\s+nvidia/cuda", dockerfile):
             return ExtractedField(value=True, confidence=0.7)
         if re.search(r"\bdocker\b", readme, re.IGNORECASE):
@@ -206,14 +205,14 @@ class AnalyzerService:
         return None
 
     @staticmethod
-    def _parse_nvidia_runtime(dockerfile: str) -> Optional[ExtractedField]:
+    def _parse_nvidia_runtime(dockerfile: str) -> ExtractedField | None:
         if re.search(r"FROM\s+nvidia/cuda", dockerfile):
             return ExtractedField(value=True, confidence=0.9)
         return None
 
     @staticmethod
-    def _parse_ports(dockerfile: str) -> Optional[ExtractedField]:
-        ports: List[int] = []
+    def _parse_ports(dockerfile: str) -> ExtractedField | None:
+        ports: list[int] = []
         for m in re.finditer(r"EXPOSE\s+([0-9]+)", dockerfile):
             try:
                 ports.append(int(m.group(1)))
@@ -224,8 +223,8 @@ class AnalyzerService:
         return None
 
     @staticmethod
-    def _parse_env(dockerfile: str) -> Optional[ExtractedField]:
-        envs: Dict[str, str] = {}
+    def _parse_env(dockerfile: str) -> ExtractedField | None:
+        envs: dict[str, str] = {}
         for m in re.finditer(r"^\s*ENV\s+([A-Z_][A-Z0-9_]*)\s*=\s*(.+?)\s*$", dockerfile, re.MULTILINE):
             envs[m.group(1)] = m.group(2).strip().strip("\"'")
         if envs:
@@ -233,9 +232,9 @@ class AnalyzerService:
         return None
 
     @staticmethod
-    def _parse_commands(readme: str) -> Tuple[Optional[ExtractedField], Optional[ExtractedField]]:
-        startup: Optional[ExtractedField] = None
-        miner: Optional[ExtractedField] = None
+    def _parse_commands(readme: str) -> tuple[ExtractedField | None, ExtractedField | None]:
+        startup: ExtractedField | None = None
+        miner: ExtractedField | None = None
         m = re.search(r"##\s*(?:Getting Started|Running)[\s\S]*?```(?:bash|sh)?\s*\n([^`]+?)\n```", readme, re.IGNORECASE)
         if m:
             cmd = m.group(1).strip()
@@ -246,13 +245,13 @@ class AnalyzerService:
         return startup, miner
 
     @staticmethod
-    def _parse_dependencies(requirements_txt: str) -> Optional[ExtractedField]:
+    def _parse_dependencies(requirements_txt: str) -> ExtractedField | None:
         if not requirements_txt.strip():
             return None
-        deps: Dict[str, str] = {}
+        deps: dict[str, str] = {}
         for line in requirements_txt.splitlines():
             line = line.strip()
-            if not line or line.startswith("#") or line.startswith("-"):
+            if not line or line.startswith(("#", "-")):
                 continue
             if "==" in line:
                 name, _, ver = line.partition("==")
@@ -267,7 +266,7 @@ class AnalyzerService:
         return None
 
     @staticmethod
-    def _parse_raw_requirements(requirements_txt: str) -> Optional[ExtractedField]:
+    def _parse_raw_requirements(requirements_txt: str) -> ExtractedField | None:
         if requirements_txt:
             return ExtractedField(value={"text": requirements_txt}, confidence=1.0)
         return None
@@ -283,7 +282,7 @@ class AnalyzerService:
         dockerfile: str,
     ) -> ExtractedRequirements:
         startup, miner = cls._parse_commands(readme)
-        fields: Dict[str, Optional[ExtractedField]] = {
+        fields: dict[str, ExtractedField | None] = {
             "python_version": cls._parse_python_version(setup_py, environment_yml, pyproject),
             "cuda_version": cls._parse_cuda_version(dockerfile),
             "pytorch_version": cls._parse_pytorch_version(requirements_txt, pyproject),
@@ -310,8 +309,8 @@ class AnalyzerService:
     async def analyze_subnet(
         self,
         netuid: int,
-        fetcher: Optional[GitHubFileFetcher] = None,
-    ) -> Optional[Tuple[Repository, SubnetRequirement]]:
+        fetcher: GitHubFileFetcher | None = None,
+    ) -> tuple[Repository, SubnetRequirement] | None:
         """Resolve + fetch + parse. Returns (Repository, SubnetRequirement) or None."""
         f = fetcher or self.fetcher
         if f is None:
@@ -328,7 +327,7 @@ class AnalyzerService:
         async def _fetch(path: str) -> str:
             try:
                 return await f.fetch_raw(owner, repo, branch, path)
-            except Exception as e:  # noqa: BLE001 - we want to keep going on one bad file
+            except Exception as e:
                 logger.warning("analyzer_fetch_failed netuid=%s path=%s err=%s", netuid, path, e)
                 return ""
 
@@ -377,6 +376,6 @@ class AnalyzerService:
         return repository, requirement
 
 
-def _val(field: Optional[ExtractedField]):
+def _val(field: ExtractedField | None):
     """Unwrap an ExtractedField to its value, or None if not extracted."""
     return None if field is None else field.value

@@ -1,11 +1,19 @@
 """
 Neuron models — individual hotkey stake/incentive/ranks.
 """
-from sqlalchemy import Integer, BigInteger, Float, Text, Boolean, DateTime, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import Mapped, mapped_column
-from typing import Optional
 from datetime import datetime
+
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    DateTime,
+    Float,
+    Integer,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
 
@@ -18,19 +26,19 @@ class Neuron(Base):
     netuid: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     uid: Mapped[int] = mapped_column(Integer, nullable=False)
     hotkey: Mapped[str] = mapped_column(Text, nullable=False, index=True)
-    coldkey: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    stake: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    rank: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    trust: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    consensus: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    incentive: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    emission: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    dividends: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    active: Mapped[Optional[bool]] = mapped_column(Boolean, server_default="true", nullable=True)
-    validator_permit: Mapped[Optional[bool]] = mapped_column(Boolean, server_default="false", nullable=True)
-    last_update: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
-    data_source: Mapped[Optional[str]] = mapped_column(Text, server_default="bittensor_sdk", nullable=True)
-    extra_metadata: Mapped[Optional[dict]] = mapped_column("metadata", JSONB, server_default="{}", nullable=True)
+    coldkey: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stake: Mapped[float | None] = mapped_column(Float, nullable=True)
+    rank: Mapped[float | None] = mapped_column(Float, nullable=True)
+    trust: Mapped[float | None] = mapped_column(Float, nullable=True)
+    consensus: Mapped[float | None] = mapped_column(Float, nullable=True)
+    incentive: Mapped[float | None] = mapped_column(Float, nullable=True)
+    emission: Mapped[float | None] = mapped_column(Float, nullable=True)
+    dividends: Mapped[float | None] = mapped_column(Float, nullable=True)
+    active: Mapped[bool | None] = mapped_column(Boolean, server_default="true", nullable=True)
+    validator_permit: Mapped[bool | None] = mapped_column(Boolean, server_default="false", nullable=True)
+    last_update: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    data_source: Mapped[str | None] = mapped_column(Text, server_default="bittensor_sdk", nullable=True)
+    extra_metadata: Mapped[dict | None] = mapped_column("metadata", JSONB, server_default="{}", nullable=True)
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()", nullable=False)
 
 
@@ -41,11 +49,11 @@ class NeuronMetricsHistory(Base):
     netuid: Mapped[int] = mapped_column(Integer, nullable=False)
     uid: Mapped[int] = mapped_column(Integer, nullable=False)
     hotkey: Mapped[str] = mapped_column(Text, nullable=False)
-    stake: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    rank: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    trust: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    consensus: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    incentive: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    emission: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    dividends: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    stake: Mapped[float | None] = mapped_column(Float, nullable=True)
+    rank: Mapped[float | None] = mapped_column(Float, nullable=True)
+    trust: Mapped[float | None] = mapped_column(Float, nullable=True)
+    consensus: Mapped[float | None] = mapped_column(Float, nullable=True)
+    incentive: Mapped[float | None] = mapped_column(Float, nullable=True)
+    emission: Mapped[float | None] = mapped_column(Float, nullable=True)
+    dividends: Mapped[float | None] = mapped_column(Float, nullable=True)
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()", nullable=False)

@@ -1,11 +1,12 @@
 """
 Structured logging configuration using structlog.
 """
-import sys
 import logging
+import sys
 import time
+from typing import Any
+
 import structlog
-from typing import Any, Dict
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -14,14 +15,14 @@ from app.core.config import settings
 
 def configure_logging() -> None:
     """Configure structured logging for the application."""
-    
+
     # Configure standard library logging
     logging.basicConfig(
         format="%(message)s",
         stream=sys.stdout,
         level=getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO),
     )
-    
+
     # Configure structlog
     structlog.configure(
         processors=[
@@ -36,7 +37,7 @@ def configure_logging() -> None:
             # Add custom fields
             add_app_context,
             # Render as JSON for production, console for development
-            structlog.processors.JSONRenderer() if settings.APP_ENV == "production" 
+            structlog.processors.JSONRenderer() if settings.APP_ENV == "production"
             else structlog.dev.ConsoleRenderer(colors=True),
         ],
         context_class=dict,
@@ -46,7 +47,7 @@ def configure_logging() -> None:
     )
 
 
-def add_app_context(logger: Any, method_name: str, event_dict: Dict[str, Any]) -> Dict[str, Any]:
+def add_app_context(logger: Any, method_name: str, event_dict: dict[str, Any]) -> dict[str, Any]:
     """Add application context to log entries."""
     event_dict["app"] = settings.APP_NAME
     event_dict["env"] = settings.APP_ENV
@@ -54,7 +55,7 @@ def add_app_context(logger: Any, method_name: str, event_dict: Dict[str, Any]) -
     return event_dict
 
 
-def get_logger(name: str = None) -> structlog.BoundLogger:
+def get_logger(name: str | None = None) -> structlog.BoundLogger:
     """Get a structured logger instance."""
     return structlog.get_logger(name)
 
@@ -64,19 +65,19 @@ def get_logger(name: str = None) -> structlog.BoundLogger:
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """Middleware for logging HTTP requests and responses."""
-    
+
     async def dispatch(self, request: Request, call_next):
         start_time = time.time()
-        
+
         # Generate request ID if not present
         request_id = request.headers.get("X-Request-ID")
         if not request_id:
             import uuid
             request_id = str(uuid.uuid4())[:8]
-        
+
         # Add request ID to request state
         request.state.request_id = request_id
-        
+
         # Log request
         logger = get_logger("http.request")
         logger.info(
@@ -88,13 +89,13 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
             client_ip=request.client.host if request.client else None,
             user_agent=request.headers.get("User-Agent"),
         )
-        
+
         try:
             response = await call_next(request)
-            
+
             # Calculate duration
             duration_ms = (time.time() - start_time) * 1000
-            
+
             # Log response
             logger.info(
                 "Request completed",
@@ -104,12 +105,12 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 status_code=response.status_code,
                 duration_ms=round(duration_ms, 2),
             )
-            
+
             # Add request ID to response headers
             response.headers["X-Request-ID"] = request_id
-            
+
             return response
-            
+
         except Exception as e:
             duration_ms = (time.time() - start_time) * 1000
             logger.error(
@@ -125,7 +126,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
 # --- Database Query Logging ---
 
-def log_query(query: str, params: Dict[str, Any] = None, duration_ms: float = None) -> None:
+def log_query(query: str, params: dict[str, Any] | None = None, duration_ms: float | None = None) -> None:
     """Log a database query."""
     logger = get_logger("db.query")
     logger.debug(
@@ -136,7 +137,7 @@ def log_query(query: str, params: Dict[str, Any] = None, duration_ms: float = No
     )
 
 
-def log_slow_query(query: str, params: Dict[str, Any] = None, duration_ms: float = None, threshold_ms: float = 1000) -> None:
+def log_slow_query(query: str, params: dict[str, Any] | None = None, duration_ms: float | None = None, threshold_ms: float = 1000) -> None:
     """Log a slow database query."""
     if duration_ms and duration_ms > threshold_ms:
         logger = get_logger("db.slow_query")
@@ -154,9 +155,9 @@ def log_slow_query(query: str, params: Dict[str, Any] = None, duration_ms: float
 def log_audit(
     action: str,
     resource: str,
-    resource_id: str = None,
-    user_id: str = None,
-    details: Dict[str, Any] = None,
+    resource_id: str | None = None,
+    user_id: str | None = None,
+    details: dict[str, Any] | None = None,
     success: bool = True,
 ) -> None:
     """Log an audit event."""
@@ -177,7 +178,7 @@ def log_audit(
 def log_performance(
     operation: str,
     duration_ms: float,
-    metadata: Dict[str, Any] = None,
+    metadata: dict[str, Any] | None = None,
 ) -> None:
     """Log a performance metric."""
     logger = get_logger("performance")
@@ -193,9 +194,9 @@ def log_performance(
 
 def log_security_event(
     event_type: str,
-    user_id: str = None,
-    ip_address: str = None,
-    details: Dict[str, Any] = None,
+    user_id: str | None = None,
+    ip_address: str | None = None,
+    details: dict[str, Any] | None = None,
     severity: str = "info",
 ) -> None:
     """Log a security event."""

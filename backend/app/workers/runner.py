@@ -13,22 +13,22 @@ import signal
 import sys
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.workers.base import BaseWorker
 from app.workers import (
-    ScannerWorker,
-    MarketDataWorker,
-    ScoringWorker,
     AnalyzerWorker,
-    create_scanner_worker,
-    create_market_data_worker,
-    create_scoring_worker,
+    MarketDataWorker,
+    ScannerWorker,
+    ScoringWorker,
     create_analyzer_worker,
+    create_market_data_worker,
+    create_scanner_worker,
+    create_scoring_worker,
 )
 from app.workers.auto_stop_worker import AutoStopWorker, create_auto_stop_worker
+from app.workers.base import BaseWorker
 from app.workers.recovery_worker import RecoveryWorker, create_recovery_worker
 
 
@@ -38,7 +38,7 @@ class WorkerConfig:
     worker_class: type
     factory: callable
     interval_seconds: float
-    config: Dict[str, Any] = field(default_factory=dict)
+    config: dict[str, Any] = field(default_factory=dict)
     enabled: bool = True
 
 
@@ -51,7 +51,7 @@ class RunnerMetrics:
     total_runs: int = 0
     total_success: int = 0
     total_failed: int = 0
-    worker_metrics: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    worker_metrics: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def update_from_worker(self, worker: BaseWorker) -> None:
         metrics = worker.get_metrics()
@@ -77,20 +77,20 @@ class WorkerRunner:
 
     def __init__(
         self,
-        worker_configs: Optional[List[WorkerConfig]] = None,
+        worker_configs: list[WorkerConfig] | None = None,
         shutdown_timeout: float = 30.0,
-        db: Optional[AsyncSession] = None,
+        db: AsyncSession | None = None,
     ):
         self.worker_configs = worker_configs or self._default_configs()
         self.shutdown_timeout = shutdown_timeout
         self.db = db
-        self._workers: Dict[str, BaseWorker] = {}
+        self._workers: dict[str, BaseWorker] = {}
         self._running = False
         self._shutdown_event = asyncio.Event()
-        self._monitor_task: Optional[asyncio.Task] = None
+        self._monitor_task: asyncio.Task | None = None
         self.metrics = RunnerMetrics()
 
-    def _default_configs(self) -> List[WorkerConfig]:
+    def _default_configs(self) -> list[WorkerConfig]:
         """Default worker configurations from settings."""
         from app.core.config import settings
 
@@ -173,7 +173,7 @@ class WorkerRunner:
         # Start enabled workers
         for config in self.worker_configs:
             if config.enabled:
-                factory_kwargs: Dict[str, Any] = {
+                factory_kwargs: dict[str, Any] = {
                     "interval_seconds": config.interval_seconds,
                     "config": config.config,
                 }
@@ -267,11 +267,11 @@ class WorkerRunner:
             except Exception as e:
                 print(f"Health monitor error: {e}", file=sys.stderr)
 
-    def get_worker(self, name: str) -> Optional[BaseWorker]:
+    def get_worker(self, name: str) -> BaseWorker | None:
         """Get a worker by name."""
         return self._workers.get(name)
 
-    def get_all_metrics(self) -> Dict[str, Any]:
+    def get_all_metrics(self) -> dict[str, Any]:
         """Get aggregated metrics for all workers."""
         return {
             "runner": {
@@ -304,7 +304,7 @@ class WorkerRunner:
 
 
 async def run_workers(
-    worker_names: Optional[List[str]] = None,
+    worker_names: list[str] | None = None,
     shutdown_timeout: float = 30.0,
 ) -> None:
     """
@@ -328,7 +328,7 @@ async def run_workers(
 
 
 def create_runner(
-    worker_configs: Optional[List[WorkerConfig]] = None,
+    worker_configs: list[WorkerConfig] | None = None,
     shutdown_timeout: float = 30.0,
 ) -> WorkerRunner:
     """Factory function to create a configured WorkerRunner."""

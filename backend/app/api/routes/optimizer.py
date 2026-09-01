@@ -1,13 +1,13 @@
 """
 Optimizer API routes — thin wrappers over Optimizer.
 """
-from typing import Optional
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
-from app.schemas.common import APIResponse
 from app.optimizer.optimizer import Optimizer
+from app.schemas.common import APIResponse
 
 router = APIRouter(prefix="/optimizer", tags=["optimizer"])
 
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/optimizer", tags=["optimizer"])
 @router.get("/savings", response_model=APIResponse[list[dict]])
 async def get_cost_savings(
     db: AsyncSession = Depends(get_db),
-    deployment_id: Optional[str] = Query(None, description="Filter by deployment ID"),
+    deployment_id: str | None = Query(None, description="Filter by deployment ID"),
 ):
     optimizer = Optimizer(db=db)
     if deployment_id:
@@ -24,8 +24,9 @@ async def get_cost_savings(
             return APIResponse(success=True, data=[])
         return APIResponse(success=True, data=[result.to_dict()])
 
-    from app.models import Deployment
     from sqlalchemy import select
+
+    from app.models import Deployment
 
     deployments_result = await db.execute(
         select(Deployment).where(Deployment.status == "running")
@@ -45,12 +46,13 @@ async def get_cost_savings(
 @router.get("/subnet-alternatives", response_model=APIResponse[list[dict]])
 async def get_subnet_alternatives(
     db: AsyncSession = Depends(get_db),
-    netuid: Optional[int] = Query(None, description="Current subnet netuid"),
+    netuid: int | None = Query(None, description="Current subnet netuid"),
 ):
     optimizer = Optimizer(db=db)
     if netuid is None:
-        from app.models import SubnetMetrics
         from sqlalchemy import select
+
+        from app.models import SubnetMetrics
 
         result = await db.execute(
             select(SubnetMetrics.netuid).where(SubnetMetrics.netuid.isnot(None)).limit(1)
@@ -67,12 +69,13 @@ async def get_subnet_alternatives(
 @router.get("/config-suggestions", response_model=APIResponse[list[dict]])
 async def get_config_suggestions(
     db: AsyncSession = Depends(get_db),
-    miner_id: Optional[str] = Query(None, description="Miner ID"),
+    miner_id: str | None = Query(None, description="Miner ID"),
 ):
     optimizer = Optimizer(db=db)
     if not miner_id:
-        from app.models import Miner
         from sqlalchemy import select
+
+        from app.models import Miner
 
         result = await db.execute(select(Miner.id).limit(1))
         row = result.scalar_one_or_none()

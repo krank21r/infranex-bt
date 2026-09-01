@@ -35,15 +35,15 @@ NOT in scope (deferred):
     for the current deployment target, Vercel).
 """
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Deployment
 from app.models.audit import ApprovalRequest
-from app.workers.base import BaseWorker, RetryConfig, StructuredLogger
 from app.services.monitoring_service import MonitoringService
+from app.workers.base import BaseWorker, RetryConfig, StructuredLogger
 
 logger = logging.getLogger(__name__)
 
@@ -83,8 +83,8 @@ class MigrationWorker(BaseWorker):
     def __init__(
         self,
         interval_seconds: float = 1800.0,  # 30 min default
-        config: Optional[Dict[str, Any]] = None,
-        db: Optional[AsyncSession] = None,
+        config: dict[str, Any] | None = None,
+        db: AsyncSession | None = None,
     ):
         retry_config = RetryConfig(
             max_attempts=3,
@@ -132,7 +132,7 @@ class MigrationWorker(BaseWorker):
 
         raised = 0
         skipped = 0
-        errors: List[str] = []
+        errors: list[str] = []
         for deployment in deployments:
             try:
                 outcome = await self._evaluate(deployment)
@@ -160,7 +160,7 @@ class MigrationWorker(BaseWorker):
 
     # ---------- internals ----------
 
-    async def _list_eligible_deployments(self) -> List[Deployment]:
+    async def _list_eligible_deployments(self) -> list[Deployment]:
         """Return deployments in `ELIGIBLE_STATUSES`."""
         stmt = select(Deployment).where(
             Deployment.status.in_(ELIGIBLE_STATUSES)
@@ -251,8 +251,8 @@ class MigrationWorker(BaseWorker):
 
 def create_migration_worker(
     interval_seconds: float = 1800.0,
-    config: Optional[Dict[str, Any]] = None,
-    db: Optional[AsyncSession] = None,
+    config: dict[str, Any] | None = None,
+    db: AsyncSession | None = None,
 ) -> MigrationWorker:
     """Factory mirroring the other `create_*_worker` helpers."""
     return MigrationWorker(

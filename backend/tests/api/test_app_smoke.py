@@ -10,14 +10,13 @@ We deliberately do NOT spin up a database. The routes that touch the
 DB will be covered by integration tests against a real Postgres in a
 later pass; this file only proves the wiring is intact.
 """
-import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 
 def test_app_imports():
     """`from app.main import app` must succeed with no exceptions."""
-    from app.main import app  # noqa: F401
+    from app.main import app
     assert app is not None
 
 

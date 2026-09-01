@@ -12,20 +12,20 @@ Asserted invariants:
     requirements snapshot, not None).
   - netuid is threaded onto the row.
 """
-import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
-from app.services.deployment_service import (
-    DeploymentService,
-    CostProjection,
-    DEFAULT_DEPLOYMENT_MODE,
-)
+import pytest
+
 from app.providers import (
+    PROVIDER_REGISTRY,
     MockProvider,
     ProductionProvider,
-    PROVIDER_REGISTRY,
 )
-
+from app.services.deployment_service import (
+    DEFAULT_DEPLOYMENT_MODE,
+    CostProjection,
+    DeploymentService,
+)
 
 # ---------- helpers ----------
 

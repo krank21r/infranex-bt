@@ -7,28 +7,27 @@ Pins the contract:
   - RecoveryEngine.decide maps health signals to the right strategy.
   - RecoveryEngine.execute dispatches to the strategy and returns its result.
 """
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 from app.recovery.health_checker import (
+    HEALTH_CHECK_MODEL_VERSION,
     HealthChecker,
     HealthSignal,
     aggregate_health_signal,
-    HEALTH_CHECK_MODEL_VERSION,
-)
-from app.recovery.strategies import (
-    restart_process,
-    redeploy,
-    switch_subnet,
-    escalate_to_human,
-    RecoveryResult,
 )
 from app.recovery.recovery import (
-    RecoveryEngine,
-    RecoveryAction,
     RECOVERY_MODEL_VERSION,
+    RecoveryAction,
+    RecoveryEngine,
 )
-
+from app.recovery.strategies import (
+    escalate_to_human,
+    redeploy,
+    restart_process,
+    switch_subnet,
+)
 
 # ---------- health checker tests ----------
 

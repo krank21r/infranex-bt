@@ -1,20 +1,21 @@
 """
 Strategy Engine API routes — thin wrappers over StrategyEngine.
 """
-from typing import Any, Dict
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from typing import Any
+
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
 from app.schemas.common import APIResponse
-from app.strategy.engine import StrategyEngine, PortfolioState
+from app.strategy.engine import PortfolioState, StrategyEngine
 
 router = APIRouter(prefix="/strategy", tags=["strategy"])
 
 
 @router.post("/evaluate", response_model=APIResponse[dict])
 async def evaluate_opportunity(
-    payload: Dict[str, Any] = Body(...),
+    payload: dict[str, Any] = Body(...),
 ):
     netuid = payload.get("netuid")
     score = payload.get("score")
@@ -44,7 +45,7 @@ async def evaluate_opportunity(
 
 @router.post("/evaluate-batch", response_model=APIResponse[list[dict]])
 async def evaluate_batch(
-    payload: Dict[str, Any] = Body(...),
+    payload: dict[str, Any] = Body(...),
 ):
     opportunities = payload.get("opportunities", [])
     portfolio_state = payload.get("portfolio_state", {})
@@ -71,7 +72,7 @@ async def evaluate_batch(
 async def get_portfolio(
     db: AsyncSession = Depends(get_db),
 ):
-    from app.models import Miner, Deployment
+    from app.models import Deployment, Miner
 
     miners_result = await db.execute(
         __import__("sqlalchemy").select(Miner).where(Miner.status == "running")

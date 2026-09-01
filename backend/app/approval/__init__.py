@@ -17,27 +17,27 @@ Data lives in the 8 tables created by migration 002:
 
 Architecture reference: memory/project-architecture-spec.md
 """
+from .audit import AuditWriter
 from .classifier import (
-    ActionContext,
-    ActionLevel,
-    classify_action,
     AUTO_TRIGGER_ACTIONS,
     CONFIRM_TRIGGER_ACTIONS,
     MANDATORY_TRIGGER_ACTIONS,
+    ActionContext,
+    ActionLevel,
+    classify_action,
 )
+from .router import ApprovalResult, ApprovalRouter
 from .service import ApprovalService
-from .audit import AuditWriter
-from .router import ApprovalRouter, ApprovalResult
 
 __all__ = [
-    "ActionContext",
-    "ActionLevel",
-    "classify_action",
     "AUTO_TRIGGER_ACTIONS",
     "CONFIRM_TRIGGER_ACTIONS",
     "MANDATORY_TRIGGER_ACTIONS",
+    "ActionContext",
+    "ActionLevel",
+    "ApprovalResult",
+    "ApprovalRouter",
     "ApprovalService",
     "AuditWriter",
-    "ApprovalRouter",
-    "ApprovalResult",
+    "classify_action",
 ]

@@ -1,11 +1,11 @@
 """
 System-wide log records.
 """
-from sqlalchemy import Text, DateTime
-from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import Mapped, mapped_column
-from typing import Optional
 from datetime import datetime
+
+from sqlalchemy import DateTime, Text
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
 
@@ -17,7 +17,7 @@ class SystemLog(Base):
     level: Mapped[str] = mapped_column(Text, nullable=False, index=True)
     source: Mapped[str] = mapped_column(Text, nullable=False, index=True)
     message: Mapped[str] = mapped_column(Text, nullable=False)
-    details: Mapped[Optional[dict]] = mapped_column(JSONB, server_default="{}", nullable=True)
-    job_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    worker: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    details: Mapped[dict | None] = mapped_column(JSONB, server_default="{}", nullable=True)
+    job_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    worker: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default="now()", nullable=False, index=True)

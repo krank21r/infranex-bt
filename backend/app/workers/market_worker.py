@@ -8,15 +8,15 @@ Responsible for fetching and maintaining market data including:
 """
 
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 import httpx
 
-from app.workers.base import BaseWorker, RetryConfig, StructuredLogger
-from app.models import MarketData
-from app.core.database import db_manager
 from app.core.config import settings
+from app.core.database import db_manager
+from app.models import MarketData
+from app.workers.base import BaseWorker, RetryConfig, StructuredLogger
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ class MarketDataWorker(BaseWorker):
     def __init__(
         self,
         interval_seconds: float = 60.0,  # 1 minute for market data
-        config: Optional[Dict[str, Any]] = None,
+        config: dict[str, Any] | None = None,
     ):
         retry_config = RetryConfig(
             max_attempts=3,
@@ -53,13 +53,13 @@ class MarketDataWorker(BaseWorker):
         )
         self.config = config or {}
         self.logger = StructuredLogger("worker.market_data")
-        self._price_symbols: List[str] = self.config.get(
+        self._price_symbols: list[str] = self.config.get(
             "price_symbols",
             ["TAO", "BTC", "ETH", "SOL", "USDT"]
         )
-        self._fx_pairs: List[str] = self.config.get("fx_pairs", ["USD/INR"])
+        self._fx_pairs: list[str] = self.config.get("fx_pairs", ["USD/INR"])
         self._cache_ttl_seconds: int = self.config.get("cache_ttl_seconds", 120)
-        self._http_client: Optional[httpx.AsyncClient] = None
+        self._http_client: httpx.AsyncClient | None = None
 
     async def _get_http_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client with reasonable defaults."""
@@ -78,8 +78,8 @@ class MarketDataWorker(BaseWorker):
             Dict mapping symbol to price data with USD and INR prices.
         """
         client = await self._get_http_client()
-        prices: Dict[str, Dict[str, Any]] = {}
-        
+        prices: dict[str, dict[str, Any]] = {}
+
         # Map our symbols to CoinGecko IDs
         symbol_to_coingecko = {
             "TAO": "bittensor",
@@ -88,11 +88,11 @@ class MarketDataWorker(BaseWorker):
             "SOL": "solana",
             "USDT": "tether",
         }
-        
+
         coingecko_ids = [symbol_to_coingecko.get(s) for s in self._price_symbols if s in symbol_to_coingecko]
         if not coingecko_ids:
             return prices
-        
+
         try:
             # Single API call for all prices
             ids_param = ",".join(coingecko_ids)
@@ -104,13 +104,13 @@ class MarketDataWorker(BaseWorker):
                 "include_24hr_vol": "true",
                 "include_market_cap": "true",
             }
-            
+
             response = await client.get(url, params=params)
             response.raise_for_status()
             data = response.json()
-            
-            timestamp = int(datetime.now(timezone.utc).timestamp())
-            
+
+            timestamp = int(datetime.now(UTC).timestamp())
+
             for symbol, cg_id in symbol_to_coingecko.items():
                 if cg_id in data:
                     coin_data = data[cg_id]
@@ -123,17 +123,17 @@ class MarketDataWorker(BaseWorker):
                         "source": "coingecko",
                         "timestamp": timestamp,
                     }
-                    
+
             logger.info("Fetched crypto prices", symbols=list(prices.keys()))
-            
+
         except httpx.HTTPError as e:
             logger.error("Failed to fetch crypto prices", error=str(e))
         except Exception as e:
             logger.error("Unexpected error fetching crypto prices", error=str(e))
-            
+
         return prices
 
-    async def _fetch_fx_rates(self) -> Dict[str, Dict[str, Any]]:
+    async def _fetch_fx_rates(self) -> dict[str, dict[str, Any]]:
         """
         Fetch foreign exchange rates.
         
@@ -150,7 +150,7 @@ class MarketDataWorker(BaseWorker):
         logger.debug("FX rate fetch skipped (using CoinGecko INR prices directly)")
         return {}
 
-    async def _fetch_gpu_spot_prices(self) -> Dict[str, Any]:
+    async def _fetch_gpu_spot_prices(self) -> dict[str, Any]:
         """
         Fetch current GPU spot/on-demand pricing from providers.
         
@@ -166,15 +166,15 @@ class MarketDataWorker(BaseWorker):
         #     "runpod": {"H100": 4.89, "A100": 2.50, "RTX_4090": 0.69},
         #     "vast": {"H100": 3.20, "A100": 1.80, "RTX_4090": 0.45},
         # }
-        
+
         logger.debug("GPU spot price fetch not yet implemented (requires API keys)")
         return {}
 
     async def _validate_and_persist(
         self,
-        crypto_prices: Dict[str, Any],
-        fx_rates: Dict[str, Any],
-        gpu_prices: Dict[str, Any],
+        crypto_prices: dict[str, Any],
+        fx_rates: dict[str, Any],
+        gpu_prices: dict[str, Any],
     ) -> None:
         """
         Validate fetched data and persist to database.
@@ -187,13 +187,13 @@ class MarketDataWorker(BaseWorker):
         if not tao_data.get("price_usd"):
             logger.warning("TAO price not available, skipping persist")
             return
-        
+
         tao_price_usd = tao_data["price_usd"]
         tao_price_inr = tao_data.get("price_inr") or (tao_price_usd * 83.5)  # Fallback to config
-        
+
         # Calculate 24h change
         change_24h = tao_data.get("change_24h_pct", 0.0)
-        
+
         try:
             # Use sync engine for simplicity in worker
             sync_session_factory = db_manager.get_sync_session_factory()
@@ -217,27 +217,27 @@ class MarketDataWorker(BaseWorker):
                 )
                 session.add(market_row)
                 session.commit()
-                
+
             logger.info(
                 "Persisted market data",
                 tao_price_usd=tao_price_usd,
                 tao_price_inr=tao_price_inr,
                 change_24h_pct=change_24h,
             )
-            
+
         except Exception as e:
             logger.error("Failed to persist market data", error=str(e))
             raise
 
-    async def _cache_prices(self, crypto_prices: Dict[str, Any], fx_rates: Dict[str, Any]) -> None:
+    async def _cache_prices(self, crypto_prices: dict[str, Any], fx_rates: dict[str, Any]) -> None:
         """Cache prices in Upstash Redis for fast API access (if configured)."""
         if not settings.UPSTASH_REDIS_REST_URL or not settings.UPSTASH_REDIS_REST_TOKEN:
             logger.debug("Upstash Redis not configured, skipping cache")
             return
-            
+
         try:
             client = await self._get_http_client()
-            
+
             # Cache TAO price specifically
             tao_data = crypto_prices.get("TAO", {})
             if tao_data:
@@ -247,7 +247,7 @@ class MarketDataWorker(BaseWorker):
                     "change_24h_pct": tao_data.get("change_24h_pct"),
                     "timestamp": tao_data.get("timestamp"),
                 }
-                
+
                 # Upstash REST API: SET key value EX ttl
                 headers = {"Authorization": f"Bearer {settings.UPSTASH_REDIS_REST_TOKEN}"}
                 await client.post(
@@ -256,7 +256,7 @@ class MarketDataWorker(BaseWorker):
                     json=cache_data,
                 )
                 logger.debug("Cached TAO price in Upstash Redis")
-                
+
         except Exception as e:
             logger.warning("Failed to cache prices in Redis", error=str(e))
 
@@ -267,36 +267,35 @@ class MarketDataWorker(BaseWorker):
         try:
             # 1. Fetch crypto prices (TAO, BTC, ETH, etc.)
             crypto_prices = await self._fetch_crypto_prices()
-            
+
             # 2. Fetch FX rates (USD/INR)
             fx_rates = await self._fetch_fx_rates()
-            
+
             # 3. Fetch GPU spot prices (stub for now - requires API keys)
             gpu_prices = await self._fetch_gpu_spot_prices()
-            
+
             # 4. Validate and persist to database
             await self._validate_and_persist(crypto_prices, fx_rates, gpu_prices)
-            
+
             # 5. Cache in Redis (if available)
             await self._cache_prices(crypto_prices, fx_rates)
-            
+
             self.logger.info(
                 "Market data fetch cycle completed",
                 crypto_symbols=len(crypto_prices),
                 fx_pairs=len(fx_rates),
                 gpu_providers=len(gpu_prices),
             )
-            
+
         except Exception as e:
             self.logger.error("Market data fetch cycle failed", error=str(e))
             raise
 
-    async def _publish_price_updates(self, data: Dict[str, Any]) -> None:
+    async def _publish_price_updates(self, data: dict[str, Any]) -> None:
         """Publish price updates to message queue for downstream consumers (stub)."""
         # Future: implement via Redis pub/sub or message queue
-        pass
 
-    def get_cached_prices(self) -> Dict[str, Any]:
+    def get_cached_prices(self) -> dict[str, Any]:
         """Get latest cached prices (stub - use DB query instead)."""
         return {}
 
@@ -308,7 +307,7 @@ class MarketDataWorker(BaseWorker):
 
 def create_market_data_worker(
     interval_seconds: float = 60.0,
-    config: Optional[Dict[str, Any]] = None,
+    config: dict[str, Any] | None = None,
 ) -> MarketDataWorker:
     """Create a configured MarketDataWorker instance."""
     return MarketDataWorker(interval_seconds=interval_seconds, config=config)

@@ -12,8 +12,7 @@ HealthSignal statuses:
   - unhealthy   : process down, subnet disconnected, or critical error
 """
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import List, Optional
+from datetime import UTC, datetime
 
 HEALTH_CHECK_MODEL_VERSION = "v1.0"
 
@@ -28,10 +27,10 @@ class HealthSignal:
     status: str  # "healthy" | "degraded" | "unhealthy"
     process_running: bool
     subnet_connected: bool
-    gpu_utilization: Optional[float]
-    gpu_temperature: Optional[float]
-    gpu_memory_utilization: Optional[float]
-    errors: List[str]
+    gpu_utilization: float | None
+    gpu_temperature: float | None
+    gpu_memory_utilization: float | None
+    errors: list[str]
     signal_timestamp: str
     model_version: str
 
@@ -54,28 +53,26 @@ class HealthChecker:
 
     @staticmethod
     def check_miner_process(
-        process_id: Optional[int],
-        status: Optional[str],
-        miner_process_running: Optional[bool],
+        process_id: int | None,
+        status: str | None,
+        miner_process_running: bool | None,
     ) -> bool:
         """Return True iff the miner process appears to be running."""
         if miner_process_running is not None:
             return bool(miner_process_running)
         if process_id is not None and process_id > 0:
             return True
-        if status and status.lower() in ("running", "started", "active"):
-            return True
-        return False
+        return bool(status and status.lower() in ("running", "started", "active"))
 
     @staticmethod
-    def check_subnet_connectivity(subnet_connected: Optional[bool]) -> bool:
+    def check_subnet_connectivity(subnet_connected: bool | None) -> bool:
         """Return True iff the miner is connected to its subnet."""
         if subnet_connected is None:
             return False
         return bool(subnet_connected)
 
     @staticmethod
-    def measure_gpu_utilization(gpu_utilization: Optional[float]) -> Optional[float]:
+    def measure_gpu_utilization(gpu_utilization: float | None) -> float | None:
         """Return the GPU utilization pct, or None if unknown."""
         if gpu_utilization is None:
             return None
@@ -87,14 +84,14 @@ class HealthChecker:
         *,
         process_running: bool,
         subnet_connected: bool,
-        gpu_utilization: Optional[float] = None,
-        gpu_temperature: Optional[float] = None,
-        gpu_memory_utilization: Optional[float] = None,
-        errors: Optional[List[str]] = None,
-        signal_timestamp: Optional[str] = None,
+        gpu_utilization: float | None = None,
+        gpu_temperature: float | None = None,
+        gpu_memory_utilization: float | None = None,
+        errors: list[str] | None = None,
+        signal_timestamp: str | None = None,
     ) -> HealthSignal:
         """Aggregate individual checks into a single HealthSignal."""
-        now = signal_timestamp or datetime.now(timezone.utc).isoformat()
+        now = signal_timestamp or datetime.now(UTC).isoformat()
         errs = list(errors or [])
 
         if not process_running:
@@ -167,11 +164,11 @@ def aggregate_health_signal(
     *,
     process_running: bool,
     subnet_connected: bool,
-    gpu_utilization: Optional[float] = None,
-    gpu_temperature: Optional[float] = None,
-    gpu_memory_utilization: Optional[float] = None,
-    errors: Optional[List[str]] = None,
-    signal_timestamp: Optional[str] = None,
+    gpu_utilization: float | None = None,
+    gpu_temperature: float | None = None,
+    gpu_memory_utilization: float | None = None,
+    errors: list[str] | None = None,
+    signal_timestamp: str | None = None,
 ) -> HealthSignal:
     """Module-level convenience wrapper around HealthChecker.aggregate."""
     return HealthChecker.aggregate(

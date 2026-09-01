@@ -15,24 +15,23 @@ Pure Python — no DB, no async.
 import pytest
 
 from app.intelligence import (
-    SCORE_MODEL_VERSION,
-    PILLAR_WEIGHTS,
     DECISION_THRESHOLDS,
+    PILLAR_WEIGHTS,
+    SCORE_MODEL_VERSION,
     ScoreComponent,
-    score_utility,
-    score_technical,
-    score_economics,
     compute_opportunity_score,
-    score_economic_potential,
     score_competition,
-    score_reward_stability,
-    score_market_conditions,
-    score_new_miner_accessibility,
-    score_network_health,
+    score_economic_potential,
+    score_economics,
     score_hardware_suitability,
+    score_market_conditions,
+    score_network_health,
+    score_new_miner_accessibility,
     score_profitability_potential,
+    score_reward_stability,
+    score_technical,
+    score_utility,
 )
-
 
 # ---------- model version ----------
 

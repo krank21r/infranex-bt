@@ -12,7 +12,6 @@ import pytest
 
 from app.models.deployment import Server
 from app.providers.tensordock import TENSORDOCK_API_URL, TensorDockProvider
-
 from app.tests.providers._support import fake_deployment, magic_client
 
 

@@ -13,19 +13,14 @@ _requirements_to_dict mapping:
 
 Pure-Python. No DB, no network. AsyncSession is mocked.
 """
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
+from app.intelligence import SCORE_MODEL_VERSION
+from app.models import MarketData, Repository, Subnet, SubnetMetrics, SubnetRequirement
 from app.services.opportunity_service import (
     OpportunityService,
     _requirements_to_dict,
-    _metrics_to_dict,
-    _market_to_dict,
-    _subnet_metadata_to_dict,
 )
-from app.intelligence import SCORE_MODEL_VERSION
-from app.models import SubnetRequirement, Subnet, SubnetMetrics, MarketData, GPUModel, Repository
-
 
 # ---------- helpers ----------
 
@@ -184,7 +179,6 @@ def test_score_subnet_threads_requirements_into_score_engine(monkeypatch):
     svc.db.add = MagicMock()
     svc.db.flush = AsyncMock()
 
-    import asyncio
 
     async def run():
         return await svc.score_subnet(1)

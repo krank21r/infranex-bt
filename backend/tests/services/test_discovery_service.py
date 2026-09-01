@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.clients.bittensor import FakeBittensorClient
-from app.services.discovery_service import DiscoveryService, DATA_SOURCE_FAKE
+from app.services.discovery_service import DATA_SOURCE_FAKE, DiscoveryService
 
 
 def _make_service(client=None):

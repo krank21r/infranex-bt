@@ -7,16 +7,20 @@ and an SSE stream for real-time updates.
 from __future__ import annotations
 
 import logging
-from typing import Optional
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-import uuid
 
 from app.api.deps import get_db
 from app.monitoring.aggregator import MonitoringAggregator
 from app.monitoring.alerts import AlertEngine, AlertSeverity
-from app.monitoring.realtime import sse_event_stream, push_alert, push_subnet_performance
+from app.monitoring.realtime import (
+    push_alert,
+    push_subnet_performance,
+    sse_event_stream,
+)
 from app.monitoring.schemas import (
     Alert,
     MinerHealthSummary,
@@ -89,8 +93,8 @@ async def get_subnet_performance(
 
 @router.get("/alerts", response_model=APIResponse[list[Alert]])
 async def list_alerts(
-    severity: Optional[str] = Query(None, description="Filter by severity"),
-    resolved: Optional[bool] = Query(None, description="Filter by resolved status"),
+    severity: str | None = Query(None, description="Filter by severity"),
+    resolved: bool | None = Query(None, description="Filter by resolved status"),
     db: AsyncSession = Depends(get_db),
 ) -> APIResponse[list[Alert]]:
     engine = AlertEngine(db)

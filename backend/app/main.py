@@ -1,20 +1,22 @@
 """
 Main FastAPI application entry point.
 """
-import sys
 import os
+import sys
+
 # Add backend directory to Python path for Vercel deployment
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 
-from app.core.config import settings
-from app.core.logging import configure_logging, RequestLoggingMiddleware
-from app.core.exceptions import register_exception_handlers
 from app.api import api_router
+from app.core.config import settings
+from app.core.exceptions import register_exception_handlers
+from app.core.logging import RequestLoggingMiddleware, configure_logging
 
 
 @asynccontextmanager
@@ -22,17 +24,17 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager."""
     # Startup
     configure_logging()
-    
+
     # Initialize database connections (non-fatal)
     try:
-        from app.core.database import init_database, close_database
+        from app.core.database import close_database, init_database
         await init_database()
     except Exception as e:
         import logging
         logging.warning(f"Database initialization failed: {e}")
-    
+
     yield
-    
+
     # Shutdown
     try:
         from app.core.database import close_database
@@ -52,7 +54,7 @@ def create_app() -> FastAPI:
         openapi_url="/openapi.json" if settings.DEBUG else None,
         lifespan=lifespan,
     )
-    
+
     # CORS middleware
     app.add_middleware(
         CORSMiddleware,
@@ -61,23 +63,27 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    
+
     # Trusted host middleware (security)
     if settings.APP_ENV == "production":
         app.add_middleware(
             TrustedHostMiddleware,
             allowed_hosts=["*.infranex.com", "infranex.com", "*.vercel.app"],
         )
-    
+
     # Request logging middleware
     app.add_middleware(RequestLoggingMiddleware)
-    
+
     # Register exception handlers
     register_exception_handlers(app)
-    
+
+    # Include GPU engine router (before api_router so paths are /api/gpu-engine/...)
+    from app.api.routes.gpu_install import router as gpu_install_router
+    app.include_router(gpu_install_router)
+
     # Include API router
     app.include_router(api_router)
-    
+
     # Root endpoint
     @app.get("/")
     async def root():
@@ -88,7 +94,7 @@ def create_app() -> FastAPI:
             "docs": "/docs",
             "health": "/api/health",
         }
-    
+
     return app
 
 

@@ -10,8 +10,7 @@ This is an L1 action (immediate, logged). It stops the miner but keeps
 the server alive for potential redeployment.
 """
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,7 +20,6 @@ from app.models import Deployment
 from app.recovery.health_checker import HealthChecker, HealthSignal
 from app.services.deployment_service import DeploymentService
 from app.workers.base import BaseWorker, RetryConfig
-
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +33,9 @@ class AutoStopWorker(BaseWorker):
 
     def __init__(
         self,
-        db: Optional[AsyncSession] = None,
+        db: AsyncSession | None = None,
         interval_seconds: float = 300.0,
-        config: Optional[Dict[str, Any]] = None,
+        config: dict[str, Any] | None = None,
     ):
         retry_config = RetryConfig(
             max_attempts=3,
@@ -60,7 +58,7 @@ class AutoStopWorker(BaseWorker):
         self.max_age_hours = self.config.get(
             "max_age_hours", DEFAULT_MAX_AGE_HOURS
         )
-        self._health_history: Dict[str, List[str]] = {}
+        self._health_history: dict[str, list[str]] = {}
 
     async def run(self) -> None:
         if self.db is None:
@@ -82,7 +80,7 @@ class AutoStopWorker(BaseWorker):
                     str(exc),
                 )
 
-    async def _list_started_deployments(self) -> List[Deployment]:
+    async def _list_started_deployments(self) -> list[Deployment]:
         stmt = select(Deployment).where(
             Deployment.status.in_(("started", "provisioned"))
         )
@@ -150,8 +148,8 @@ class AutoStopWorker(BaseWorker):
 
 
 def create_auto_stop_worker(
-    db: Optional[AsyncSession] = None,
+    db: AsyncSession | None = None,
     interval_seconds: float = 300.0,
-    config: Optional[Dict[str, Any]] = None,
+    config: dict[str, Any] | None = None,
 ) -> AutoStopWorker:
     return AutoStopWorker(db=db, interval_seconds=interval_seconds, config=config)

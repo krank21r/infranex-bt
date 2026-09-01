@@ -1,14 +1,15 @@
 """
 Health check endpoints.
 """
-from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, Request
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text
+from datetime import UTC, datetime
 
-from app.core.config import settings
+from fastapi import APIRouter, Depends, Request
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.deps import get_db
-from app.schemas.common import HealthCheck, ReadinessCheck, LivenessCheck
+from app.core.config import settings
+from app.schemas.common import HealthCheck, LivenessCheck, ReadinessCheck
 
 router = APIRouter(tags=["health"])
 
@@ -17,7 +18,7 @@ router = APIRouter(tags=["health"])
 async def health_check(request: Request) -> HealthCheck:
     return HealthCheck(
         status="healthy",
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
         version="1.0.0",
         environment=settings.APP_ENV,
         deployment_mode=settings.DEPLOYMENT_MODE,
@@ -26,7 +27,7 @@ async def health_check(request: Request) -> HealthCheck:
 
 @router.get("/health/live", response_model=LivenessCheck)
 async def liveness_check(request: Request) -> LivenessCheck:
-    return LivenessCheck(alive=True, timestamp=datetime.now(timezone.utc))
+    return LivenessCheck(alive=True, timestamp=datetime.now(UTC))
 
 
 @router.get("/health/ready", response_model=ReadinessCheck)
@@ -65,15 +66,16 @@ async def readiness_check(
 async def db_test(request: Request) -> dict:
     """Direct database connection test."""
     from sqlalchemy import text
+
     from app.core.database import db_manager
-    
+
     result = {"steps": []}
-    
+
     try:
         result["steps"].append("Getting async engine...")
         engine = db_manager.get_async_engine()
         result["steps"].append(f"Engine created: {engine.url}")
-        
+
         result["steps"].append("Connecting to database...")
         async with engine.connect() as conn:
             result["steps"].append("Connected!")
@@ -85,7 +87,7 @@ async def db_test(request: Request) -> dict:
         result["status"] = "error"
         result["error"] = str(e)
         result["error_type"] = type(e).__name__
-    
+
     return result
 
 
@@ -95,10 +97,10 @@ async def health_details(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Detailed system health status."""
-    import sys
     import platform
+    import sys
     import time
-    
+
     db_status = "unknown"
     db_latency = 0
     db_error = None
@@ -118,7 +120,7 @@ async def health_details(
         "deployment_mode": settings.DEPLOYMENT_MODE,
         "python_version": sys.version,
         "platform": platform.platform(),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "dependencies": {
             "database": db_status,
             "database_error": db_error,

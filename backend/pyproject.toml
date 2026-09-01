@@ -1,0 +1,35 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = [
+    "alembic/versions",
+    ".venv",
+    "__pycache__",
+]
+
+[tool.ruff.lint]
+# B008: Depends() in defaults is the correct FastAPI pattern
+# BLE001: blind except is acceptable in backend services
+# F821: false positives in some template strings
+ignore = [
+    "B008",
+    "BLE001",
+    "F821",
+    "G201",
+    "LOG015",
+    "TRY203",
+    "PERF402",
+    "PLC0206",
+]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear (subset)
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+    "RUF", # ruff-specific
+]

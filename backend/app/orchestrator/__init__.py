@@ -1,11 +1,11 @@
-from .orchestrator import MinerOrchestrator, ORCHESTRATOR_MODEL_VERSION
-from .state_machine import MinerLifecycle, MinerState, can_transition, VALID_TRANSITIONS
+from .orchestrator import ORCHESTRATOR_MODEL_VERSION, MinerOrchestrator
+from .state_machine import VALID_TRANSITIONS, MinerLifecycle, MinerState, can_transition
 
 __all__ = [
-    "MinerOrchestrator",
+    "ORCHESTRATOR_MODEL_VERSION",
+    "VALID_TRANSITIONS",
     "MinerLifecycle",
+    "MinerOrchestrator",
     "MinerState",
     "can_transition",
-    "VALID_TRANSITIONS",
-    "ORCHESTRATOR_MODEL_VERSION",
 ]

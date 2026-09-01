@@ -7,21 +7,21 @@ mock-first style used elsewhere in the suite (see
 `tests/clients/test_fake_bittensor_client.py`).
 """
 from types import SimpleNamespace
-from typing import Any, Dict, Tuple
+from typing import Any
 from unittest.mock import MagicMock
 
 
 class FakeResponse:
     """Minimal stand-in for an `httpx.Response`."""
 
-    def __init__(self, payload: Dict[str, Any]):
+    def __init__(self, payload: dict[str, Any]):
         self._payload = payload
         self.status_code = 200
 
     def raise_for_status(self) -> None:
         return None
 
-    def json(self) -> Dict[str, Any]:
+    def json(self) -> dict[str, Any]:
         return self._payload
 
 
@@ -34,12 +34,12 @@ class FakeHttpClient:
 
     def __init__(
         self,
-        router: Dict[Tuple[str, str], Dict[str, Any]],
-        default: Dict[str, Any] | None = None,
+        router: dict[tuple[str, str], dict[str, Any]],
+        default: dict[str, Any] | None = None,
     ) -> None:
         self.router = router
         self.default = default or {}
-        self.calls: list[Tuple[str, str, Dict[str, Any]]] = []
+        self.calls: list[tuple[str, str, dict[str, Any]]] = []
 
     def _respond(self, method: str, url: str, **kwargs: Any) -> FakeResponse:
         self.calls.append((method, url, kwargs))
@@ -62,7 +62,7 @@ class FakeHttpClient:
         return self._respond(method.upper(), url, **kwargs)
 
 
-def magic_client(payload: Dict[str, Any]) -> MagicMock:
+def magic_client(payload: dict[str, Any]) -> MagicMock:
     """Convenience: a MagicMock client whose every call returns `payload`."""
     client = MagicMock()
     resp = MagicMock()
@@ -76,7 +76,7 @@ def magic_client(payload: Dict[str, Any]) -> MagicMock:
     return client
 
 
-def fake_deployment(offer: Dict[str, Any], *, dep_id: str = "dep-1") -> SimpleNamespace:
+def fake_deployment(offer: dict[str, Any], *, dep_id: str = "dep-1") -> SimpleNamespace:
     """Stand-in Deployment with a snapshotted offer in `deployment_config`."""
     return SimpleNamespace(
         id=dep_id,

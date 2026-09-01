@@ -11,10 +11,10 @@ Pins:
 import pytest
 
 from app.providers import (
+    PROVIDER_REGISTRY,
     E2EProvider,
     MockProvider,
     ProductionProvider,
-    PROVIDER_REGISTRY,
     RunPodProvider,
     TensorDockProvider,
     VastAIProvider,
@@ -23,6 +23,8 @@ from app.providers import (
 from app.providers.base import GPUProvider
 from app.services.deployment_service import (
     DEFAULT_DEPLOYMENT_MODE,
+)
+from app.services.deployment_service import (
     PROVIDER_REGISTRY as SERVICE_REGISTRY,
 )
 

@@ -47,19 +47,17 @@ def validate_environment():
 
     # Validate database URL format
     db_url = settings.effective_database_url
-    if db_url:
-        if not _POSTGRESQL_URL_RE.match(db_url):
-            errors.append(
-                f"DATABASE_URL has invalid format (must match "
-                f"postgresql://user:pass@host:port/db): {db_url[:60]}..."
-            )
+    if db_url and not _POSTGRESQL_URL_RE.match(db_url):
+        errors.append(
+            f"DATABASE_URL has invalid format (must match "
+            f"postgresql://user:pass@host:port/db): {db_url[:60]}..."
+        )
 
     # Validate Supabase URL format
-    if settings.SUPABASE_URL:
-        if not settings.SUPABASE_URL.startswith('https://'):
-            errors.append(
-                f"SUPABASE_URL should start with https://: {settings.SUPABASE_URL[:60]}..."
-            )
+    if settings.SUPABASE_URL and not settings.SUPABASE_URL.startswith('https://'):
+        errors.append(
+            f"SUPABASE_URL should start with https://: {settings.SUPABASE_URL[:60]}..."
+        )
 
     if errors:
         for error in errors:

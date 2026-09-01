@@ -1,13 +1,13 @@
 """
 Learning Engine API routes — thin wrappers over FeedbackLoop and AccuracyTracker.
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
-from app.schemas.common import APIResponse
 from app.learning.feedback import FeedbackLoop
 from app.learning.tracker import AccuracyTracker
+from app.schemas.common import APIResponse
 
 router = APIRouter(prefix="/learning", tags=["learning"])
 
@@ -16,8 +16,10 @@ router = APIRouter(prefix="/learning", tags=["learning"])
 async def get_learning_status(
     db: AsyncSession = Depends(get_db),
 ):
-    from app.models import AccuracyTracking as AccuracyTrackingORM, WeightAdjustment as WeightAdjustmentORM
-    from sqlalchemy import select, func
+    from sqlalchemy import func, select
+
+    from app.models import AccuracyTracking as AccuracyTrackingORM
+    from app.models import WeightAdjustment as WeightAdjustmentORM
 
     accuracy_count = (
         await db.execute(select(func.count()).select_from(AccuracyTrackingORM))

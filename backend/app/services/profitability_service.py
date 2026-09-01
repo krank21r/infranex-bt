@@ -28,16 +28,16 @@ NOT in scope (deferred):
   - No recompute loop or scheduled re-projection.
 """
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Deployment
 from app.intelligence.profitability import (
     ProfitabilityProjection,
     project_profitability,
 )
+from app.models import Deployment
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class ProfitabilityService:
         netuid: int,
         *,
         limit: int = 7200,
-    ) -> List[float]:
+    ) -> list[float]:
         """Pull trailing per-block emissions for a subnet, oldest -> newest.
 
         Phase 8 uses a thin abstraction: looks for a `SubnetEmissionHistory`
@@ -75,7 +75,7 @@ class ProfitabilityService:
         result = await self.db.execute(stmt)
         return [float(v) for v in result.scalars().all() if v is not None]
 
-    async def _fetch_deployment_cost(self, deployment_id: int) -> Optional[Dict[str, Any]]:
+    async def _fetch_deployment_cost(self, deployment_id: int) -> dict[str, Any] | None:
         """Pull `estimated_monthly_cost` + `currency` + `netuid` from a Deployment row."""
         stmt = select(
             Deployment.netuid,
@@ -97,7 +97,7 @@ class ProfitabilityService:
         tao_price_usd: float,
         *,
         history_limit: int = 7200,
-    ) -> Optional[ProfitabilityProjection]:
+    ) -> ProfitabilityProjection | None:
         """Compute the profitability projection for a Deployment.
 
         Returns None if the Deployment row is missing. Returns a

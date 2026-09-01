@@ -16,26 +16,26 @@ from app.recovery.health_checker import (
     aggregate_health_signal,
 )
 from app.recovery.recovery import (
-    RecoveryEngine,
     RecoveryAction,
+    RecoveryEngine,
     RecoveryResult,
 )
 from app.recovery.strategies import (
-    restart_process,
-    redeploy,
-    switch_subnet,
     escalate_to_human,
+    redeploy,
+    restart_process,
+    switch_subnet,
 )
 
 __all__ = [
     "HealthChecker",
     "HealthSignal",
-    "aggregate_health_signal",
-    "RecoveryEngine",
     "RecoveryAction",
+    "RecoveryEngine",
     "RecoveryResult",
-    "restart_process",
-    "redeploy",
-    "switch_subnet",
+    "aggregate_health_signal",
     "escalate_to_human",
+    "redeploy",
+    "restart_process",
+    "switch_subnet",
 ]

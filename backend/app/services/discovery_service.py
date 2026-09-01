@@ -12,7 +12,6 @@ The scanner worker calls `run_full_scan()` on every tick.
 from __future__ import annotations
 
 import logging
-from typing import Dict, List
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -85,10 +84,10 @@ class DiscoveryService:
         )
         return len(neuron_snaps)
 
-    async def sync_all_metrics(self) -> Dict[int, int]:
+    async def sync_all_metrics(self) -> dict[int, int]:
         """Sync metrics + neurons for every known netuid. Continues past per-netuid errors."""
         netuids = await self.subnets.get_known_netuids()
-        results: Dict[int, int] = {}
+        results: dict[int, int] = {}
         for netuid in netuids:
             try:
                 results[netuid] = await self.sync_metrics(netuid)
@@ -139,7 +138,7 @@ class DiscoveryService:
         Never raises — per-step errors are caught and surfaced in the
         `errors` list so the worker can log them and move on.
         """
-        errors: List[str] = []
+        errors: list[str] = []
 
         try:
             subnets_count = await self.sync_subnets()
@@ -157,7 +156,7 @@ class DiscoveryService:
         neurons_total = sum(metrics_map.values())
         emissions_total = 0
         incentives_total = 0
-        for netuid in metrics_map.keys():
+        for netuid in metrics_map:
             try:
                 emissions_total += await self.sync_emissions(netuid)
             except Exception as e:

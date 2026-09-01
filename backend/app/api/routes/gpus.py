@@ -1,15 +1,21 @@
 """
 GPU catalog API routes — thin wrappers over GPUService.
 """
-from typing import Optional, Dict, Any
-from fastapi import APIRouter, Depends, Query, HTTPException, status
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_db, get_gpu_service, get_gpu_matching_service, get_subnet_service
+from app.api.deps import (
+    get_db,
+    get_gpu_matching_service,
+    get_gpu_service,
+    get_subnet_service,
+)
 from app.schemas.common import APIResponse, PaginationMeta
-from app.services.gpu_service import GPUService
 from app.services.gpu_matching_service import GPUMatchingService
+from app.services.gpu_service import GPUService
 from app.services.subnet_service import SubnetService
 
 router = APIRouter(prefix="/gpus", tags=["gpus"])
@@ -22,9 +28,9 @@ class GPURecommendRequest(BaseModel):
     stored SubnetRequirement for that subnet is used to auto-fill.
     """
 
-    netuid: Optional[int] = None
-    requirements: Optional[Dict[str, Any]] = None
-    preferred_region: Optional[str] = None
+    netuid: int | None = None
+    requirements: dict[str, Any] | None = None
+    preferred_region: str | None = None
     page: int = 1
     page_size: int = 10
 
@@ -34,10 +40,10 @@ async def list_gpu_models(
     db: AsyncSession = Depends(get_db),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
-    manufacturer: Optional[str] = Query(None, description="NVIDIA, AMD, Intel"),
-    min_vram_gb: Optional[float] = Query(None, ge=0),
-    min_fp16_tflops: Optional[float] = Query(None, ge=0),
-    tier: Optional[str] = Query(None, description="consumer, prosumer, datacenter"),
+    manufacturer: str | None = Query(None, description="NVIDIA, AMD, Intel"),
+    min_vram_gb: float | None = Query(None, ge=0),
+    min_fp16_tflops: float | None = Query(None, ge=0),
+    tier: str | None = Query(None, description="consumer, prosumer, datacenter"),
     gpu_service: GPUService = Depends(get_gpu_service),
 ) -> APIResponse[list[dict]]:
     models, total = await gpu_service.list_models(
@@ -68,12 +74,12 @@ async def list_gpu_offers(
     db: AsyncSession = Depends(get_db),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
-    provider_id: Optional[str] = Query(None),
-    gpu_model_id: Optional[str] = Query(None),
-    region: Optional[str] = Query(None),
-    min_vram_gb: Optional[float] = Query(None, ge=0),
-    max_hourly_price: Optional[float] = Query(None, ge=0),
-    is_spot: Optional[bool] = Query(None),
+    provider_id: str | None = Query(None),
+    gpu_model_id: str | None = Query(None),
+    region: str | None = Query(None),
+    min_vram_gb: float | None = Query(None, ge=0),
+    max_hourly_price: float | None = Query(None, ge=0),
+    is_spot: bool | None = Query(None),
     sort_by: str = Query("hourly_price"),
     sort_order: str = Query("asc", pattern="^(asc|desc)$"),
     gpu_service: GPUService = Depends(get_gpu_service),
@@ -99,7 +105,7 @@ async def list_gpu_offers(
 async def cheapest_offer(
     db: AsyncSession = Depends(get_db),
     min_vram_gb: float = Query(24.0, ge=0),
-    region: Optional[str] = Query(None),
+    region: str | None = Query(None),
     gpu_service: GPUService = Depends(get_gpu_service),
 ) -> APIResponse[dict]:
     offer = await gpu_service.cheapest_offer_for_vram(
@@ -170,7 +176,7 @@ async def recommend_gpus(
     Provide either explicit `requirements` or a `netuid` (the latest stored
     SubnetRequirement is used). Returns explainable, ranked offers.
     """
-    requirements: Dict[str, Any] = dict(body.requirements or {})
+    requirements: dict[str, Any] = dict(body.requirements or {})
 
     if body.netuid is not None and not requirements:
         req = await subnet_service.get_latest_requirement(body.netuid)

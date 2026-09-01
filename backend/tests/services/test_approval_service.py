@@ -15,23 +15,23 @@ as `test_deployment_service.py`. The Deployment returned from the
 service methods is whatever the mock provides; we use a small
 stand-in that records attribute writes so we can assert on them.
 """
-import pytest
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from app.models.deployment import Server
 from app.services import approval_service as svc_module
 from app.services.approval_service import (
-    ApprovalService,
-    DoubleApprovalError,
-    STATUS_REQUESTED,
+    ACTION_MIGRATE,
+    ACTION_PROVISION,
+    ACTION_REQUEST,
     STATUS_APPROVED,
     STATUS_PROVISIONED,
+    STATUS_REQUESTED,
     STATUS_TERMINATED,
-    ACTION_REQUEST,
-    ACTION_PROVISION,
-    ACTION_MIGRATE,
+    ApprovalService,
+    DoubleApprovalError,
 )
-
 
 # ---------- helpers ----------
 

@@ -6,14 +6,14 @@ tick. Per the explainability invariant, every persisted score carries
 `model_version` (from `app.intelligence.SCORE_MODEL_VERSION`) and the
 per-component explanations are written to `score_components`.
 """
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.workers.base import BaseWorker, RetryConfig, StructuredLogger
-from app.services.subnet_service import SubnetService
-from app.services.opportunity_service import OpportunityService
 from app.intelligence import SCORE_MODEL_VERSION
+from app.services.opportunity_service import OpportunityService
+from app.services.subnet_service import SubnetService
+from app.workers.base import BaseWorker, RetryConfig, StructuredLogger
 
 
 class ScoringWorker(BaseWorker):
@@ -32,8 +32,8 @@ class ScoringWorker(BaseWorker):
     def __init__(
         self,
         interval_seconds: float = 300.0,  # 5 minutes, triggered by scan results
-        config: Optional[Dict[str, Any]] = None,
-        db: Optional[AsyncSession] = None,
+        config: dict[str, Any] | None = None,
+        db: AsyncSession | None = None,
     ):
         retry_config = RetryConfig(
             max_attempts=3,
@@ -48,15 +48,15 @@ class ScoringWorker(BaseWorker):
         self.config = config or {}
         self.logger = StructuredLogger("worker.scoring")
         self.db = db
-        self._subnets: Optional[SubnetService] = SubnetService(db) if db is not None else None
-        self._opportunities: Optional[OpportunityService] = (
+        self._subnets: SubnetService | None = SubnetService(db) if db is not None else None
+        self._opportunities: OpportunityService | None = (
             OpportunityService(db) if db is not None else None
         )
         # Legacy 5-key weights — inert scaffolding kept for forward
         # compatibility; the real scoring weights live in
         # `app.intelligence.DEFAULT_WEIGHTS` and are applied by
         # `OpportunityService.score_subnet` -> `compute_opportunity_score`.
-        self._scoring_weights: Dict[str, float] = self.config.get(
+        self._scoring_weights: dict[str, float] = self.config.get(
             "scoring_weights",
             {
                 "roi_weight": 0.4,
@@ -94,7 +94,7 @@ class ScoringWorker(BaseWorker):
             return
 
         scored = 0
-        errors: List[str] = []
+        errors: list[str] = []
         for netuid in netuids:
             try:
                 result = await self._opportunities.score_subnet(netuid)
@@ -114,7 +114,7 @@ class ScoringWorker(BaseWorker):
             for err in errors:
                 self.logger.error(f"score_error {err}")
 
-    async def _fetch_scan_results(self) -> List[int]:
+    async def _fetch_scan_results(self) -> list[int]:
         """Return the list of netuids to score on this tick.
 
         Phase 3 replaces the queue-based stub with a direct read from
@@ -125,7 +125,7 @@ class ScoringWorker(BaseWorker):
             return []
         return await self._subnets.get_known_netuids()
 
-    async def _fetch_market_data(self) -> Dict[str, Any]:
+    async def _fetch_market_data(self) -> dict[str, Any]:
         """
         Fetch latest market data for scoring calculations.
 
@@ -143,8 +143,8 @@ class ScoringWorker(BaseWorker):
 
     async def _score_opportunities(
         self,
-        netuids: List[int],
-    ) -> List[Dict[str, Any]]:
+        netuids: list[int],
+    ) -> list[dict[str, Any]]:
         """
         Score every netuid via the v1.0 rule engine and persist the result.
 
@@ -153,7 +153,7 @@ class ScoringWorker(BaseWorker):
         """
         if self._opportunities is None:
             return []
-        results: List[Dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
         for netuid in netuids:
             result = await self._opportunities.score_subnet(netuid)
             if result is None:
@@ -164,8 +164,8 @@ class ScoringWorker(BaseWorker):
 
     def _calculate_roi_score(
         self,
-        opportunity: Dict[str, Any],
-        market_data: Dict[str, Any],
+        opportunity: dict[str, Any],
+        market_data: dict[str, Any],
     ) -> float:
         """
         Calculate ROI component score (0-1).
@@ -184,8 +184,8 @@ class ScoringWorker(BaseWorker):
 
     def _calculate_risk_score(
         self,
-        opportunity: Dict[str, Any],
-        market_data: Dict[str, Any],
+        opportunity: dict[str, Any],
+        market_data: dict[str, Any],
     ) -> float:
         """
         Calculate risk component score (0-1, higher = lower risk).
@@ -200,7 +200,7 @@ class ScoringWorker(BaseWorker):
         # Phase 2: Implement risk model
         return 0.5
 
-    def _calculate_liquidity_score(self, opportunity: Dict[str, Any]) -> float:
+    def _calculate_liquidity_score(self, opportunity: dict[str, Any]) -> float:
         """
         Calculate liquidity component score (0-1).
 
@@ -214,8 +214,8 @@ class ScoringWorker(BaseWorker):
 
     def _calculate_confidence_score(
         self,
-        opportunity: Dict[str, Any],
-        market_data: Dict[str, Any],
+        opportunity: dict[str, Any],
+        market_data: dict[str, Any],
     ) -> float:
         """
         Calculate confidence component score (0-1).
@@ -230,8 +230,8 @@ class ScoringWorker(BaseWorker):
 
     def _calculate_diversification_score(
         self,
-        opportunity: Dict[str, Any],
-        portfolio: List[Dict[str, Any]],
+        opportunity: dict[str, Any],
+        portfolio: list[dict[str, Any]],
     ) -> float:
         """
         Calculate diversification benefit score (0-1).
@@ -245,7 +245,7 @@ class ScoringWorker(BaseWorker):
         # Phase 2: Implement portfolio correlation model
         return 0.5
 
-    def _composite_score(self, scores: Dict[str, float]) -> float:
+    def _composite_score(self, scores: dict[str, float]) -> float:
         """Calculate weighted composite score."""
         return sum(
             scores.get(key.replace("_score", "_weight"), 0) * value
@@ -255,8 +255,8 @@ class ScoringWorker(BaseWorker):
 
     def _rank_and_filter(
         self,
-        scored_opportunities: List[Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
+        scored_opportunities: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
         """
         Rank opportunities by composite score and filter by threshold.
         """
@@ -285,7 +285,7 @@ class ScoringWorker(BaseWorker):
             return "hold"
         return "avoid"
 
-    async def _publish_scored_opportunities(self, opportunities: List[Dict[str, Any]]) -> None:
+    async def _publish_scored_opportunities(self, opportunities: list[dict[str, Any]]) -> None:
         """
         Publish scored opportunities for decision engine / execution worker.
         """
@@ -293,9 +293,8 @@ class ScoringWorker(BaseWorker):
         # from app.services.message_queue import MessageQueue
         # queue = MessageQueue()
         # await queue.publish("scored_opportunities", {"opportunities": opportunities})
-        pass
 
-    async def _store_scoring_metrics(self, opportunities: List[Dict[str, Any]]) -> None:
+    async def _store_scoring_metrics(self, opportunities: list[dict[str, Any]]) -> None:
         """
         Store scoring metrics for model monitoring and improvement.
         """
@@ -303,13 +302,12 @@ class ScoringWorker(BaseWorker):
         # from app.services.metrics import MetricsService
         # metrics = MetricsService()
         # await metrics.record_scoring_batch(opportunities)
-        pass
 
 
 def create_scoring_worker(
     interval_seconds: float = 300.0,
-    config: Optional[Dict[str, Any]] = None,
-    db: Optional[AsyncSession] = None,
+    config: dict[str, Any] | None = None,
+    db: AsyncSession | None = None,
 ) -> ScoringWorker:
     """Create a configured ScoringWorker instance."""
     return ScoringWorker(interval_seconds=interval_seconds, config=config, db=db)

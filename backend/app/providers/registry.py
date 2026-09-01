@@ -12,7 +12,6 @@ needed when a new backend is added.
 """
 import logging
 import os
-from typing import Dict, Optional, Type
 
 from app.providers.base import GPUProvider, ProductionProvider
 from app.providers.e2e import E2EProvider
@@ -25,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 # name -> adapter class. "mock" is the safe default; "production" is a
 # guarded stub so an unresolved real mode fails loudly, not silently.
-PROVIDER_REGISTRY: Dict[str, Type[GPUProvider]] = {
+PROVIDER_REGISTRY: dict[str, type[GPUProvider]] = {
     "mock": MockProvider,
     "production": ProductionProvider,
     "runpod": RunPodProvider,
@@ -40,7 +39,7 @@ def default_mode() -> str:
     return (os.getenv("DEPLOYMENT_MODE") or "mock").lower()
 
 
-def get_provider(mode: Optional[str] = None) -> GPUProvider:
+def get_provider(mode: str | None = None) -> GPUProvider:
     """Resolve and instantiate the active provider by name."""
     resolved = (mode or default_mode()).lower()
     if resolved not in PROVIDER_REGISTRY:

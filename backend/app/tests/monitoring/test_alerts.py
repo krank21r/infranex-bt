@@ -3,9 +3,10 @@ Tests for AlertEngine.
 
 Validates rule evaluation, CRUD of alerts, and deduplication behavior.
 """
-import pytest
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock
-from datetime import datetime, timezone, timedelta
+
+import pytest
 
 from app.monitoring.alerts import AlertEngine
 from app.monitoring.schemas import AlertSeverity, AlertType
@@ -19,7 +20,7 @@ def _make_miner(miner_id="miner-1", netuid=1, status="running"):
     m.status = status
     m.health_score = 80.0
     m.uptime_seconds = 3600
-    m.last_health_check = datetime.now(timezone.utc) - timedelta(minutes=2)
+    m.last_health_check = datetime.now(UTC) - timedelta(minutes=2)
     return m
 
 
@@ -31,7 +32,7 @@ def _make_health(miner_id="miner-1", gpu_util=75.0, gpu_temp=60.0, subnet_connec
     h.subnet_connected = subnet_connected
     h.incentive = incentive
     h.errors = errors or []
-    h.recorded_at = datetime.now(timezone.utc)
+    h.recorded_at = datetime.now(UTC)
     return h
 
 
@@ -60,7 +61,7 @@ def _make_empty_result():
 async def test_check_alerts_detects_miner_down():
     db = AsyncMock()
     miner = _make_miner(status="error")
-    miner.last_health_check = datetime.now(timezone.utc) - timedelta(minutes=30)
+    miner.last_health_check = datetime.now(UTC) - timedelta(minutes=30)
 
     call_count = {"n": 0}
 

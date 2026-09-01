@@ -14,7 +14,7 @@ Lifecycle the protocol models:
            v                                      v
     terminate_server <--- stop_miner <---(runtime)
 """
-from typing import Any, Dict, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from app.models.deployment import Server
 
@@ -47,7 +47,7 @@ class GPUProvider(Protocol):
         """
         ...
 
-    def deploy_miner(self, server: Server, config: Dict[str, Any]) -> bool:
+    def deploy_miner(self, server: Server, config: dict[str, Any]) -> bool:
         """Launch the miner process on `server` using `config`.
 
         Returns ``True`` on success.
@@ -68,7 +68,7 @@ class GPUProvider(Protocol):
         """
         ...
 
-    def get_status(self, server: Server) -> Dict[str, Any]:
+    def get_status(self, server: Server) -> dict[str, Any]:
         """Return a provider-specific status dict for `server`."""
         ...
 
@@ -91,7 +91,7 @@ class ProductionProvider:
     def setup_server(self, server: Server) -> bool:
         raise NotImplementedError("Real provider adapter not yet implemented")
 
-    def deploy_miner(self, server: Server, config: Dict[str, Any]) -> bool:
+    def deploy_miner(self, server: Server, config: dict[str, Any]) -> bool:
         raise NotImplementedError("Real provider adapter not yet implemented")
 
     def stop_miner(self, server: Server) -> bool:
@@ -100,11 +100,11 @@ class ProductionProvider:
     def terminate_server(self, server: Server) -> bool:
         raise NotImplementedError("Real provider adapter not yet implemented")
 
-    def get_status(self, server: Server) -> Dict[str, Any]:
+    def get_status(self, server: Server) -> dict[str, Any]:
         raise NotImplementedError("Real provider adapter not yet implemented")
 
 
-def offer_from_deployment(deployment: Any) -> Dict[str, Any]:
+def offer_from_deployment(deployment: Any) -> dict[str, Any]:
     """Pull the snapshotted `offer` out of a Deployment's config.
 
     The request stage writes ``deployment_config["offer"]`` so the

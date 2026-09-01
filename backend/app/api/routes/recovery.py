@@ -1,14 +1,15 @@
 """
 Recovery API routes — thin wrappers over RecoveryEngine.
 """
-from typing import Any, Dict
-from fastapi import APIRouter, Depends, HTTPException, status, Body, Path
+from typing import Any
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
-from app.schemas.common import APIResponse
-from app.recovery.recovery import RecoveryEngine
 from app.recovery.health_checker import aggregate_health_signal
+from app.recovery.recovery import RecoveryEngine
+from app.schemas.common import APIResponse
 
 router = APIRouter(prefix="/recover", tags=["recovery"])
 
@@ -16,7 +17,7 @@ router = APIRouter(prefix="/recover", tags=["recovery"])
 @router.post("/decide", response_model=APIResponse[dict])
 async def decide_recovery(
     db: AsyncSession = Depends(get_db),
-    payload: Dict[str, Any] = Body(...),
+    payload: dict[str, Any] = Body(...),
 ):
     miner_id = payload.get("miner_id")
     if not miner_id:
@@ -25,8 +26,9 @@ async def decide_recovery(
             detail="Missing required field: miner_id",
         )
 
-    from app.models import Miner
     from sqlalchemy import select
+
+    from app.models import Miner
 
     miner_result = await db.execute(
         select(Miner).where(Miner.id == str(miner_id))
@@ -56,8 +58,9 @@ async def get_miner_health(
     miner_id: str = Path(..., description="Miner ID"),
     db: AsyncSession = Depends(get_db),
 ):
-    from app.models import Miner
     from sqlalchemy import select
+
+    from app.models import Miner
 
     miner_result = await db.execute(
         select(Miner).where(Miner.id == miner_id)

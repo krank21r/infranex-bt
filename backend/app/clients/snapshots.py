@@ -8,52 +8,51 @@ Plain `@dataclass` so they:
 """
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
 
 
 @dataclass(frozen=True)
 class SubnetSnapshot:
     netuid: int
-    name: Optional[str] = None
-    description: Optional[str] = None
-    owner_hotkey: Optional[str] = None
-    max_neurons: Optional[int] = None
-    max_allowed_validators: Optional[int] = None
-    immunity_period: Optional[int] = None
-    tempo: Optional[int] = None
-    min_difficulty: Optional[int] = None
-    max_difficulty: Optional[int] = None
-    difficulty: Optional[int] = None
-    rho: Optional[int] = None
-    kappa: Optional[float] = None
-    is_active: Optional[bool] = None
-    registration_open: Optional[bool] = None
+    name: str | None = None
+    description: str | None = None
+    owner_hotkey: str | None = None
+    max_neurons: int | None = None
+    max_allowed_validators: int | None = None
+    immunity_period: int | None = None
+    tempo: int | None = None
+    min_difficulty: int | None = None
+    max_difficulty: int | None = None
+    difficulty: int | None = None
+    rho: int | None = None
+    kappa: float | None = None
+    is_active: bool | None = None
+    registration_open: bool | None = None
     raw_metadata: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
 class MetricsSnapshot:
     netuid: int
-    block: Optional[int] = None
-    miner_count: Optional[int] = None
-    validator_count: Optional[int] = None
-    emission: Optional[float] = None
-    total_emission: Optional[float] = None
-    average_incentive: Optional[float] = None
-    median_incentive: Optional[float] = None
-    top_incentive: Optional[float] = None
-    total_incentive: Optional[float] = None
-    total_stake: Optional[float] = None
-    average_stake: Optional[float] = None
-    trust: Optional[float] = None
-    consensus: Optional[float] = None
-    rank: Optional[float] = None
-    registration_cost: Optional[float] = None
-    neuron_utilization: Optional[float] = None
-    top_5_concentration: Optional[float] = None
-    top_10_concentration: Optional[float] = None
-    miner_turnover: Optional[float] = None
-    recorded_at: Optional[datetime] = None
+    block: int | None = None
+    miner_count: int | None = None
+    validator_count: int | None = None
+    emission: float | None = None
+    total_emission: float | None = None
+    average_incentive: float | None = None
+    median_incentive: float | None = None
+    top_incentive: float | None = None
+    total_incentive: float | None = None
+    total_stake: float | None = None
+    average_stake: float | None = None
+    trust: float | None = None
+    consensus: float | None = None
+    rank: float | None = None
+    registration_cost: float | None = None
+    neuron_utilization: float | None = None
+    top_5_concentration: float | None = None
+    top_10_concentration: float | None = None
+    miner_turnover: float | None = None
+    recorded_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -61,39 +60,39 @@ class NeuronSnapshot:
     netuid: int
     uid: int
     hotkey: str
-    coldkey: Optional[str] = None
-    stake: Optional[float] = None
-    rank: Optional[float] = None
-    trust: Optional[float] = None
-    consensus: Optional[float] = None
-    incentive: Optional[float] = None
-    emission: Optional[float] = None
-    dividends: Optional[float] = None
-    active: Optional[bool] = None
-    validator_permit: Optional[bool] = None
-    last_update: Optional[int] = None
-    recorded_at: Optional[datetime] = None
+    coldkey: str | None = None
+    stake: float | None = None
+    rank: float | None = None
+    trust: float | None = None
+    consensus: float | None = None
+    incentive: float | None = None
+    emission: float | None = None
+    dividends: float | None = None
+    active: bool | None = None
+    validator_permit: bool | None = None
+    last_update: int | None = None
+    recorded_at: datetime | None = None
 
 
 @dataclass(frozen=True)
 class EmissionSnapshot:
     netuid: int
-    block: Optional[int] = None
-    emission_amount: Optional[float] = None
-    subnet_emission: Optional[float] = None
-    owner_emission: Optional[float] = None
-    miner_emission: Optional[float] = None
-    validator_emission: Optional[float] = None
-    recorded_at: Optional[datetime] = None
+    block: int | None = None
+    emission_amount: float | None = None
+    subnet_emission: float | None = None
+    owner_emission: float | None = None
+    miner_emission: float | None = None
+    validator_emission: float | None = None
+    recorded_at: datetime | None = None
 
 
 @dataclass(frozen=True)
 class IncentiveSnapshot:
     netuid: int
-    uid: Optional[int] = None
-    hotkey: Optional[str] = None
-    incentive: Optional[float] = None
-    emission: Optional[float] = None
-    stake: Optional[float] = None
-    block: Optional[int] = None
-    recorded_at: Optional[datetime] = None
+    uid: int | None = None
+    hotkey: str | None = None
+    incentive: float | None = None
+    emission: float | None = None
+    stake: float | None = None
+    block: int | None = None
+    recorded_at: datetime | None = None

@@ -11,18 +11,18 @@ Workflow per learning cycle:
   7. Persist all results as auditable rows.
 """
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import (
-    OpportunityScore,
-    Deployment,
-)
+from app.learning.adapter import WeightAdapter
 from app.learning.aggregator import PerformanceAggregator
 from app.learning.tracker import AccuracyTracker
-from app.learning.adapter import WeightAdapter
+from app.models import (
+    Deployment,
+    OpportunityScore,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class FeedbackLoop:
         self.tracker = AccuracyTracker(db)
         self.adapter = WeightAdapter(db)
 
-    async def record_outcome(self, deployment_id: str, outcome: Dict[str, Any]) -> None:
+    async def record_outcome(self, deployment_id: str, outcome: dict[str, Any]) -> None:
         """Record a deployment outcome manually or from an external source.
 
         `outcome` is a dict with at least:
@@ -59,7 +59,7 @@ class FeedbackLoop:
             if val is not None:
                 await self.tracker.track_prediction(score_id, days)
 
-    async def _find_evaluable_scores(self, min_age_days: int = 7) -> List[OpportunityScore]:
+    async def _find_evaluable_scores(self, min_age_days: int = 7) -> list[OpportunityScore]:
         """Find OpportunityScore rows that are at least min_age_days old."""
         cutoff = func.now() - func.cast(f"{min_age_days} days", "interval")
         stmt = (
@@ -71,12 +71,12 @@ class FeedbackLoop:
         rows = (await self.db.execute(stmt)).scalars().all()
         return list(rows)
 
-    async def run_learning_cycle(self) -> Dict[str, Any]:
+    async def run_learning_cycle(self) -> dict[str, Any]:
         """Execute one full learning cycle. Called periodically by a worker.
 
         Returns a summary dict with counts and any alerts produced.
         """
-        summary: Dict[str, Any] = {
+        summary: dict[str, Any] = {
             "evaluated_scores": 0,
             "accuracy_records": 0,
             "drift_alerts": 0,

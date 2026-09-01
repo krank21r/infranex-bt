@@ -9,7 +9,7 @@ which is injectable so tests can mock the external calls.
 """
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
 
@@ -28,8 +28,8 @@ class VastAIProvider:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        client: Optional[httpx.Client] = None,
+        api_key: str | None = None,
+        client: httpx.Client | None = None,
     ) -> None:
         self.api_key = api_key or os.getenv("VASTAI_API_KEY")
         self._client = client
@@ -46,11 +46,11 @@ class VastAIProvider:
             self._client = httpx.Client(timeout=30.0)
         return self._client
 
-    def _headers(self) -> Dict[str, str]:
+    def _headers(self) -> dict[str, str]:
         # Vast.ai accepts the API key directly as a Bearer token.
         return {"Authorization": f"Bearer {self.api_key}"}
 
-    def _request(self, method: str, path: str, **kwargs: Any) -> Dict[str, Any]:
+    def _request(self, method: str, path: str, **kwargs: Any) -> dict[str, Any]:
         resp = self.client.request(
             method,
             f"{VASTAI_API_URL}{path}",
@@ -64,9 +64,9 @@ class VastAIProvider:
 
     def search_offers(
         self,
-        query: Optional[Dict[str, Any]] = None,
+        query: dict[str, Any] | None = None,
         order: str = "dph_total",
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Search available GPU offers (bundles)."""
         body = {"query": query or {}, "order": order}
         data = self._request("PUT", "/bundles/", json=body)
@@ -77,11 +77,11 @@ class VastAIProvider:
         ask_id: str,
         image: str = "pytorch/pytorch:latest",
         disk: int = 50,
-        env: Optional[Dict[str, str]] = None,
-        ssh_key: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        env: dict[str, str] | None = None,
+        ssh_key: str | None = None,
+    ) -> dict[str, Any]:
         """Rent an instance from a given offer (`ask_id`)."""
-        body: Dict[str, Any] = {
+        body: dict[str, Any] = {
             "client_id": self.api_key,
             "image": image,
             "disk": disk,
@@ -90,19 +90,19 @@ class VastAIProvider:
         }
         return self._request("POST", f"/asks/{ask_id}/", json=body)
 
-    def start_instance(self, instance_id: str) -> Dict[str, Any]:
+    def start_instance(self, instance_id: str) -> dict[str, Any]:
         """Start a stopped instance."""
         return self._request(
             "POST", f"/instances/{instance_id}/", json={"state": "running"}
         )
 
-    def stop_instance(self, instance_id: str) -> Dict[str, Any]:
+    def stop_instance(self, instance_id: str) -> dict[str, Any]:
         """Stop a running instance."""
         return self._request(
             "POST", f"/instances/{instance_id}/", json={"state": "stopped"}
         )
 
-    def destroy_instance(self, instance_id: str) -> Dict[str, Any]:
+    def destroy_instance(self, instance_id: str) -> dict[str, Any]:
         """Delete an instance and release the GPU."""
         return self._request("DELETE", f"/instances/{instance_id}/")
 
@@ -131,7 +131,7 @@ class VastAIProvider:
         server.status = "provisioned"
         return True
 
-    def deploy_miner(self, server: Server, config: Dict[str, Any]) -> bool:
+    def deploy_miner(self, server: Server, config: dict[str, Any]) -> bool:
         if not server.provider_instance_id:
             return False
         server.status = "started"
@@ -151,7 +151,7 @@ class VastAIProvider:
         server.status = "terminated"
         return True
 
-    def get_status(self, server: Server) -> Dict[str, Any]:
+    def get_status(self, server: Server) -> dict[str, Any]:
         return {
             "provider": self.name,
             "provider_instance_id": server.provider_instance_id,

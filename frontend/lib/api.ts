@@ -1,4 +1,12 @@
 import { createBrowserClient } from '@supabase/ssr'
+import type {
+  UserMiner,
+  HotkeyValidationResult,
+  Deployment,
+  DeploymentStep,
+  ApprovalRequest,
+  ApprovalDecisionInput,
+} from '@/types'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api'
 
@@ -184,4 +192,146 @@ export const endpoints = {
   // Worker status
   orchestratorStatus: '/orchestrator/status',
   workersStatus: '/orchestrator/status',
+
+  // User miners
+  myMiners: '/miners/my',
+  registerMiner: '/miners/register',
+  userMiner: (id: string) => `/miners/my/${id}`,
+  validateHotkey: '/miners/validate-hotkey',
+
+  // Deployments
+  deployments: '/deployments',
+  deployment: (id: string) => `/deployments/${id}`,
+  deploymentPreview: '/deployments/preview',
+  deploymentApprove: (id: string) => `/deployments/${id}/approve`,
+  deploymentProvision: (id: string) => `/deployments/${id}/provision`,
+  deploymentDeploy: (id: string) => `/deployments/${id}/deploy`,
+  deploymentTerminate: (id: string) => `/deployments/${id}/terminate`,
+  deploymentTick: (id: string) => `/deployments/${id}/tick`,
+
+  // Approvals
+  approvalsPending: '/approvals/pending',
+  approvalsAudit: '/approvals/audit',
+  approval: (id: string) => `/approvals/${id}`,
+  approvalApprove: (id: string) => `/approvals/${id}/approve`,
+  approvalReject: (id: string) => `/approvals/${id}/reject`,
+  approvalCancel: (id: string) => `/approvals/${id}/cancel`,
 }
+
+export type MinerRegistrationPayload = {
+  name: string
+  hotkey: string
+  netuid: number
+  description?: string
+  tags?: string[]
+}
+
+export type MinerUpdatePayload = Partial<{
+  name: string
+  description: string
+  tags: string[]
+  status: string
+}>
+
+export type PreviewDeploymentRequest = {
+  netuid: number
+  gpu_model_id?: string
+  provider_id?: string
+  hotkey_address?: string
+  opportunity_score_id?: string
+  compatibility_test_id?: string
+  deployment_config?: Record<string, unknown>
+  estimated_monthly_cost?: number
+  estimated_monthly_revenue?: number
+  currency?: string
+}
+
+export type DeploymentDetail = Deployment & {
+  current_state?: string
+  progress?: number
+  gpu_model?: string
+  vram_gb?: number
+  uid?: number
+  incentive?: number
+  trust?: number
+  consensus?: number
+  earnings_tao?: number
+  earnings_usd?: number
+  uptime_seconds?: number
+}
+
+export interface DeploymentPreviewResult {
+  estimated_cost: number
+  estimated_revenue: number
+  compatibility: Record<string, unknown>
+}
+
+export type ApprovalLevel = 'L1' | 'L2' | 'L3'
+
+export const minerApi = {
+  getUserMiners(): Promise<UserMiner[]> {
+    return api.get<UserMiner[]>(endpoints.myMiners)
+  },
+  registerMiner(data: MinerRegistrationPayload): Promise<UserMiner> {
+    return api.post<UserMiner>(endpoints.registerMiner, data)
+  },
+  updateMiner(id: string, data: MinerUpdatePayload): Promise<UserMiner> {
+    return api.patch<UserMiner>(endpoints.userMiner(id), data)
+  },
+  deleteMiner(id: string): Promise<void> {
+    return api.delete<void>(endpoints.userMiner(id))
+  },
+  validateHotkey(hotkey: string, netuid: number): Promise<HotkeyValidationResult> {
+    return api.post<HotkeyValidationResult>(endpoints.validateHotkey, { hotkey, netuid })
+  },
+}
+
+export const deploymentsApi = {
+  listDeployments(): Promise<Deployment[]> {
+    return api.get<Deployment[]>(endpoints.deployments)
+  },
+  getDeployment(id: string): Promise<DeploymentDetail> {
+    return api.get<DeploymentDetail>(endpoints.deployment(id))
+  },
+  previewDeployment(req: PreviewDeploymentRequest): Promise<DeploymentPreviewResult> {
+    return api.post<DeploymentPreviewResult>(endpoints.deploymentPreview, req)
+  },
+  createDeployment(req: PreviewDeploymentRequest): Promise<Deployment> {
+    return api.post<Deployment>(endpoints.deployments, req)
+  },
+  approveDeployment(id: string, levels: ApprovalLevel[]): Promise<Deployment> {
+    return api.post<Deployment>(endpoints.deploymentApprove(id), { levels })
+  },
+  provisionDeployment(id: string, offer: Record<string, unknown>): Promise<Deployment> {
+    return api.post<Deployment>(endpoints.deploymentProvision(id), { offer })
+  },
+  deployMiner(id: string): Promise<Deployment> {
+    return api.post<Deployment>(endpoints.deploymentDeploy(id), {})
+  },
+  terminateDeployment(id: string, reason?: string): Promise<Deployment> {
+    return api.post<Deployment>(endpoints.deploymentTerminate(id), { reason })
+  },
+  tickDeployment(id: string): Promise<Deployment> {
+    return api.post<Deployment>(endpoints.deploymentTick(id), {})
+  },
+}
+
+export const approvalsApi = {
+  listPending(): Promise<ApprovalRequest[]> {
+    return api.get<ApprovalRequest[]>(endpoints.approvalsPending)
+  },
+  getApproval(id: string): Promise<ApprovalRequest> {
+    return api.get<ApprovalRequest>(endpoints.approval(id))
+  },
+  approve(id: string, body: ApprovalDecisionInput = {}): Promise<ApprovalRequest> {
+    return api.post<ApprovalRequest>(endpoints.approvalApprove(id), body)
+  },
+  reject(id: string, body: ApprovalDecisionInput = {}): Promise<ApprovalRequest> {
+    return api.post<ApprovalRequest>(endpoints.approvalReject(id), body)
+  },
+  cancel(id: string): Promise<ApprovalRequest> {
+    return api.post<ApprovalRequest>(endpoints.approvalCancel(id), {})
+  },
+}
+
+export type { Deployment, DeploymentStep }

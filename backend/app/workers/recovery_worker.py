@@ -7,8 +7,7 @@ each, and feeds HealthSignals into RecoveryEngine.decide() → execute_with_appr
 Wires the existing RecoveryEngine and HealthChecker into a periodic loop.
 """
 import logging
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,9 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.approval.audit import AuditWriter
 from app.models import Deployment
 from app.recovery.health_checker import HealthChecker, HealthSignal
-from app.recovery.recovery import RecoveryEngine, RecoveryAction
+from app.recovery.recovery import RecoveryEngine
 from app.workers.base import BaseWorker, RetryConfig
-
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +26,9 @@ class RecoveryWorker(BaseWorker):
 
     def __init__(
         self,
-        db: Optional[AsyncSession] = None,
+        db: AsyncSession | None = None,
         interval_seconds: float = 300.0,
-        config: Optional[Dict[str, Any]] = None,
+        config: dict[str, Any] | None = None,
     ):
         retry_config = RetryConfig(
             max_attempts=3,
@@ -64,7 +62,7 @@ class RecoveryWorker(BaseWorker):
                     str(exc),
                 )
 
-    async def _list_running_deployments(self) -> List[Deployment]:
+    async def _list_running_deployments(self) -> list[Deployment]:
         stmt = select(Deployment).where(
             Deployment.status.in_(("started", "provisioned"))
         )
@@ -105,8 +103,8 @@ class RecoveryWorker(BaseWorker):
 
 
 def create_recovery_worker(
-    db: Optional[AsyncSession] = None,
+    db: AsyncSession | None = None,
     interval_seconds: float = 300.0,
-    config: Optional[Dict[str, Any]] = None,
+    config: dict[str, Any] | None = None,
 ) -> RecoveryWorker:
     return RecoveryWorker(db=db, interval_seconds=interval_seconds, config=config)

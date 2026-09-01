@@ -7,17 +7,19 @@ SubnetPerformance objects for the Learning Engine.
 """
 import logging
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import (
     Deployment,
+    Emission,
     Miner,
     MinerHealth,
     Profitability,
-    Emission,
+)
+from app.models import (
     PerformanceReport as PerformanceReportORM,
 )
 
@@ -29,25 +31,25 @@ LEARNING_MODEL_VERSION = "v1.0"
 @dataclass(frozen=True)
 class PerformanceReport:
     """Aggregated performance metrics for a single deployment or subnet."""
-    deployment_id: Optional[str]
+    deployment_id: str | None
     netuid: int
     report_type: str
     window_days: int
     period_start: Any
     period_end: Any
-    total_revenue: Optional[float]
-    total_cost: Optional[float]
-    total_profit: Optional[float]
-    roi: Optional[float]
-    uptime_ratio: Optional[float]
-    emission_per_block_avg: Optional[float]
-    emission_per_block_median: Optional[float]
-    health_score_avg: Optional[float]
+    total_revenue: float | None
+    total_cost: float | None
+    total_profit: float | None
+    roi: float | None
+    uptime_ratio: float | None
+    emission_per_block_avg: float | None
+    emission_per_block_median: float | None
+    health_score_avg: float | None
     sample_size: int
     model_version: str
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "deployment_id": self.deployment_id,
             "netuid": self.netuid,
@@ -75,17 +77,17 @@ class SubnetPerformance:
     netuid: int
     window_days: int
     deployment_count: int
-    avg_roi: Optional[float]
-    median_roi: Optional[float]
-    total_revenue: Optional[float]
-    total_cost: Optional[float]
-    total_profit: Optional[float]
-    avg_uptime_ratio: Optional[float]
-    avg_health_score: Optional[float]
-    emission_per_block_avg: Optional[float]
+    avg_roi: float | None
+    median_roi: float | None
+    total_revenue: float | None
+    total_cost: float | None
+    total_profit: float | None
+    avg_uptime_ratio: float | None
+    avg_health_score: float | None
+    emission_per_block_avg: float | None
     model_version: str
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "netuid": self.netuid,
             "window_days": self.window_days,
@@ -108,7 +110,7 @@ class PerformanceAggregator:
 
     async def _fetch_profitability_rows(
         self, deployment_id: str, window_days: int
-    ) -> List[Profitability]:
+    ) -> list[Profitability]:
         stmt = (
             select(Profitability)
             .where(Profitability.deployment_id == deployment_id)
@@ -122,7 +124,7 @@ class PerformanceAggregator:
 
     async def _fetch_health_rows(
         self, deployment_id: str, window_days: int
-    ) -> List[MinerHealth]:
+    ) -> list[MinerHealth]:
         miners_q = await self.db.execute(
             select(Miner.id).where(Miner.deployment_id == deployment_id)
         )
@@ -143,7 +145,7 @@ class PerformanceAggregator:
 
     async def _fetch_emission_rows(
         self, deployment_id: str, window_days: int
-    ) -> List[Emission]:
+    ) -> list[Emission]:
         dep_q = await self.db.execute(
             select(Deployment.netuid).where(Deployment.id == deployment_id)
         )
@@ -164,7 +166,7 @@ class PerformanceAggregator:
 
     async def aggregate_miner_performance(
         self, deployment_id: str, window_days: int = 30
-    ) -> Optional[PerformanceReport]:
+    ) -> PerformanceReport | None:
         """Aggregate actual performance for one deployment over a trailing window."""
         dep_q = await self.db.execute(
             select(Deployment.netuid, Deployment.estimated_monthly_cost)
@@ -265,13 +267,13 @@ class PerformanceAggregator:
         deployment_ids = [row.id for row in dep_q.scalars().all()]
 
         deployment_count = len(deployment_ids)
-        all_revenue: List[float] = []
-        all_cost: List[float] = []
-        all_profit: List[float] = []
-        all_roi: List[float] = []
-        all_uptime: List[float] = []
-        all_health: List[float] = []
-        all_emissions: List[float] = []
+        all_revenue: list[float] = []
+        all_cost: list[float] = []
+        all_profit: list[float] = []
+        all_roi: list[float] = []
+        all_uptime: list[float] = []
+        all_health: list[float] = []
+        all_emissions: list[float] = []
 
         for did in deployment_ids:
             report = await self.aggregate_miner_performance(did, window_days)
@@ -292,7 +294,7 @@ class PerformanceAggregator:
             if report.emission_per_block_avg is not None:
                 all_emissions.append(report.emission_per_block_avg)
 
-        def _median(values: List[float]) -> Optional[float]:
+        def _median(values: list[float]) -> float | None:
             if not values:
                 return None
             s = sorted(values)
