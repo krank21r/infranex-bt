@@ -1,13 +1,26 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
+import { Fraunces, Inter_Tight, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from './providers'
 import { SupabaseProvider } from '@/lib/supabase-provider'
 
-const inter = Inter({
+const fraunces = Fraunces({
   subsets: ['latin'],
   display: 'swap',
-  variable: '--font-inter',
+  variable: '--font-fraunces',
+  axes: ['opsz', 'SOFT'],
+})
+
+const interTight = Inter_Tight({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-inter-tight',
+})
+
+const jetbrains = JetBrains_Mono({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-jetbrains-mono',
 })
 
 export const metadata: Metadata = {
@@ -102,7 +115,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${inter.variable} font-sans antialiased bg-background text-foreground min-h-screen`}
+        className={`${fraunces.variable} ${interTight.variable} ${jetbrains.variable} font-sans antialiased bg-background text-foreground min-h-screen`}
       >
         <SupabaseProvider>
           <AuthProvider>{children}</AuthProvider>

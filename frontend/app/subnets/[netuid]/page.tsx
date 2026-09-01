@@ -242,7 +242,7 @@ export default function SubnetDetailPage() {
                     max={1} 
                     format="percent"
                     color={latestMetrics && latestMetrics.top_5_concentration && latestMetrics.top_5_concentration > 0.5 ? 'destructive' : 'warning'}
-                    warning={latestMetrics && latestMetrics.top_5_concentration && latestMetrics.top_5_concentration > 0.5}
+                    warning={Boolean(latestMetrics && latestMetrics.top_5_concentration && latestMetrics.top_5_concentration > 0.5)}
                   />
                 </CardContent>
               </Card>
