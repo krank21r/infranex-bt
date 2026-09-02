@@ -1,0 +1,44 @@
+# Worker container — live Bittensor scanner.
+#
+# This runs OUTSIDE Vercel. Vercel's 250 MB serverless cap and lack
+# of a Rust toolchain is why `bittensor>=9.x` is not in the FastAPI
+# requirements.txt — it lives here instead. The worker writes to the
+# same Supabase Postgres + Upstash Redis the FastAPI service reads
+# from, so the API serves live data without ever touching the SDK.
+#
+# Versions are pinned to the lowest minor that exercises the real
+# chain code paths; bump with care and re-test before upgrading.
+#
+# Note: `bittensor` itself does not expose a stable version API. The
+# pin below tracks the major series the codebase expects; the worker
+# will surface an import error at startup if the resolved version
+# is incompatible with the snapshot shape in
+# `app/clients/snapshots.py`.
+
+# --- Bittensor SDK (the reason this container exists) ---
+bittensor>=9.0.0,<10.0.0
+
+# --- Database (asyncpg) ---
+asyncpg==0.30.0
+
+# --- SQLAlchemy + Alembic (matches backend) ---
+sqlalchemy==2.0.36
+alembic==1.14.0
+
+# --- HTTP client (Upstash REST fallback) ---
+httpx==0.28.1
+
+# --- Config ---
+pydantic==2.10.4
+pydantic-settings==2.7.1
+python-dotenv==1.0.1
+
+# --- Logging ---
+structlog==24.4.0
+python-json-logger==2.0.7
+
+# --- Redis (TCP backend for the worker's local cache write) ---
+redis==5.2.1
+
+# --- Resilience ---
+tenacity==9.0.0

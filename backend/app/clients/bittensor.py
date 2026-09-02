@@ -8,7 +8,17 @@ import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from datetime import UTC, datetime
+from app.clients.snapshots import (
+    EmissionSnapshot,
+    IncentiveSnapshot,
+    MetricsSnapshot,
+    NeuronSnapshot,
+    SubnetSnapshot,
+)
+from app.core.config import settings
 
+_BITTENSOR_SDK_CONCURRENCY = 8  # cap concurrent in-flight RPCs
+_BITTENSOR_SDK_TIMEOUT_SECONDS = 30.0
 from app.clients.snapshots import (
     EmissionSnapshot,
     IncentiveSnapshot,
@@ -64,7 +74,9 @@ class RealBittensorClient(BittensorClient):
         self._endpoint = settings.BITTENSOR_RPC_ENDPOINT
         self._bt = bt
         self._subtensor: bt.Subtensor | None = None
+
         self._subtensor_lock = asyncio.Lock()
+        self._call_sem = asyncio.Semaphore(_BITTENSOR_SDK_CONCURRENCY)
 
         logger.info("real_bittensor_client_init", network=self._network, endpoint=self._endpoint)
 
@@ -81,6 +93,39 @@ class RealBittensorClient(BittensorClient):
                     logger.info("subtensor_connected", network=self._network)
         return self._subtensor
 
+    async def _run_sdk(self, fn, *args, **kwargs):
+        """Run a synchronous bittensor SDK call with concurrency cap,
+        timeout, and tenacity-backed retry on transient errors.
+
+        The semaphore prevents the worker from saturating the
+        subtensor RPC endpoint with one call per netuid concurrently
+        (get_metagraph + get_emissions + get_incentives all want to
+        fire at once during a full scan). Retries cover transient
+        network / RPC errors; permanent errors (programmer bugs)
+        re-raise immediately.
+        """
+        from tenacity import (
+            AsyncRetrying,
+            retry_if_exception_type,
+            stop_after_attempt,
+            wait_exponential,
+        )
+
+        async with self._call_sem:
+            async for attempt in AsyncRetrying(
+                stop=stop_after_attempt(3),
+                wait=wait_exponential(multiplier=1, min=1, max=10),
+                retry=retry_if_exception_type((TimeoutError, ConnectionError, OSError)),
+                reraise=True,
+            ):
+                with attempt:
+                    return await asyncio.wait_for(
+                        asyncio.get_event_loop().run_in_executor(
+                            None, lambda: fn(*args, **kwargs)
+                        ),
+                        timeout=_BITTENSOR_SDK_TIMEOUT_SECONDS,
+                    )
+
     async def get_subnets(self) -> list[SubnetSnapshot]:
         """Fetch all active subnets from the chain."""
         try:
@@ -88,10 +133,7 @@ class RealBittensorClient(BittensorClient):
 
             # Get all subnet netuids by querying the chain
             # Use metagraph to discover subnets, or query subnets directly
-            subnets_data = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: subtensor.all_subnets()
-            )
+            subnets_data = await self._run_sdk(subtensor.all_subnets)
 
             now = datetime.now(UTC)
             snapshots: list[SubnetSnapshot] = []
@@ -99,10 +141,7 @@ class RealBittensorClient(BittensorClient):
             for netuid in subnets_data:
                 try:
                     # Fetch subnet info for each netuid
-                    subnet_info = await asyncio.get_event_loop().run_in_executor(
-                        None,
-                        lambda n=netuid: subtensor.get_subnet_hyperparameters(n)
-                    )
+                    subnet_info = await self._run_sdk(subtensor.get_subnet_hyperparameters, n)
 
                     if subnet_info is None:
                         continue
@@ -143,10 +182,7 @@ class RealBittensorClient(BittensorClient):
         """Try to get subnet name from metagraph or registry."""
         try:
             # Try to get from metagraph
-            metagraph = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: subtensor.metagraph(netuid)
-            )
+            metagraph = await self._run_sdk(subtensor.metagraph, netuid)
             if metagraph and hasattr(metagraph, 'name') and metagraph.name:
                 return metagraph.name
         except Exception:
@@ -159,10 +195,8 @@ class RealBittensorClient(BittensorClient):
             subtensor = await self._get_subtensor()
 
             # Fetch metagraph
-            metagraph = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: subtensor.metagraph(netuid)
-            )
+            metagraph = await self._run_sdk(subtensor.metagraph, netuid)
+
 
             if metagraph is None:
                 logger.warning("metagraph_not_found", netuid=netuid)
@@ -296,10 +330,7 @@ class RealBittensorClient(BittensorClient):
             subtensor = await self._get_subtensor()
 
             # Get current block
-            current_block = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: subtensor.get_current_block()
-            )
+            current_block = await self._run_sdk(subtensor.get_current_block)
 
             start_block = current_block - block_range
             snapshots: list[EmissionSnapshot] = []
@@ -309,10 +340,7 @@ class RealBittensorClient(BittensorClient):
             step = max(1, block_range // 100)
             for block in range(start_block, current_block + 1, step):
                 try:
-                    emission_data = await asyncio.get_event_loop().run_in_executor(
-                        None,
-                        lambda b=block: subtensor.get_emission_by_block(netuid, b)
-                    )
+                    emission_data = await self._run_sdk(subtensor.get_emission_by_block, netuid, b)
 
                     if emission_data:
                         snapshots.append(EmissionSnapshot(
@@ -341,10 +369,7 @@ class RealBittensorClient(BittensorClient):
         try:
             subtensor = await self._get_subtensor()
 
-            current_block = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: subtensor.get_current_block()
-            )
+            current_block = await self._run_sdk(subtensor.get_current_block)
 
             start_block = current_block - block_range
             snapshots: list[IncentiveSnapshot] = []
@@ -355,10 +380,7 @@ class RealBittensorClient(BittensorClient):
             for block in range(start_block, current_block + 1, step):
                 try:
                     # Get metagraph at specific block
-                    metagraph = await asyncio.get_event_loop().run_in_executor(
-                        None,
-                        lambda b=block: subtensor.metagraph(netuid, block=b)
-                    )
+                    metagraph = await self._run_sdk(subtensor.metagraph, netuid, block=b)
 
                     if metagraph and hasattr(metagraph, 'I') and hasattr(metagraph, 'hotkeys'):
                         incentives = [float(i) for i in metagraph.I]

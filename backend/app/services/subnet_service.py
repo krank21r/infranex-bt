@@ -70,7 +70,20 @@ class SubnetService:
     async def count(self) -> int:
         result = await self.db.execute(select(func.count()).select_from(Subnet))
         return result.scalar() or 0
+    async def list_all_active(self) -> list[Subnet]:
+        """Return all subnets ordered by netuid. Used to populate the cache."""
+        result = await self.db.execute(select(Subnet).order_by(Subnet.netuid))
+        return list(result.scalars().all())
 
+    async def neurons_for_subnet(self, netuid: int) -> list[Neuron]:
+        """Return the latest-known set of neurons for a subnet (one row per uid)."""
+        from sqlalchemy import func as sa_func
+        result = await self.db.execute(
+            select(Neuron)
+            .where(Neuron.netuid == netuid)
+            .order_by(Neuron.uid)
+        )
+        return list(result.scalars().all())
     async def upsert(self, netuid: int, **fields) -> Subnet:
         subnet = await self.get_subnet(netuid)
         if subnet is None:

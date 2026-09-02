@@ -1,12 +1,17 @@
 """
-Subnet API routes — thin wrappers over SubnetService.
-"""
+Subnet API routes — thin wrappers over SubnetService with cache-first reads.
 
+The cache is best-effort: on a miss or backend error, the route falls
+through to the DB and the result is returned directly (no opportunistic
+repopulation here — the scanner worker owns the cache write path so the
+API surface stays a pure consumer).
+"""
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, get_subnet_service
 from app.schemas.common import APIResponse, PaginationMeta
+from app.services.cache import SubnetCache
 from app.services.subnet_service import SubnetService
 
 router = APIRouter(prefix="/subnets", tags=["subnets"])
@@ -46,6 +51,15 @@ async def get_subnet(
     db: AsyncSession = Depends(get_db),
     subnet_service: SubnetService = Depends(get_subnet_service),
 ) -> APIResponse[dict]:
+    cache = SubnetCache()
+    cached = await cache.get_subnet_meta(netuid)
+    if cached is not None:
+        cached_metrics = await cache.get_subnet_metrics(netuid)
+        return APIResponse(
+            success=True,
+            data=_cached_to_subnet_payload(cached, cached_metrics),
+        )
+
     subnet = await subnet_service.get_subnet(netuid)
     if not subnet:
         raise HTTPException(
@@ -64,6 +78,11 @@ async def get_subnet_metrics(
     db: AsyncSession = Depends(get_db),
     subnet_service: SubnetService = Depends(get_subnet_service),
 ) -> APIResponse[dict]:
+    cache = SubnetCache()
+    cached = await cache.get_subnet_metrics(netuid)
+    if cached is not None:
+        return APIResponse(success=True, data=_serialize_cached_metrics(cached))
+
     metrics = await subnet_service.latest_metrics(netuid)
     if not metrics:
         raise HTTPException(
@@ -120,4 +139,58 @@ def _serialize_metrics(m) -> dict:
         "trust": float(m.trust) if m.trust is not None else None,
         "consensus": float(m.consensus) if m.consensus is not None else None,
         "recorded_at": m.recorded_at.isoformat() if m.recorded_at else None,
+    }
+
+
+def _cached_to_subnet_payload(meta: dict, latest_metrics: dict | None) -> dict:
+    """Project a cached subnet + metrics into the same shape as
+    `_serialize_subnet` + `_serialize_metrics` so the API contract
+    doesn't change between cache hits and DB hits."""
+    return {
+        "id": meta.get("id"),
+        "netuid": meta.get("netuid"),
+        "name": meta.get("name"),
+        "description": meta.get("description"),
+        "subnet_type": meta.get("subnet_type"),
+        "owner_hotkey": meta.get("owner_hotkey"),
+        "max_neurons": meta.get("max_neurons"),
+        "tempo": meta.get("tempo"),
+        "difficulty": meta.get("difficulty"),
+        "is_active": meta.get("is_active"),
+        "registration_open": meta.get("registration_open"),
+        "created_at": meta.get("created_at"),
+        "updated_at": meta.get("updated_at"),
+        "latest_metrics": _serialize_cached_metrics(latest_metrics) if latest_metrics else None,
+    }
+
+
+def _serialize_cached_metrics(m: dict) -> dict:
+    """Project a cached metrics dict into the same shape as `_serialize_metrics`."""
+    def _f(v):
+        if v is None:
+            return None
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, (int, float)):
+            return float(v)
+        if isinstance(v, str):
+            try:
+                return float(v)
+            except ValueError:
+                return v
+        return v
+
+
+    return {
+        "netuid": m.get("netuid"),
+        "block": m.get("block"),
+        "emission": _f(m.get("emission")),
+        "average_incentive": _f(m.get("average_incentive")),
+        "total_stake": _f(m.get("total_stake")),
+        "top_5_concentration": _f(m.get("top_5_concentration")),
+        "miner_count": m.get("miner_count"),
+        "validator_count": m.get("validator_count"),
+        "trust": _f(m.get("trust")),
+        "consensus": _f(m.get("consensus")),
+        "recorded_at": m.get("recorded_at"),
     }
