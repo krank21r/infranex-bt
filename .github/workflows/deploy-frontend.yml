@@ -8,8 +8,9 @@ on:
   push:
     branches: [main]
     paths:
-      - 'infranex-bt/frontend/**'
-      - 'infranex-bt/docker/Dockerfile.frontend'
+      - 'frontend/**'
+      - 'docker/Dockerfile.frontend'
+      - 'vercel.json'
       - '.github/workflows/deploy-frontend.yml'
   workflow_dispatch:
 
@@ -23,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./infranex-bt/frontend
+        working-directory: ./frontend
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

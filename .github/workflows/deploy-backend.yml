@@ -8,8 +8,8 @@ on:
   push:
     branches: [main]
     paths:
-      - 'infranex-bt/backend/**'
-      - 'infranex-bt/docker/Dockerfile.backend'
+      - 'backend/**'
+      - 'docker/Dockerfile.backend'
       - '.github/workflows/deploy-backend.yml'
   workflow_dispatch:
 
