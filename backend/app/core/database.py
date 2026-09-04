@@ -89,6 +89,10 @@ class DatabaseManager:
                     ssl_ctx.check_hostname = False
                     ssl_ctx.verify_mode = ssl.CERT_NONE
                     connect_args["ssl"] = ssl_ctx
+                # Disable asyncpg prepared-statement cache: PgBouncer in transaction mode
+                # recycles server-side prepared statements across clients, causing
+                # "DuplicatePreparedStatementError" on the second query in a session.
+                connect_args["statement_cache_size"] = 0
                 self._async_engine = create_async_engine(
                     db_url,
                     poolclass=NullPool,
