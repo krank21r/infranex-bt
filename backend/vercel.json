@@ -5,19 +5,5 @@
       "src": "/(.*)",
       "dest": "/api/index.py"
     }
-  ],
-  "crons": [
-    {
-      "path": "/api/cron/scanner",
-      "schedule": "*/5 * * * *"
-    },
-    {
-      "path": "/api/cron/market-data",
-      "schedule": "0 * * * *"
-    },
-    {
-      "path": "/api/cron/scoring",
-      "schedule": "*/15 * * * *"
-    }
   ]
 }

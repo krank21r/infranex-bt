@@ -20,4 +20,5 @@ alembic==1.14.0
 python-json-logger==2.0.7
 PyJWT==2.10.1
 asyncpg==0.30.0
+psycopg2-binary==2.9.10
 email-validator==2.2.0
