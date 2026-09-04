@@ -92,7 +92,10 @@ class DatabaseManager:
                 # Disable asyncpg prepared-statement cache: PgBouncer in transaction mode
                 # recycles server-side prepared statements across clients, causing
                 # "DuplicatePreparedStatementError" on the second query in a session.
+                # asyncpg >=0.21 uses prepared_statement_cache_size; the older
+                # statement_cache_size alias covers client cache and we set both for safety.
                 connect_args["statement_cache_size"] = 0
+                connect_args["prepared_statement_cache_size"] = 0
                 self._async_engine = create_async_engine(
                     db_url,
                     poolclass=NullPool,
