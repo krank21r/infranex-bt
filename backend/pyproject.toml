@@ -1,35 +1,31 @@
-[tool.ruff]
-target-version = "py311"
-line-length = 100
-extend-exclude = [
-    "alembic/versions",
-    ".venv",
-    "__pycache__",
+[project]
+name = "infranex-bt-backend"
+version = "1.0.0"
+description = "Infranex BT FastAPI backend"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi==0.115.6",
+  "uvicorn[standard]==0.34.0",
+  "pydantic==2.10.4",
+  "pydantic-settings==2.7.1",
+  "supabase==2.11.0",
+  "python-dotenv==1.0.1",
+  "httpx==0.28.1",
+  "redis==5.2.1",
+  "celery==5.4.0",
+  "python-jose[cryptography]==3.3.0",
+  "passlib[bcrypt]==1.7.4",
+  "python-multipart==0.0.20",
+  "structlog==24.4.0",
+  "tenacity==9.0.0",
+  "sqlalchemy==2.0.36",
+  "alembic==1.14.0",
+  "python-json-logger==2.0.7",
+  "PyJWT==2.10.1",
+  "asyncpg==0.30.0",
+  "psycopg2-binary==2.9.10",
+  "email-validator==2.2.0",
 ]
 
-[tool.ruff.lint]
-# B008: Depends() in defaults is the correct FastAPI pattern
-# BLE001: blind except is acceptable in backend services
-# F821: false positives in some template strings
-ignore = [
-    "B008",
-    "BLE001",
-    "F821",
-    "G201",
-    "LOG015",
-    "TRY203",
-    "PERF402",
-    "PLC0206",
-]
-select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "I",   # isort
-    "N",   # pep8-naming
-    "UP",  # pyupgrade
-    "B",   # flake8-bugbear (subset)
-    "C4",  # flake8-comprehensions
-    "SIM", # flake8-simplify
-    "RUF", # ruff-specific
-]
+[tool.uv]
+package = false
