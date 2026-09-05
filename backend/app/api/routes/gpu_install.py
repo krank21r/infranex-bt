@@ -7,7 +7,7 @@ from fastapi import APIRouter, Body
 from app.gpu_engine.models import InstallationResult, InstallationStep
 from app.schemas.common import APIResponse
 
-router = APIRouter(prefix="/api/gpu-engine", tags=["gpu-engine"])
+router = APIRouter(prefix="/gpu-engine", tags=["gpu-engine"])
 
 
 @router.post("/{server_id}/install-cuda", response_model=APIResponse[InstallationResult])

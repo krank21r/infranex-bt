@@ -140,7 +140,7 @@ class DiscoveryService:
             snaps = await self.client.get_emissions(netuid, block_range)
         except Exception as e:
             logger.error("discovery_sync_emissions_failed netuid=%s err=%s", netuid, e)
-            return 0
+            raise
         for snap in snaps:
             await self.subnets.append_emission(
                 netuid=netuid, snapshot=snap, data_source=self._data_source
@@ -156,7 +156,7 @@ class DiscoveryService:
             snaps = await self.client.get_incentives(netuid, block_range)
         except Exception as e:
             logger.error("discovery_sync_incentives_failed netuid=%s err=%s", netuid, e)
-            return 0
+            raise
         for snap in snaps:
             await self.subnets.append_incentive(
                 netuid=netuid, snapshot=snap, data_source=self._data_source

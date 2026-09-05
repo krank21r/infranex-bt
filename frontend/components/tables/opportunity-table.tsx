@@ -34,8 +34,12 @@ const columns: TableColumn<Opportunity>[] = [
     render: (row) => (
       <div>
         <div className="flex items-center gap-2">
-          <span className="font-medium truncate max-w-[200px]">{row.subnet_name}</span>
-          <Badge variant="outline" className="text-xs">{row.subnet_symbol}</Badge>
+          <span className="font-medium truncate max-w-[200px]">
+            {row.subnet_name ?? `Subnet ${row.netuid}`}
+          </span>
+          <Badge variant="outline" className="text-xs">
+            {row.subnet_symbol ?? `α${row.netuid}`}
+          </Badge>
         </div>
         <p className="text-xs text-muted-foreground">NetUID: {row.netuid}</p>
       </div>
@@ -54,7 +58,9 @@ const columns: TableColumn<Opportunity>[] = [
     header: 'Score',
     sortable: true,
     render: (row) => (
-      <span className="font-medium tabular-nums">{row.score.toFixed(1)}</span>
+      <span className="font-medium tabular-nums">
+        {(Number(row.score) || 0).toFixed(1)}
+      </span>
     ),
   },
   {
@@ -62,7 +68,9 @@ const columns: TableColumn<Opportunity>[] = [
     header: 'Est. APY',
     sortable: true,
     render: (row) => (
-      <span className="font-medium tabular-nums text-success">{formatPercent(row.estimated_apy)}</span>
+      <span className="font-medium tabular-nums text-success">
+        {formatPercent(Number(row.estimated_apy) || 0)}
+      </span>
     ),
   },
   {
@@ -70,7 +78,9 @@ const columns: TableColumn<Opportunity>[] = [
     header: 'Monthly Reward',
     sortable: true,
     render: (row) => (
-      <span className="font-medium tabular-nums">{formatCurrency(row.estimated_monthly_reward)}</span>
+      <span className="font-medium tabular-nums">
+        {formatCurrency(Number(row.estimated_monthly_reward) || 0)}
+      </span>
     ),
   },
   {
@@ -78,7 +88,9 @@ const columns: TableColumn<Opportunity>[] = [
     header: 'Required Stake',
     sortable: true,
     render: (row) => (
-      <span className="font-mono tabular-nums">{formatNumber(row.required_stake)} TAO</span>
+      <span className="font-mono tabular-nums">
+        {formatNumber(Number(row.required_stake) || 0)} TAO
+      </span>
     ),
   },
   {
@@ -86,7 +98,9 @@ const columns: TableColumn<Opportunity>[] = [
     header: 'Utilization',
     sortable: true,
     render: (row) => (
-      <span className="font-medium tabular-nums">{formatPercent(row.utilization * 100)}</span>
+      <span className="font-medium tabular-nums">
+        {formatPercent((Number(row.utilization) || 0) * 100)}
+      </span>
     ),
   },
   {
@@ -94,10 +108,10 @@ const columns: TableColumn<Opportunity>[] = [
     header: 'Risk',
     sortable: true,
     render: (row) => {
-      const color = getStatusColor(row.risk_level)
+      const color = getStatusColor(String(row.risk_level ?? 'inactive'))
       return (
         <Badge variant="outline" className={cn('capitalize', color.bg, color.text)}>
-          {row.risk_level}
+          {row.risk_level ?? 'unknown'}
         </Badge>
       )
     },
@@ -107,7 +121,9 @@ const columns: TableColumn<Opportunity>[] = [
     header: 'Confidence',
     sortable: true,
     render: (row) => (
-      <span className="font-medium tabular-nums text-success">{formatPercent(row.confidence * 100)}</span>
+      <span className="font-medium tabular-nums text-success">
+        {formatPercent((Number(row.confidence) || 0) * 100)}
+      </span>
     ),
   },
   {
@@ -115,10 +131,10 @@ const columns: TableColumn<Opportunity>[] = [
     header: 'Status',
     sortable: true,
     render: (row) => {
-      const color = getStatusColor(row.status)
+      const color = getStatusColor(String(row.status ?? 'inactive'))
       return (
         <Badge variant="outline" className={cn('capitalize', color.bg, color.text)}>
-          {row.status}
+          {row.status ?? 'unknown'}
         </Badge>
       )
     },

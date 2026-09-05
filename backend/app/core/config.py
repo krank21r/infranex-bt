@@ -29,7 +29,7 @@ def _float(v: str | float | None, default: float = 0.0) -> float:
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=True)
+    model_config = SettingsConfigDict(env_file=".env", env_file_2=".env.local", env_file_encoding="utf-8", case_sensitive=True)
     # Application
     APP_NAME: str = "Infranex BT"
     APP_ENV: str = "development"

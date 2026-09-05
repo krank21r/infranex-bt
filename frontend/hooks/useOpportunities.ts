@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, endpoints } from '@/lib/api'
 import type { Opportunity, FilterParams, PaginatedResponse } from '@/types'
 import { fetchOpportunities, getSupabaseDataClient } from '@/lib/supabase-data'
+import { adaptOpportunityRow, type BackendOpportunityRow } from '@/lib/adapters'
 
 interface OpportunityListParams extends FilterParams {
   min_score?: number
@@ -50,16 +51,25 @@ export function useOpportunities(params?: OpportunityListParams) {
           })
           return buildFallbackPage(items, params?.page ?? 1, params?.page_size ?? 50)
         } catch (err) {
-          // Surface the actual Supabase error so the UI shows it instead of
-          // a generic backend error from the fallback /api call.
-          throw new Error(
-            `Supabase direct query failed: ${
-              err instanceof Error ? err.message : String(err)
-            }`
+          // Supabase direct read failed (e.g. missing anon SELECT policy on
+          // opportunity_scores, revoked key, or transient network error).
+          // Fall back to the backend REST API (routed via /api rewrite) so the
+          // dashboard still renders live data instead of going blank.
+          console.warn(
+            'Supabase direct query failed; falling back to backend API:',
+            err instanceof Error ? err.message : String(err),
           )
         }
       }
-      return api.getPaginated<Opportunity>(buildUrl(params))
+      return api
+        .getPaginated<BackendOpportunityRow>(buildUrl(params))
+        .then((page) => ({
+          data: (page.data ?? []).map(adaptOpportunityRow),
+          total: page.total,
+          page: page.page,
+          limit: page.limit,
+          totalPages: page.totalPages,
+        }))
     },
     staleTime: 1000 * 60 * 2,
     refetchInterval: 1000 * 60 * 5,
@@ -88,8 +98,8 @@ export function useTopOpportunities(limit = 10) {
           // fall through
         }
       }
-      const data = await api.get<Opportunity[]>(endpoints.topOpportunities(limit))
-      return Array.isArray(data) ? data : []
+      const data = await api.get<BackendOpportunityRow[]>(endpoints.topOpportunities(limit))
+      return Array.isArray(data) ? data.map(adaptOpportunityRow) : []
     },
     staleTime: 1000 * 60 * 2,
     refetchInterval: 1000 * 60 * 5,

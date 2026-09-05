@@ -65,7 +65,7 @@ export interface StatusColor {
   dot: string
 }
 
-export function getStatusColor(status: string): StatusColor {
+export function getStatusColor(status: string | null | undefined): StatusColor {
   const colors: Record<string, StatusColor> = {
     active: { bg: 'bg-success/10', text: 'text-success', dot: 'bg-success' },
     pending: { bg: 'bg-warning/10', text: 'text-warning', dot: 'bg-warning' },
@@ -76,6 +76,7 @@ export function getStatusColor(status: string): StatusColor {
     running: { bg: 'bg-primary/10', text: 'text-primary', dot: 'bg-primary' },
     stopped: { bg: 'bg-muted/50', text: 'text-muted-foreground', dot: 'bg-muted-foreground' },
   }
+  if (!status) return colors.inactive
   return colors[status.toLowerCase()] || colors.inactive
 }
 
