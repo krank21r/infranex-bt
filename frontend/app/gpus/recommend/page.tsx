@@ -129,8 +129,10 @@ export default function GpuRecommendPage() {
               disabled={recommend.isPending}
             >
               {recommend.isPending ? (
-                <span className="animate-spin mr-2 / hidden"></span>
-                Processing...
+                <>
+                  <span className="animate-spin mr-2 hidden"></span>
+                  Processing...
+                </>
               ) : (
                 'Get Recommendation'
               )}
