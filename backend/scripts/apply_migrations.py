@@ -8,8 +8,10 @@ from pathlib import Path
 
 import asyncpg
 
-# Connection details supplied by user
-POOLER_DSN = "postgresql://postgres.xwpahwecneudzoklxumg:xkbjtQuTTHFLR9Bg@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres"
+POOLER_DSN = os.environ.get(
+    "DATABASE_POOLER_URL",
+    "postgresql://postgres.xwpahwecneudzoklxumg:xkbjtQuTTHFLR9Bg@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres",
+)
 MIGRATIONS_DIR = Path(r"D:\Infranex BT\infranex-bt\database\migrations")
 
 

@@ -6,6 +6,24 @@
       "destination": "https://infranex-bt-backend.vercel.app/api/:path*"
     }
   ],
+  "crons": [
+    {
+      "path": "/api/cron/scanner",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/scoring",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/market-data",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/analyzer",
+      "schedule": "0 0 * * *"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
@@ -21,6 +39,15 @@
         {
           "key": "X-XSS-Protection",
           "value": "1; mode=block"
+        }
+      ]
+    },
+    {
+      "source": "/((?!_next/|api/|favicon|.*\\..*).*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate, max-age=0"
         }
       ]
     }

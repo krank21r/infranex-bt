@@ -212,6 +212,16 @@ class OpportunityService:
         pillar_scores = score.get("pillar_scores", {})
         components = score.get("components", [])
         explanation = score.get("summary", "") or ""
+        
+        old_scores = await self.db.execute(
+            select(OpportunityScore).where(
+                OpportunityScore.netuid == netuid,
+                OpportunityScore.is_current.is_(True),
+            )
+        )
+        for old in old_scores.scalars().all():
+            old.is_current = False
+        
         row = OpportunityScore(
             netuid=netuid,
             score=score["total_score"],
@@ -222,6 +232,7 @@ class OpportunityService:
             economics_score=pillar_scores.get("economics"),
             decision=score.get("decision"),
             explanation=explanation or None,
+            is_current=True,
             extra_metadata={
                 "pillar_breakdown": pillar_scores,
                 "weights": score.get("weights", {}),
@@ -286,7 +297,7 @@ class OpportunityService:
         sort_by: str = "score",
         sort_order: str = "desc",
     ) -> tuple[list[OpportunityScore], int]:
-        query = select(OpportunityScore)
+        query = select(OpportunityScore).where(OpportunityScore.is_current.is_(True))
         if min_score is not None:
             query = query.where(OpportunityScore.score >= min_score)
         if decision is not None:
@@ -307,7 +318,7 @@ class OpportunityService:
         limit: int = 10,
         decision: str | None = None,
     ) -> list[OpportunityScore]:
-        query = select(OpportunityScore)
+        query = select(OpportunityScore).where(OpportunityScore.is_current.is_(True))
         if decision is not None:
             query = query.where(OpportunityScore.decision == decision)
         result = await self.db.execute(
@@ -319,6 +330,7 @@ class OpportunityService:
         result = await self.db.execute(
             select(OpportunityScore)
             .where(OpportunityScore.decision == "WATCH")
+            .where(OpportunityScore.is_current.is_(True))
             .order_by(desc(OpportunityScore.score))
         )
         return list(result.scalars().all())
