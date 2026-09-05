@@ -78,10 +78,7 @@ export default function GpuRecommendPage() {
       <section className="py-6">
         <div className="max-w-7xl mx-auto px-4">
           <form
-            onSubmit={e => {
-              e.preventDefault()
-              onSubmit()
-            }}
+            onSubmit={() => onSubmit()}
             className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -129,10 +126,8 @@ export default function GpuRecommendPage() {
               disabled={recommend.isPending}
             >
               {recommend.isPending ? (
-                <>
-                  <span className="animate-spin mr-2 hidden"></span>
-                  Processing...
-                </>
+                <span className="animate-spin mr-2 hidden"></span>
+                Processing...
               ) : (
                 'Get Recommendation'
               )}
@@ -219,10 +214,7 @@ function RankedTable({ ranked }: { ranked: RankedGPUOffer[] }) {
               </div>
             </div>
             <div>
-              <button
-                className="cta-button"
-                onClick={() => /* handle selection */}
-              >
+              <button className="cta-button" onClick={() => /* handle selection */}>
                 Select
               </button>
             </div>
