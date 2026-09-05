@@ -207,20 +207,19 @@ function RankedTable({ ranked }: { ranked: RankedGPUOffer[] }) {
                 {offer.model}
               </strong>
               <div className="gpu-specs">
-                <strong>VRAM:</strong> {offer.vram}GB &nbsp;|&nbsp; 
-                <strong>Provider:</strong> {offer.provider} &nbsp;|&nbsp; 
+                <strong>VRAM:</strong> {offer.vram}GB &nbsp;|&nbsp;
+                <strong>Provider:</strong> {offer.provider} &nbsp;|&nbsp;
                 <strong>Est. Price:</strong> {offer.estimated_price || '$0'}/hr
               </div>
             </div>
             <div>
-              <button className="cta-button" onClick={() => /* handle selection */}>
+              <button className="cta-button" onClick={() => undefined}>
                 Select
               </button>
             </div>
           </div>
         </div>
-      ))
-      {/* Empty state when no ranked offers */}
+      ))}
       {ranked.length === 0 && (
         <p className="text-sm text-muted-foreground text-center">
           No ranked offers available. Click 'Get Recommendation' to generate.

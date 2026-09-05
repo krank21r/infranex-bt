@@ -367,6 +367,11 @@ export interface RankedGPUOffer {
   region_bonus: number
   price: number
   model_version: string
+  // Flat fields used by /gpus/recommend page rendering
+  model?: string
+  vram?: number | string
+  provider?: string
+  estimated_price?: number | string
 }
 
 export interface GPURecommendation {
@@ -375,6 +380,12 @@ export interface GPURecommendation {
   total_eligible: number
   ranked: RankedGPUOffer[]
   model_version: string | null
+  recommended_gpu?: string | null
+  preferred_provider?: string | null
+  min_vram?: string | null
+  estimated_hourly_price?: string | null
+  estimated_roi?: string | null
+  rank?: number | null
 }
 
 // --- User Miners (Phase 6) ---
