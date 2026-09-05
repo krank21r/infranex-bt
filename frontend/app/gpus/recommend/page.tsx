@@ -222,7 +222,6 @@ function RankedTable({ ranked }: { ranked: RankedGPUOffer[] }) {
               <button
                 className="cta-button"
                 onClick={() => /* handle selection */}
-                style={{ width: 'auto', padding: '0.75rem 1.25rem' }}
               >
                 Select
               </button>
