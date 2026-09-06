@@ -65,24 +65,36 @@ class ApiClient {
   ): Promise<APIEnvelope<T>> {
     const headers = await this.getHeaders()
 
-    const response = await fetch(`${API_BASE}${endpoint}`, {
-      ...options,
-      headers: {
-        ...headers,
-        ...options.headers,
-      },
-    })
+    // 20s upper bound matches the worst observed Vercel Python cold-start on
+    // /api/monitoring/overview. Without this, a hung cold-start request never
+    // resolves and React Query sits in `isLoading` until the user navigates
+    // away. The retry policy in app/providers.tsx picks up from there.
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 20_000)
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Request failed' }))
-      throw new Error(error.message || `HTTP error! status: ${response.status}`)
+    try {
+      const response = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers: {
+          ...headers,
+          ...options.headers,
+        },
+        signal: options.signal ?? controller.signal,
+      })
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ message: 'Request failed' }))
+        throw new Error(error.message || `HTTP error! status: ${response.status}`)
+      }
+
+      if (response.status === 204) {
+        return { success: true, data: {} as T }
+      }
+
+      return response.json()
+    } finally {
+      clearTimeout(timeout)
     }
-
-    if (response.status === 204) {
-      return { success: true, data: {} as T }
-    }
-
-    return response.json()
   }
 
   /** Request that returns the inner data directly. */

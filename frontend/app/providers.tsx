@@ -26,8 +26,17 @@ function getSupabaseAnonKey(): string | undefined {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
+      // Tolerate Vercel Python cold starts on the monitoring/overview route
+      // (first hit after quiet time can take 10-20s while the function
+      // container warms up). React Query default retry is 3, but the default
+      // retryDelay is exponential up to 30s — we cap it shorter so the user
+      // sees a recovery within ~30s instead of waiting a full minute.
+      retry: 3,
+      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
       refetchOnWindowFocus: false,
+      // Don't stall the UI on a hung request forever — see AbortController
+      // timeout added in lib/api.ts.
+      staleTime: 1000 * 15,
     },
   },
 })

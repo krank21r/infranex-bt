@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, endpoints } from '@/lib/api'
 import type { MonitoringOverview, MinerHealthSummary, Alert } from '@/types'
@@ -44,22 +45,40 @@ export function useResolveAlert() {
 }
 
 export function useMonitoringEvents(onEvent: (event: unknown) => void) {
-  if (typeof window === 'undefined') return null
+  const sourceRef = useRef<EventSource | null>(null)
 
-  const eventSource = new EventSource(endpoints.monitoringEvents)
+  // Keep the latest onEvent in a ref so callers can pass an inline arrow
+  // without us tearing down the EventSource on every render.
+  const onEventRef = useRef(onEvent)
+  useEffect(() => {
+    onEventRef.current = onEvent
+  }, [onEvent])
 
-  eventSource.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data)
-      onEvent(data)
-    } catch {
-      // ignore malformed events
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const eventSource = new EventSource(endpoints.monitoringEvents)
+    sourceRef.current = eventSource
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        onEventRef.current(data)
+      } catch {
+        // ignore malformed events
+      }
     }
-  }
 
-  eventSource.onerror = () => {
-    eventSource.close()
-  }
+    eventSource.onerror = () => {
+      eventSource.close()
+      sourceRef.current = null
+    }
 
-  return eventSource
+    return () => {
+      eventSource.close()
+      sourceRef.current = null
+    }
+  }, [])
+
+  return sourceRef.current
 }
