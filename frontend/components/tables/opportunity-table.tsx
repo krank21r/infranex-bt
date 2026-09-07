@@ -217,7 +217,7 @@ export function OpportunityTable({
   }
 
   const SortIcon = ({ columnKey }: { columnKey: string }) => {
-    if (sortConfig?.key !== key) return <ChevronsUpDown className="h-4 w-4 text-muted-foreground" />
+    if (!sortConfig || sortConfig.key !== columnKey) return <ChevronsUpDown className="h-4 w-4 text-muted-foreground" />
     return sortConfig.direction === 'asc' ? (
       <ChevronUp className="h-4 w-4" />
     ) : (
