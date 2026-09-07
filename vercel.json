@@ -4,6 +4,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://infranex-bt-backend.vercel.app/api/:path*"
+    },
+    {
+      "source": "/manifest.json",
+      "destination": "/manifest.json"
     }
   ],
   "crons": [
@@ -53,10 +57,3 @@
     }
   ]
 }
-
-  "rewrites": [
-    {
-      "source": "/manifest.json",
-      "destination": "/manifest.json"
-    }
-  ]
