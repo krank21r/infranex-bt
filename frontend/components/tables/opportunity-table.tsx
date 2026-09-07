@@ -216,7 +216,7 @@ export function OpportunityTable({
     }))
   }
 
-  const SortIcon = ({ key }: { key: string }) => {
+  const SortIcon = ({ columnKey }: { columnKey: string }) => {
     if (sortConfig?.key !== key) return <ChevronsUpDown className="h-4 w-4 text-muted-foreground" />
     return sortConfig.direction === 'asc' ? (
       <ChevronUp className="h-4 w-4" />
@@ -263,7 +263,7 @@ export function OpportunityTable({
                         className="p-1 hover:text-foreground transition-colors"
                         aria-label={`Sort by ${column.header}`}
                       >
-                        <SortIcon key={column.key} />
+                        <SortIcon columnKey={column.key} key={column.key} />
                       </button>
                     )}
                   </div>
