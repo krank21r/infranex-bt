@@ -1,0 +1,1 @@
+{"name": "Infranex BT", "short_name": "Infranex BT", "description": "Bittensor subnet dashboard with live opportunities", "start_url": "/", "display": "standalone", "background_color": "#0a0a0a", "theme_color": "#c9a96e", "orientation": "portrait", "icons": [{"src": "/favicon.ico", "sizes": "64x64 32x32 16x16", "type": "image/x-icon"}]}
