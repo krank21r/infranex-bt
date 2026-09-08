@@ -6,7 +6,10 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  // Local development uses SQLite. For Vercel/Neon deployment, change this
+  // to "postgresql" and set DATABASE_URL to your Neon connection string.
+  // See README.md "Deployment" section.
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 

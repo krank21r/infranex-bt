@@ -18,6 +18,12 @@ export async function getChainApi(): Promise<ApiPromise> {
   if (_api && _api.isConnected) return _api;
   if (_connecting) return _connecting;
   _connecting = (async () => {
+    // Disconnect any stale connection before creating a fresh one.
+    if (_api) {
+      try { await _api.disconnect(); } catch { /* ignore */ }
+      _api = null;
+      _provider = null;
+    }
     _provider = new HttpProvider(RPC_URL);
     _api = await ApiPromise.create({
       provider: _provider,
@@ -30,6 +36,15 @@ export async function getChainApi(): Promise<ApiPromise> {
     return await _connecting;
   } finally {
     _connecting = null;
+  }
+}
+
+/** Force a fresh connection on the next getChainApi() call. */
+export async function recycleChainApi(): Promise<void> {
+  if (_api) {
+    try { await _api.disconnect(); } catch { /* ignore */ }
+    _api = null;
+    _provider = null;
   }
 }
 
@@ -210,6 +225,13 @@ class SnapshotCache {
         source: "error",
         error: e instanceof Error ? e.message : String(e),
       };
+    } finally {
+      // Always disconnect after a fetch to prevent the @polkadot/api
+      // connection from degrading (which causes 30s+ timeouts on
+      // subsequent reads). The next cache refresh creates a fresh
+      // connection — the ~3s metadata fetch cost is acceptable given
+      // the 30s cache TTL.
+      await recycleChainApi();
     }
   }
 }
