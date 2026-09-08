@@ -1,0 +1,27 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "bun run db:generate && next build",
+  "installCommand": "bun install",
+  "functions": {
+    "src/app/api/network/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/gpu-offers/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/deployments/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/deployments/[id]/route.ts": {
+      "maxDuration": 30
+    },
+    "src/app/api/deployments/[id]/tick/route.ts": {
+      "maxDuration": 60
+    },
+    "src/app/api/deployments/[id]/terminate/route.ts": {
+      "maxDuration": 30
+    }
+  },
+  "crons": []
+}
