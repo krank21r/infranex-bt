@@ -53,6 +53,9 @@ export interface Opportunity {
   factors: OpportunityFactor[];
   status: "active" | "pending" | "expired";
   updatedAt: string;
+  // GPU requirements (copied from the subnet for quick reference)
+  minVramGb: number;
+  recommendedGpu: string;
 }
 
 export interface UserMiner {

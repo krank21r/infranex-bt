@@ -41,6 +41,10 @@ export default function Home() {
     setDialogOpen(true);
   };
 
+  const handleStartMining = (_o: Opportunity) => {
+    setView("deployments");
+  };
+
   const meta = VIEW_META[view];
 
   return (
@@ -51,10 +55,17 @@ export default function Home() {
       eyebrow={meta.eyebrow}
     >
       {view === "dashboard" && (
-        <DashboardView onSelectOpportunity={handleSelect} onNavigate={setView} />
+        <DashboardView
+          onSelectOpportunity={handleSelect}
+          onStartMining={handleStartMining}
+          onNavigate={setView}
+        />
       )}
       {view === "opportunities" && (
-        <OpportunitiesView onSelectOpportunity={handleSelect} />
+        <OpportunitiesView
+          onSelectOpportunity={handleSelect}
+          onStartMining={handleStartMining}
+        />
       )}
       {view === "subnets" && <SubnetsView />}
       {view === "gpus" && <GpusView />}

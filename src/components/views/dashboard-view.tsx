@@ -25,10 +25,11 @@ import type { Opportunity, ViewKey } from "@/lib/infranex/types";
 
 interface DashboardViewProps {
   onSelectOpportunity: (o: Opportunity) => void;
+  onStartMining?: (o: Opportunity) => void;
   onNavigate: (v: ViewKey) => void;
 }
 
-export function DashboardView({ onSelectOpportunity, onNavigate }: DashboardViewProps) {
+export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }: DashboardViewProps) {
   const { data: snap, isFetching, refetch } = useNetwork();
   const m = getLiveDashboardMetrics(snap);
   const liveOpps = mergeOpportunities(snap);
@@ -143,6 +144,7 @@ export function DashboardView({ onSelectOpportunity, onNavigate }: DashboardView
             <OpportunityTable
               opportunities={top}
               onSelect={onSelectOpportunity}
+              onStartMining={onStartMining}
               compact
             />
           </CardContent>

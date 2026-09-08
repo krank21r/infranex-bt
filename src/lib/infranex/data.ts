@@ -539,6 +539,8 @@ export const opportunities: Opportunity[] = (() => {
       factors,
       status: "active" as const,
       updatedAt: new Date().toISOString(),
+      minVramGb: s.minVramGb,
+      recommendedGpu: s.recommendedGpu,
     };
   });
   opps.sort((a, b) => b.score - a.score);

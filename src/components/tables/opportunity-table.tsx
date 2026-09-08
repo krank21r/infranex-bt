@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { cn, formatCurrency, formatPercent, getStatusColor, scoreBand } from "@/lib/utils";
-import { ChevronUp, ChevronDown, ChevronsUpDown, Search, MoreHorizontal } from "lucide-react";
+import { ChevronUp, ChevronDown, ChevronsUpDown, Search, MoreHorizontal, Zap } from "lucide-react";
 import {
   Table,
   TableHeader,
@@ -25,6 +25,7 @@ import type { Opportunity } from "@/lib/infranex/types";
 interface OpportunityTableProps {
   opportunities: Opportunity[];
   onSelect?: (o: Opportunity) => void;
+  onStartMining?: (o: Opportunity) => void;
   className?: string;
   compact?: boolean;
 }
@@ -38,7 +39,8 @@ type SortKey =
   | "requiredStake"
   | "utilization"
   | "riskLevel"
-  | "confidence";
+  | "confidence"
+  | "minVramGb";
 
 function SortIcon({
   k,
@@ -94,6 +96,7 @@ function SortableTh({
 export function OpportunityTable({
   opportunities,
   onSelect,
+  onStartMining,
   className,
   compact = false,
 }: OpportunityTableProps) {
@@ -212,6 +215,17 @@ export function OpportunityTable({
                 </SortableTh>
               )}
               {!compact && (
+                <SortableTh
+                  k="minVramGb"
+                  align="right"
+                  sortKey={sortKey}
+                  dir={dir}
+                  onSort={handleSort}
+                >
+                  GPU Req.
+                </SortableTh>
+              )}
+              {!compact && (
                 <SortableTh k="riskLevel" sortKey={sortKey} dir={dir} onSort={handleSort}>
                   Risk
                 </SortableTh>
@@ -223,7 +237,7 @@ export function OpportunityTable({
             {filtered.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={compact ? 4 : 9}
+                  colSpan={compact ? 4 : 10}
                   className="py-12 text-center text-muted-foreground"
                 >
                   No opportunities match your search.
@@ -301,6 +315,27 @@ export function OpportunityTable({
                       </TableCell>
                     )}
                     {!compact && (
+                      <TableCell className="text-right">
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span
+                            className={cn(
+                              "mono tabular font-medium",
+                              o.minVramGb >= 80
+                                ? "text-primary"
+                                : o.minVramGb >= 40
+                                  ? "text-foreground"
+                                  : "text-muted-foreground"
+                            )}
+                          >
+                            {o.minVramGb} GB
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {o.recommendedGpu.replace("NVIDIA ", "").replace(" 80GB", "").replace(" 40GB", "")}
+                          </span>
+                        </div>
+                      </TableCell>
+                    )}
+                    {!compact && (
                       <TableCell>
                         <Badge
                           variant="outline"
@@ -321,6 +356,15 @@ export function OpportunityTable({
                           <DropdownMenuItem onClick={() => onSelect?.(o)}>
                             View breakdown
                           </DropdownMenuItem>
+                          {onStartMining && (
+                            <DropdownMenuItem
+                              onClick={() => onStartMining(o)}
+                              className="gap-2 text-primary focus:text-primary"
+                            >
+                              <Zap className="h-3.5 w-3.5" />
+                              Start mining (needs {o.minVramGb}GB)
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem>Recommend GPU</DropdownMenuItem>
                           <DropdownMenuItem>Register miner</DropdownMenuItem>
                         </DropdownMenuContent>

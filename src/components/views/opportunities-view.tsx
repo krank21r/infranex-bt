@@ -14,9 +14,10 @@ import type { Opportunity } from "@/lib/infranex/types";
 
 interface OpportunitiesViewProps {
   onSelectOpportunity: (o: Opportunity) => void;
+  onStartMining?: (o: Opportunity) => void;
 }
 
-export function OpportunitiesView({ onSelectOpportunity }: OpportunitiesViewProps) {
+export function OpportunitiesView({ onSelectOpportunity, onStartMining }: OpportunitiesViewProps) {
   const [layout, setLayout] = useState<"table" | "grid">("table");
   const [filter, setFilter] = useState<"all" | "RUN" | "WATCH" | "AVOID">("all");
   const { data: snap } = useNetwork();
@@ -101,6 +102,7 @@ export function OpportunitiesView({ onSelectOpportunity }: OpportunitiesViewProp
             <OpportunityTable
               opportunities={filtered}
               onSelect={onSelectOpportunity}
+              onStartMining={onStartMining}
             />
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
