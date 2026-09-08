@@ -1,0 +1,39 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Deployment {
+  id              String   @id @default(cuid())
+  minerName       String
+  netuid          Int
+  subnetName      String
+  gpuModel        String
+  provider        String
+  status          String   @default("requested")
+  progress        Int      @default(0)
+  mode            String   @default("mock") // "mock" | "runpod"
+  hourlyCost      Float
+  monthlyCost     Float
+  estimatedRevenue Float   @default(0)
+  // Deployment config (JSON string for SQLite): docker image, miner command, ports, env vars
+  config          String
+  // Provider-side pod/server ID (RunPod pod id, etc.)
+  providerPodId   String?
+  // Hotkey for the miner
+  hotkey          String?
+  // Step log: JSON array of { name, label, status, startedAt, completedAt, output }
+  steps           String   @default("[]")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status])
+  @@index([netuid])
+}
