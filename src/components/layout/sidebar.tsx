@@ -16,6 +16,7 @@ import {
   X,
   AlertTriangle,
   Rocket,
+  Gauge,
 } from "lucide-react";
 import type { ViewKey } from "@/lib/infranex/types";
 
@@ -26,8 +27,9 @@ const NAV: { key: ViewKey; label: string; icon: typeof LayoutDashboard; hint: st
   { key: "gpus", label: "GPU Catalog", icon: Cpu, hint: "04" },
   { key: "miners", label: "My Miners", icon: Coins, hint: "05" },
   { key: "deployments", label: "Deployments", icon: Rocket, hint: "06" },
-  { key: "analytics", label: "Analytics", icon: BarChart3, hint: "07" },
-  { key: "system", label: "System & Errors", icon: AlertTriangle, hint: "08" },
+  { key: "monitoring", label: "Monitoring", icon: Gauge, hint: "07" },
+  { key: "analytics", label: "Analytics", icon: BarChart3, hint: "08" },
+  { key: "system", label: "System & Errors", icon: AlertTriangle, hint: "09" },
 ];
 
 interface SidebarProps {
