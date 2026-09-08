@@ -9,6 +9,7 @@ import { GpusView } from "@/components/views/gpus-view";
 import { MinersView } from "@/components/views/miners-view";
 import { DeploymentsView } from "@/components/views/deployments-view";
 import { MonitoringView } from "@/components/views/monitoring-view";
+import { OptimizationView } from "@/components/views/optimization-view";
 import { AnalyticsView } from "@/components/views/analytics-view";
 import { SystemView } from "@/components/views/system-view";
 import { OpportunityDetailDialog } from "@/components/cards/opportunity-detail";
@@ -25,8 +26,9 @@ const VIEW_META: Record<
   miners: { title: "My Miners", eyebrow: "Section · 05 · Portfolio" },
   deployments: { title: "Deployments", eyebrow: "Section · 06 · Deployment engine" },
   monitoring: { title: "Monitoring", eyebrow: "Section · 07 · Monitoring engine" },
-  analytics: { title: "Analytics", eyebrow: "Section · 08 · Trends" },
-  system: { title: "System & Errors", eyebrow: "Section · 09 · Diagnostics" },
+  optimization: { title: "Optimization", eyebrow: "Section · 08 · Optimization engine" },
+  analytics: { title: "Analytics", eyebrow: "Section · 09 · Trends" },
+  system: { title: "System & Errors", eyebrow: "Section · 10 · Diagnostics" },
 };
 
 export default function Home() {
@@ -59,6 +61,7 @@ export default function Home() {
       {view === "miners" && <MinersView onNavigate={setView} />}
       {view === "deployments" && <DeploymentsView />}
       {view === "monitoring" && <MonitoringView onNavigate={setView} />}
+      {view === "optimization" && <OptimizationView onNavigate={setView} />}
       {view === "analytics" && <AnalyticsView />}
       {view === "system" && <SystemView onNavigate={setView} />}
 

@@ -151,5 +151,6 @@ export type ViewKey =
   | "miners"
   | "deployments"
   | "monitoring"
+  | "optimization"
   | "analytics"
   | "system";
