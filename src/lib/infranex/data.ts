@@ -594,7 +594,7 @@ subnets.forEach((s) => {
 // Scoring — 3-pillar model (Utility 30%, Technical 35%, Economics 35%)
 // ---------------------------------------------------------------------------
 
-interface ScoreComponents {
+export interface ScoreComponents {
   economic_potential: number;
   competition: number;
   reward_stability: number;
@@ -638,7 +638,7 @@ const FACTOR_DESC: Record<keyof ScoreComponents, string> = {
   profitability_potential: "Net ROI after GPU cost at market rates.",
 };
 
-function deriveFactors(c: ScoreComponents): OpportunityFactor[] {
+export function deriveFactors(c: ScoreComponents): OpportunityFactor[] {
   return (Object.keys(c) as (keyof ScoreComponents)[]).map((k) => {
     const raw = c[k];
     const weight = WEIGHTS[k];
@@ -653,7 +653,7 @@ function deriveFactors(c: ScoreComponents): OpportunityFactor[] {
   });
 }
 
-function totalScore(c: ScoreComponents): number {
+export function totalScore(c: ScoreComponents): number {
   return Math.round(
     (Object.keys(c) as (keyof ScoreComponents)[]).reduce(
       (acc, k) => acc + c[k] * WEIGHTS[k],
@@ -662,7 +662,7 @@ function totalScore(c: ScoreComponents): number {
   ) / 10;
 }
 
-function riskLevel(score: number): "low" | "medium" | "high" {
+export function riskLevel(score: number): "low" | "medium" | "high" {
   if (score >= 70) return "low";
   if (score >= 45) return "medium";
   return "high";

@@ -44,8 +44,8 @@ export function OpportunitiesView({ onSelectOpportunity, onStartMining }: Opport
             Opportunities
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Ranked mining opportunities across every tracked subnet, scored on
-            the 3-pillar model (Utility 30% · Technical 35% · Economics 35%).
+            Every live Finney subnet ranked — curated picks scored on the
+            3-pillar model, untracked subnets scored from live chain metrics.
           </p>
         </div>
         <div className="flex items-center gap-1 rounded-lg border bg-card/40 p-1">

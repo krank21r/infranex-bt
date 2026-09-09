@@ -1,7 +1,14 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { subnets as curatedSubnets, opportunities as curatedOpportunities } from "./data";
+import {
+  subnets as curatedSubnets,
+  opportunities as curatedOpportunities,
+  deriveFactors,
+  totalScore,
+  riskLevel,
+  type ScoreComponents,
+} from "./data";
 import type {
   LiveNetworkSnapshot,
   LiveSubnetMetrics,
@@ -143,30 +150,156 @@ export function mergeSubnets(
   return result;
 }
 
-/** Merge live metrics into opportunities (recompute reward with live price). */
+const clampScore = (v: number, lo: number, hi: number) =>
+  Math.min(hi, Math.max(lo, v));
+
+/**
+ * Deterministically synthesize the 3-pillar score components for an
+ * untracked subnet from live chain metrics. No randomness — the same
+ * snapshot always produces the same score, so ranks stay stable across
+ * re-renders.
+ */
+function synthesizeComponents(
+  live: LiveSubnetMetrics,
+  taoUsd: number,
+  taoChange24h: number
+): ScoreComponents {
+  const stake = Math.max(live.subnetTao, 1);
+  const miners = Math.max(live.minersCount, 1);
+  // TAO reaching a single miner per day (720 blocks/day), then vs a
+  // reference single-GPU rental (~$1/hr → $720/mo).
+  const monthlyUsdPerMiner = live.emission
+    ? ((live.emission * 720) / miners) * 30 * (taoUsd || 0)
+    : 0;
+  const gpuCostUsdMonth = 720;
+  const marginRatio =
+    (monthlyUsdPerMiner - gpuCostUsdMonth) / gpuCostUsdMonth;
+
+  return {
+    // Deeper staked reserve → stronger economic gravity (log-scaled).
+    economic_potential: clampScore(22 + 13 * Math.log10(stake / 1_000 + 1), 5, 96),
+    // Inverse of saturation against the 4096-neuron cap.
+    competition: clampScore(100 - (miners / 4096) * 260, 10, 96),
+    // Emission enabled + meaningful per-block emission → steadier rewards.
+    reward_stability: live.emissionEnabled
+      ? clampScore(52 + (live.emission ?? 0) * 30, 40, 80)
+      : 20,
+    // Network-wide TAO momentum + deep-reserve bonus.
+    market_conditions: clampScore(
+      50 + clampScore(taoChange24h, -20, 20) + (stake > 100_000 ? 8 : 0),
+      5,
+      92
+    ),
+    // Room to register: fewer miners → easier entry.
+    new_miner_accessibility: clampScore(100 - miners / 6, 8, 92),
+    // Emission on + validator coverage proxies.
+    network_health: clampScore(
+      40 + (live.emissionEnabled ? 25 : 0) + Math.min(15, (live.validatorsCount ?? 0) / 16),
+      20,
+      85
+    ),
+    // Hardware requirements unknown for untracked subnets → neutral middle.
+    hardware_suitability: 55,
+    // Net ROI after reference GPU cost.
+    profitability_potential: clampScore(
+      35 + 3.5 * clampScore(marginRatio * 100, -30, 18),
+      5,
+      96
+    ),
+  };
+}
+
+/**
+ * Build the full opportunity ranking for EVERY subnet the chain scan
+ * returned (129 on Finney). Curated subnets keep their hand-tuned
+ * component scores, refreshed with live economics; untracked subnets get
+ * deterministic scores synthesized from live chain metrics. All rows are
+ * sorted by score and ranked 1..N together.
+ */
 export function mergeOpportunities(
   snap: LiveNetworkSnapshot | undefined
 ): LiveOpportunity[] {
   if (!snap || snap.subnets.length === 0) return curatedOpportunities;
-  const byNetuid = new Map(snap.subnets.map((s) => [s.netuid, s]));
+  const curatedByNetuid = new Map(
+    curatedOpportunities.map((o) => [o.netuid, o])
+  );
   const usd = snap.taoPriceUsd || 0;
-  return curatedOpportunities.map((o) => {
-    const live = byNetuid.get(o.netuid);
-    if (!live) return o;
-    // daily reward ~ emission_share proportional to stake; approximate with
-    // live stake & moving price for a more honest figure.
-    const dailyTao = Math.round(o.estimatedDailyReward * 100) / 100;
-    const monthlyUsd = usd > 0 ? Math.round(dailyTao * 30 * usd) : o.estimatedMonthlyRewardUsd;
-    return {
-      ...o,
-      estimatedMonthlyRewardUsd: monthlyUsd,
-      requiredStake: Math.max(o.requiredStake, Math.round(live.subnetTao / Math.max(live.minersCount, 1))),
+  const updatedAt = new Date().toISOString();
+  const rows: LiveOpportunity[] = [];
+
+  for (const live of snap.subnets) {
+    const curated = curatedByNetuid.get(live.netuid);
+
+    if (curated) {
+      // Curated subnet — keep the hand-tuned score & factors, refresh
+      // economics with live chain values.
+      const dailyTao = Math.round(curated.estimatedDailyReward * 100) / 100;
+      rows.push({
+        ...curated,
+        estimatedMonthlyRewardUsd:
+          usd > 0 ? Math.round(dailyTao * 30 * usd) : curated.estimatedMonthlyRewardUsd,
+        requiredStake: Math.max(
+          curated.requiredStake,
+          Math.round(live.subnetTao / Math.max(live.minersCount, 1))
+        ),
+        utilization: Math.min(0.99, live.minersCount / 4096),
+        liveMiners: live.minersCount,
+        liveStake: Math.round(live.subnetTao),
+        livePrice: live.movingPrice,
+        updatedAt,
+      });
+      continue;
+    }
+
+    // Untracked subnet — synthesize score from live metrics only.
+    const components = synthesizeComponents(
+      live,
+      usd,
+      snap.taoChange24h ?? 0
+    );
+    const score = totalScore(components);
+    // Same per-miner capture assumption as the curated model (0.12% of
+    // subnet emission) so USD figures stay comparable across rows.
+    const dailyTao =
+      Math.round((live.emission ?? 0) * 720 * 0.0012 * 100) / 100;
+    const reqStake =
+      Math.round(
+        (live.subnetTao / Math.max(live.minersCount, 1)) * 10
+      ) / 10;
+    rows.push({
+      id: `opp-live-${live.netuid}`,
+      netuid: live.netuid,
+      subnetName: live.name ?? `Subnet ${live.netuid}`,
+      subnetSymbol: `α${live.netuid}`,
+      category: "Live chain",
+      type: "mining",
+      score,
+      rank: 0,
+      estimatedDailyReward: dailyTao,
+      estimatedMonthlyRewardUsd:
+        usd > 0 ? Math.round(dailyTao * 30 * usd) : 0,
+      estimatedApy:
+        reqStake > 0 && usd > 0
+          ? Math.round(((dailyTao * 365 * usd) / reqStake) * 10) / 10
+          : 0,
+      requiredStake: reqStake,
       utilization: Math.min(0.99, live.minersCount / 4096),
+      riskLevel: riskLevel(score),
+      confidence: Math.round(score) / 100,
+      factors: deriveFactors(components),
+      status: live.emissionEnabled ? "active" : "pending",
+      updatedAt,
+      minVramGb: 0,
+      recommendedGpu: "Unknown",
       liveMiners: live.minersCount,
       liveStake: Math.round(live.subnetTao),
       livePrice: live.movingPrice,
-    };
-  });
+    });
+  }
+
+  rows.sort((a, b) => b.score - a.score);
+  rows.forEach((o, i) => (o.rank = i + 1));
+  return rows;
 }
 
 /** Aggregated dashboard metrics using live values where available. */
