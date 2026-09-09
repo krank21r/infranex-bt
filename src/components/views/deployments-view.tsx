@@ -51,13 +51,18 @@ export function DeploymentsView() {
     <div className="space-y-6">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-eyebrow text-muted-foreground">Section · 06</p>
+          <p className="text-eyebrow text-muted-foreground">
+            Section · 06 · <span className="text-primary">Step 3 — onboard, validate &amp; deploy</span>
+          </p>
           <h1 className="animate-rise text-display text-3xl font-bold tracking-tight md:text-4xl">
             Deployments
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Launch and manage Bittensor miner deployments on rented GPU servers.
-            Full lifecycle: request → approve → provision → setup → deploy → started.
+            Journey: pick a subnet in Opportunities → rent a matching GPU in the GPU
+            Catalog → connect, validate &amp; deploy here. The DevOps Engine below walks
+            your machine through the 10-step pipeline and installs the subnet&apos;s
+            requirements; the rental pipeline (request → approve → provision → setup →
+            deploy → started) lives under New deployment.
           </p>
         </div>
         <Button className="gap-2 self-start sm:self-end" onClick={() => setCreateOpen(true)}>

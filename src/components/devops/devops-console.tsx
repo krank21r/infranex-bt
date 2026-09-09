@@ -62,6 +62,13 @@ import {
   type HostCheckRow,
 } from "@/lib/devops/use-devops";
 import { DeploySubnetDialog } from "./deploy-subnet-dialog";
+import {
+  MiningJourney,
+  PickSubnetDialog,
+  saveJourney,
+  useJourney,
+  type JourneySubnet,
+} from "./mining-journey";
 
 // Per-provider cheatsheet for the add-host dialog — answers "where do I find
 // this?" for each field. Concrete, split-the-connect-string style guidance.
@@ -106,6 +113,11 @@ export function DevOpsEngineSection() {
   const [wizardHostId, setWizardHostId] = useState<string | null>(null);
   const [deployHostId, setDeployHostId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [pickOpen, setPickOpen] = useState(false);
+  const journey = useJourney();
+
+  const confirmJourney = (j: JourneySubnet) => saveJourney(j);
+  const clearJourney = () => saveJourney(null);
 
   const wizardHost = hosts.find((h) => h.id === wizardHostId) ?? null;
   const deployHost = hosts.find((h) => h.id === deployHostId) ?? null;
@@ -119,14 +131,26 @@ export function DevOpsEngineSection() {
             DevOps Engine
           </h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Connect a GPU machine, run the 10-step pipeline, then deploy a subnet —
-            the engine pulls that subnet&apos;s requirements and installs them on the host.
+            Step 3 of the mining journey — connect a GPU machine, run the 10-step
+            pipeline, then deploy the subnet you chose: the engine pulls that
+            subnet&apos;s requirements and installs them on the host.
           </p>
         </div>
         <Button onClick={() => setAddOpen(true)} className="gap-2">
           <Plus className="h-4 w-4" /> Add GPU host
         </Button>
       </div>
+
+      {/* The guided 4-step journey: choose subnet → get GPU → validate → deploy */}
+      <MiningJourney
+        hosts={hosts}
+        journey={journey}
+        onPickSubnet={() => setPickOpen(true)}
+        onClearSubnet={clearJourney}
+        onAddHost={() => setAddOpen(true)}
+        onValidate={(id) => setWizardHostId(id)}
+        onDeploy={(id) => setDeployHostId(id)}
+      />
 
       {isLoading ? (
         <Card className="bg-card/40">
@@ -163,6 +187,11 @@ export function DevOpsEngineSection() {
       )}
 
       <AddHostDialog open={addOpen} onOpenChange={setAddOpen} />
+      <PickSubnetDialog
+        open={pickOpen}
+        onOpenChange={setPickOpen}
+        onConfirm={confirmJourney}
+      />
       {wizardHost && (
         <WizardDialog
           hostId={wizardHost.id}
@@ -172,10 +201,12 @@ export function DevOpsEngineSection() {
       )}
       {deployHost && (
         <DeploySubnetDialog
+          key={`${deployHost.id}:${journey?.netuid ?? "none"}`}
           hostId={deployHost.id}
           hostName={deployHost.name}
           open={deployHostId !== null}
           onOpenChange={(o) => !o && setDeployHostId(null)}
+          preselectNetuid={journey?.netuid ?? null}
         />
       )}
     </div>

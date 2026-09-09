@@ -74,7 +74,7 @@ function ConfidenceBadge({ level }: { level: SubnetRequirementsProfile["confiden
   );
 }
 
-function ProfileCard({ profile }: { profile: SubnetRequirementsProfile }) {
+export function ProfileCard({ profile }: { profile: SubnetRequirementsProfile }) {
   const pipShown = profile.pipPackages.slice(0, 12);
   return (
     <div className="space-y-3 rounded-md border border-border/60 bg-background/40 p-3">
@@ -195,17 +195,20 @@ export function DeploySubnetDialog({
   hostName,
   open,
   onOpenChange,
+  preselectNetuid = null,
 }: {
   hostId: string;
   hostName: string;
   open: boolean;
   onOpenChange: (o: boolean) => void;
+  /** Journey subnet — pre-selected + auto-pulled when the dialog opens. */
+  preselectNetuid?: number | null;
 }) {
   const [explicitStage, setExplicitStage] = useState<"pick" | "plan" | "run" | null>(null);
   const [dismissedInstallId, setDismissedInstallId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [selectedNetuid, setSelectedNetuid] = useState<number | null>(null);
-  const [pullFor, setPullFor] = useState<number | null>(null);
+  const [selectedNetuid, setSelectedNetuid] = useState<number | null>(preselectNetuid);
+  const [pullFor, setPullFor] = useState<number | null>(preselectNetuid);
   const [refreshKey, setRefreshKey] = useState(0);
   const [wallet, setWallet] = useState("default");
   const [hotkey, setHotkey] = useState("miner");
