@@ -29,6 +29,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Server,
   Plus,
   Play,
@@ -42,6 +47,8 @@ import {
   HardDrive,
   Rocket,
   Terminal,
+  HelpCircle,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -55,6 +62,27 @@ import {
   type HostCheckRow,
 } from "@/lib/devops/use-devops";
 import { DeploySubnetDialog } from "./deploy-subnet-dialog";
+
+// Per-provider cheatsheet for the add-host dialog — answers "where do I find
+// this?" for each field. Concrete, split-the-connect-string style guidance.
+const PROVIDER_HELP = [
+  {
+    provider: "RunPod",
+    how: "Pod → Connect → copy the SSH connection string, e.g. ssh root@ssh.runpod.io -p 18745 → fill Host ssh.runpod.io (or the direct IP), Port 18745, User root. Upload your public key under Settings → SSH Keys first and pick Private-key auth — RunPod does not accept passwords.",
+  },
+  {
+    provider: "Vast.ai",
+    how: "The instance card prints a ready command like ssh root@ssh5.vast.ai -p 12345 — split it into Host / Port / User. Keys are managed under Account → SSH keys (key auth only).",
+  },
+  {
+    provider: "Lambda & other clouds",
+    how: "Console → your instance → SSH tab shows the exact command. Typical shape: user ubuntu, port 22, and the PEM key you downloaded at launch.",
+  },
+  {
+    provider: "Own server / colo",
+    how: "Use the machine's public IP, the SSH user you normally log in with (root or your own account), and either your password or the full contents of ~/.ssh/id_ed25519 pasted into the key field.",
+  },
+] as const;
 
 const HOST_STATUS = {
   ready: { label: "READY", cls: "text-success bg-success/10 border-success/30" },
@@ -277,6 +305,7 @@ function AddHostDialog({
   const [authMethod, setAuthMethod] = useState<"password" | "key">("password");
   const [secret, setSecret] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const submit = () => {
     setError(null);
@@ -300,7 +329,7 @@ function AddHostDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Add GPU host</DialogTitle>
           <DialogDescription>
@@ -309,6 +338,44 @@ function AddHostDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
+          {transport === "ssh" && (
+            <Collapsible
+              open={helpOpen}
+              onOpenChange={setHelpOpen}
+              className="rounded-md border border-border/60 bg-background/40"
+            >
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-1.5 p-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
+                >
+                  <HelpCircle className="h-3.5 w-3.5 text-primary" />
+                  Where do I find this?
+                  <ChevronDown
+                    className={cn(
+                      "ml-auto h-3.5 w-3.5 transition-transform",
+                      helpOpen && "rotate-180"
+                    )}
+                  />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="space-y-2.5 border-t border-border/60 p-2.5">
+                  {PROVIDER_HELP.map((h) => (
+                    <div key={h.provider}>
+                      <p className="text-xs font-medium">{h.provider}</p>
+                      <p className="text-[11px] leading-relaxed text-muted-foreground">{h.how}</p>
+                    </div>
+                  ))}
+                  <p className="border-t border-border/40 pt-2 text-[11px] leading-relaxed text-muted-foreground">
+                    Rented GPU pods rarely use port 22 — always copy the mapped port from the
+                    provider&apos;s connect string. Private keys must be pasted in full, from
+                    -----BEGIN through -----END. The Name is a free-form label only.
+                  </p>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Name</Label>
@@ -361,6 +428,11 @@ function AddHostDialog({
                   onChange={(e) => setSecret(e.target.value)}
                   placeholder={authMethod === "password" ? "••••••••" : "-----BEGIN OPENSSH PRIVATE KEY-----"}
                 />
+                {authMethod === "key" && (
+                  <p className="text-[10px] text-muted-foreground">
+                    Paste the entire key file, including the -----BEGIN and -----END lines.
+                  </p>
+                )}
               </div>
             </>
           )}
