@@ -4,16 +4,23 @@ import { useState, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { SubnetCard } from "@/components/cards/subnet-card";
+import { SubnetEditDialog } from "@/components/subnets/subnet-edit-dialog";
 import { subnets as curatedSubnets, opportunities as curatedOpportunities } from "@/lib/infranex/data";
 import { useNetwork, mergeSubnets } from "@/lib/infranex/use-network";
-import { Search, RefreshCw, Network } from "lucide-react";
+import { useSubnetOverrides } from "@/lib/infranex/use-subnet-overrides";
+import { Search, RefreshCw, Network, Info } from "lucide-react";
+import type { Subnet } from "@/lib/infranex/types";
 
 export function SubnetsView() {
   const [search, setSearch] = useState("");
   const [activeOnly, setActiveOnly] = useState<"all" | "active" | "open">("all");
+  const [editSubnet, setEditSubnet] = useState<Subnet | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
   const { data: snap, isFetching, refetch } = useNetwork();
-  const subnets = mergeSubnets(snap);
+  const { data: overrides } = useSubnetOverrides();
+  const subnets = mergeSubnets(snap, overrides);
 
   const scoreByNetuid = useMemo(() => {
     const map = new Map<number, { score: number; rank: number }>();
@@ -39,6 +46,13 @@ export function SubnetsView() {
     return r;
   }, [search, activeOnly, subnets]);
 
+  const handleEdit = (s: Subnet) => {
+    setEditSubnet(s);
+    setEditOpen(true);
+  };
+
+  const overrideCount = overrides?.size ?? 0;
+
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -51,6 +65,7 @@ export function SubnetsView() {
             {snap?.totalSubnets
               ? `${snap.totalSubnets} subnets on the live Finney chain — ${curatedSubnets.length} tracked in detail.`
               : `All Bittensor subnets tracked by the platform — ${curatedSubnets.length} on the Finney chain.`}
+            {overrideCount > 0 && ` · ${overrideCount} with user overrides`}
           </p>
         </div>
         <Button
@@ -64,6 +79,29 @@ export function SubnetsView() {
           {isFetching ? "Syncing…" : "Refresh chain"}
         </Button>
       </header>
+
+      {/* Data source legend */}
+      <Card className="border-border/60 bg-card/40">
+        <CardContent className="flex flex-wrap items-center gap-3 py-3">
+          <Info className="h-4 w-4 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">Data sources:</span>
+          <Badge variant="outline" className="border-success/30 text-[10px] text-success">
+            <span className="mr-1 h-1.5 w-1.5 rounded-full bg-success" />
+            Live (chain)
+          </Badge>
+          <Badge variant="outline" className="border-warning/30 text-[10px] text-warning">
+            <span className="mr-1 h-1.5 w-1.5 rounded-full bg-warning" />
+            User override
+          </Badge>
+          <Badge variant="outline" className="text-[10px] text-muted-foreground">
+            <span className="mr-1 h-1.5 w-1.5 rounded-full bg-muted-foreground" />
+            Curated (default)
+          </Badge>
+          <span className="ml-auto text-[11px] text-muted-foreground">
+            Click the ⚙ icon on any card to edit or scrape from GitHub
+          </span>
+        </CardContent>
+      </Card>
 
       <Card className="border-border/60 bg-card/40">
         <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center">
@@ -110,11 +148,18 @@ export function SubnetsView() {
                 subnet={s}
                 score={sr?.score}
                 rank={sr?.rank}
+                onEdit={handleEdit}
               />
             );
           })}
         </div>
       )}
+
+      <SubnetEditDialog
+        subnet={editSubnet}
+        open={editOpen}
+        onOpenChange={setEditOpen}
+      />
     </div>
   );
 }

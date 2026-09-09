@@ -3,21 +3,59 @@
 import { cn, formatNumber, formatCurrency, getStatusColor } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Users, Shield, Cpu, TrendingUp, TrendingDown } from "lucide-react";
+import { Users, Shield, Cpu, TrendingUp, TrendingDown, Settings2 } from "lucide-react";
 import type { Subnet } from "@/lib/infranex/types";
 
 interface SubnetCardProps {
-  subnet: Subnet & { live?: unknown };
+  subnet: Subnet & {
+    live?: unknown;
+    liveFields?: Set<string>;
+    overriddenFields?: Set<string>;
+  };
   score?: number;
   rank?: number;
   onSelect?: (s: Subnet) => void;
+  onEdit?: (s: Subnet) => void;
 }
 
-export function SubnetCard({ subnet: s, score, rank, onSelect }: SubnetCardProps) {
+function FieldBadge({
+  field,
+  liveFields,
+  overriddenFields,
+  children,
+}: {
+  field: string;
+  liveFields?: Set<string>;
+  overriddenFields?: Set<string>;
+  children: React.ReactNode;
+}) {
+  if (overriddenFields?.has(field)) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        {children}
+        <span className="h-1 w-1 rounded-full bg-warning" title="User override" />
+      </span>
+    );
+  }
+  if (liveFields?.has(field)) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        {children}
+        <span className="h-1 w-1 rounded-full bg-success" title="Live from chain" />
+      </span>
+    );
+  }
+  return <span>{children}</span>;
+}
+
+export function SubnetCard({ subnet: s, score, rank, onSelect, onEdit }: SubnetCardProps) {
   const status = getStatusColor(s.status);
   const up = s.change24h >= 0;
   const util = Math.min(100, (s.minersCount / s.maxNeurons) * 100);
+  const liveFields = s.liveFields;
+  const overriddenFields = s.overriddenFields;
 
   return (
     <Card
@@ -32,20 +70,26 @@ export function SubnetCard({ subnet: s, score, rank, onSelect }: SubnetCardProps
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <CardTitle className="text-display truncate text-lg">
-                {s.name}
+                <FieldBadge field="name" liveFields={liveFields} overriddenFields={overriddenFields}>{s.name}</FieldBadge>
               </CardTitle>
               <Badge variant="outline" className="mono text-[10px]">
                 {s.symbol}
               </Badge>
-              {s.live && (
+              {s.live ? (
                 <Badge variant="outline" className="border-success/30 text-[10px] text-success">
                   <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-success" />
                   live
                 </Badge>
+              ) : null}
+              {overriddenFields && overriddenFields.size > 0 && (
+                <Badge variant="outline" className="border-warning/30 text-[10px] text-warning">
+                  <Settings2 className="mr-0.5 h-2.5 w-2.5" />
+                  edited
+                </Badge>
               )}
             </div>
             <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-              {s.description}
+              <FieldBadge field="description" liveFields={liveFields} overriddenFields={overriddenFields}>{s.description}</FieldBadge>
             </p>
           </div>
           <div className="shrink-0 text-right">
@@ -59,16 +103,30 @@ export function SubnetCard({ subnet: s, score, rank, onSelect }: SubnetCardProps
                 {score.toFixed(1)}
               </p>
             )}
+            {onEdit && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="mt-1 h-6 w-6"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit(s);
+                }}
+                aria-label="Edit metadata"
+              >
+                <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
+              </Button>
+            )}
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge variant="secondary" className="text-[10px]">
-            {s.category}
+            <FieldBadge field="category" liveFields={liveFields} overriddenFields={overriddenFields}>{s.category}</FieldBadge>
           </Badge>
           <span className={cn("badge-status", status.bg, status.text)}>
-            {s.status}
+            <FieldBadge field="status" liveFields={liveFields} overriddenFields={overriddenFields}>{s.status}</FieldBadge>
           </span>
           {s.registrationOpen ? (
             <Badge variant="outline" className="border-success/30 text-[10px] text-success">
@@ -86,7 +144,9 @@ export function SubnetCard({ subnet: s, score, rank, onSelect }: SubnetCardProps
             <Users className="h-3.5 w-3.5 text-muted-foreground" />
             <div>
               <p className="text-[10px] text-muted-foreground">Miners</p>
-              <p className="tabular font-medium">{formatNumber(s.minersCount)}</p>
+              <FieldBadge field="minersCount" liveFields={liveFields} overriddenFields={overriddenFields}>
+                <p className="tabular font-medium">{formatNumber(s.minersCount)}</p>
+              </FieldBadge>
             </div>
           </div>
           <div className="flex items-center gap-1.5">
@@ -100,7 +160,9 @@ export function SubnetCard({ subnet: s, score, rank, onSelect }: SubnetCardProps
             <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
             <div>
               <p className="text-[10px] text-muted-foreground">Min VRAM</p>
-              <p className="mono tabular font-medium">{s.minVramGb} GB</p>
+              <FieldBadge field="minVramGb" liveFields={liveFields} overriddenFields={overriddenFields}>
+                <p className="mono tabular font-medium">{s.minVramGb} GB</p>
+              </FieldBadge>
             </div>
           </div>
           <div className="flex items-center gap-1.5">
@@ -111,14 +173,8 @@ export function SubnetCard({ subnet: s, score, rank, onSelect }: SubnetCardProps
             )}
             <div>
               <p className="text-[10px] text-muted-foreground">24h</p>
-              <p
-                className={cn(
-                  "tabular font-medium",
-                  up ? "text-success" : "text-destructive"
-                )}
-              >
-                {up ? "+" : ""}
-                {s.change24h.toFixed(1)}%
+              <p className={cn("tabular font-medium", up ? "text-success" : "text-destructive")}>
+                {up ? "+" : ""}{s.change24h.toFixed(1)}%
               </p>
             </div>
           </div>
@@ -138,15 +194,17 @@ export function SubnetCard({ subnet: s, score, rank, onSelect }: SubnetCardProps
 
         <div className="flex items-center justify-between border-t pt-2 text-xs">
           <span className="text-muted-foreground">Emission</span>
-          <span className="mono tabular font-medium text-primary">
-            {s.emission.toFixed(2)} TAO/blk
-          </span>
+          <FieldBadge field="emission" liveFields={liveFields} overriddenFields={overriddenFields}>
+            <span className="mono tabular font-medium text-primary">
+              {s.emission.toFixed(2)} TAO/blk
+            </span>
+          </FieldBadge>
         </div>
         <div className="flex items-center justify-between text-xs">
           <span className="text-muted-foreground">Market cap</span>
-          <span className="tabular font-medium">
-            {formatCurrency(s.marketCap)}
-          </span>
+          <FieldBadge field="marketCap" liveFields={liveFields} overriddenFields={overriddenFields}>
+            <span className="tabular font-medium">{formatCurrency(s.marketCap)}</span>
+          </FieldBadge>
         </div>
       </CardContent>
     </Card>

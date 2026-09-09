@@ -23,7 +23,19 @@ export interface Subnet {
   tags: string[];
   minVramGb: number;
   recommendedGpu: string;
+  githubUrl?: string | null;
+  website?: string | null;
 }
+
+/** Fields that can be sourced from the live chain. */
+export type LiveField =
+  | "minersCount"
+  | "taoInReserve"
+  | "price"
+  | "tempo"
+  | "emission"
+  | "status"
+  | "marketCap";
 
 export interface OpportunityFactor {
   name: string;

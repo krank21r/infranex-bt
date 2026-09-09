@@ -40,3 +40,17 @@ model Deployment {
   @@index([status])
   @@index([netuid])
 }
+
+model SubnetOverride {
+  netuid        Int      @id
+  name           String?
+  description    String?
+  category       String?
+  minVramGb      Int?
+  recommendedGpu String?
+  githubUrl      String?
+  website        String?
+  tags           String?  // JSON array
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}

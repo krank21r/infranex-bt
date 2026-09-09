@@ -36,6 +36,10 @@ export function useNetwork() {
 
 export interface LiveSubnet extends Subnet {
   live?: LiveSubnetMetrics;
+  /** Which fields have live chain data (vs curated). */
+  liveFields: Set<string>;
+  /** Which fields have user overrides (vs curated). */
+  overriddenFields: Set<string>;
 }
 
 export interface LiveOpportunity extends Opportunity {
@@ -44,22 +48,41 @@ export interface LiveOpportunity extends Opportunity {
   livePrice?: number;
 }
 
-/** Merge live chain metrics into the curated subnet list. */
-export function mergeSubnets(snap: LiveNetworkSnapshot | undefined): LiveSubnet[] {
-  if (!snap || snap.subnets.length === 0) return curatedSubnets;
-  const byNetuid = new Map(snap.subnets.map((s) => [s.netuid, s]));
+/** Merge live chain metrics + user overrides into the curated subnet list. */
+export function mergeSubnets(
+  snap: LiveNetworkSnapshot | undefined,
+  overrides?: Map<number, Record<string, unknown>>
+): LiveSubnet[] {
+  const byNetuid = new Map(snap?.subnets.map((s) => [s.netuid, s]) ?? []);
   return curatedSubnets.map((s) => {
     const live = byNetuid.get(s.netuid);
-    if (!live) return s;
-    return {
-      ...s,
-      minersCount: live.minersCount || s.minersCount,
-      taoInReserve: Math.round(live.subnetTao),
-      price: live.movingPrice || s.price,
-      marketCap: Math.round(live.subnetTao * (snap.taoPriceUsd || 1)),
-      status: live.emissionEnabled ? "active" : "inactive",
-      live,
-    };
+    const override = overrides?.get(s.netuid);
+    const liveFields = new Set<string>();
+    const overriddenFields = new Set<string>();
+
+    let merged: Subnet = { ...s };
+
+    if (live) {
+      if (live.minersCount) { merged.minersCount = live.minersCount; liveFields.add("minersCount"); }
+      if (live.subnetTao) { merged.taoInReserve = Math.round(live.subnetTao); liveFields.add("taoInReserve"); }
+      if (live.movingPrice) { merged.price = live.movingPrice; liveFields.add("price"); }
+      if (live.subnetTao && snap?.taoPriceUsd) { merged.marketCap = Math.round(live.subnetTao * snap.taoPriceUsd); liveFields.add("marketCap"); }
+      if (live.tempo) { merged.tempo = live.tempo; liveFields.add("tempo"); }
+      merged.status = live.emissionEnabled ? "active" : "inactive";
+      liveFields.add("status");
+      merged.emission = live.subnetTao > 0 ? s.emission : 0; // emission approx
+    }
+
+    if (override) {
+      for (const [key, value] of Object.entries(override)) {
+        if (value != null && value !== "") {
+          (merged as Record<string, unknown>)[key] = value;
+          overriddenFields.add(key);
+        }
+      }
+    }
+
+    return { ...merged, live, liveFields, overriddenFields };
   });
 }
 
