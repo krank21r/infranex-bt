@@ -23,6 +23,7 @@ import { cn, formatRelativeTime } from "@/lib/utils";
 import { useNetwork } from "@/lib/infranex/use-network";
 import { useHealthChecks } from "@/lib/infranex/use-health-checks";
 import { useErrorLog } from "@/lib/infranex/use-error-log";
+import { useWorkerStatus, useTriggerWorkers } from "@/lib/infranex/use-worker-status";
 import type { ViewKey } from "@/lib/infranex/types";
 
 interface SystemViewProps {
@@ -253,6 +254,9 @@ export function SystemView({ onNavigate }: SystemViewProps) {
         </CardContent>
       </Card>
 
+      {/* Background Workers */}
+      <BackgroundWorkersSection />
+
       {/* Quick links */}
       <Card className="border-border/60 bg-card/40">
         <CardHeader>
@@ -465,5 +469,128 @@ function QuickLink({
       </div>
       <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
     </button>
+  );
+}
+
+function BackgroundWorkersSection() {
+  const { data, isLoading } = useWorkerStatus();
+  const triggerMut = useTriggerWorkers();
+
+  if (isLoading || !data) {
+    return (
+      <Card className="border-border/60 bg-card/40">
+        <CardContent className="flex items-center gap-2 py-8 text-muted-foreground">
+          <Activity className="h-5 w-5 animate-pulse" />
+          <span className="text-sm">Loading worker status…</span>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const workerLabels: Record<string, { label: string; interval: string; icon: string }> = {
+    "chain-scanner": { label: "Chain Scanner", interval: "every 2 min", icon: "🔗" },
+    "market-data": { label: "Market Data", interval: "every 1 min", icon: "📈" },
+    "github-analyzer": { label: "GitHub Analyzer", interval: "every 60 min", icon: "🐙" },
+  };
+
+  return (
+    <Card className="border-border/60 bg-card/40">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <div>
+          <p className="text-eyebrow text-muted-foreground">Background workers</p>
+          <CardTitle className="text-display flex items-center gap-2 text-xl">
+            <Activity className="h-4 w-4 text-primary" />
+            Worker Status
+          </CardTitle>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-2"
+          onClick={() => triggerMut.mutate()}
+          disabled={triggerMut.isPending}
+        >
+          <RefreshCw className={cn("h-3.5 w-3.5", triggerMut.isPending && "animate-spin")} />
+          {triggerMut.isPending ? "Starting…" : "Start workers"}
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {/* Latest snapshot summary */}
+        {data.latestSnapshot && (
+          <div className="rounded-lg border border-primary/30 bg-primary/[0.04] p-3">
+            <p className="text-eyebrow text-primary mb-2">Latest chain snapshot (from worker)</p>
+            <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+              <div>
+                <p className="text-[10px] text-muted-foreground">Block</p>
+                <p className="mono tabular font-medium">{data.latestSnapshot.blockNumber.toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground">Subnets scanned</p>
+                <p className="tabular font-medium">{data.latestSnapshot.scannedSubnets}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground">Neurons</p>
+                <p className="tabular font-medium">{data.latestSnapshot.neuronCount}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground">TAO price</p>
+                <p className="tabular font-medium text-success">${data.latestSnapshot.taoPriceUsd.toFixed(2)}</p>
+              </div>
+            </div>
+            <p className="mt-2 text-[10px] text-muted-foreground">
+              Fetched {formatRelativeTime(new Date(data.latestSnapshot.fetchedAt))}
+            </p>
+          </div>
+        )}
+
+        {/* Worker list */}
+        <div className="space-y-2">
+          {data.workers.length === 0 ? (
+            <div className="rounded-lg border border-border/40 bg-background/60 p-3 text-center text-xs text-muted-foreground">
+              No worker runs yet. Workers auto-start when the first chain query runs.
+            </div>
+          ) : (
+            data.workers.map((w) => {
+              const meta = workerLabels[w.workerName] ?? { label: w.workerName, interval: "?", icon: "⚙" };
+              const isHealthy = w.status === "completed";
+              return (
+                <div
+                  key={w.id}
+                  className="flex items-center gap-3 rounded-lg border border-border/40 bg-background/60 px-3 py-2.5"
+                >
+                  <span className="text-lg">{meta.icon}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-medium">{meta.label}</p>
+                      <span
+                        className={cn(
+                          "h-2 w-2 shrink-0 rounded-full",
+                          isHealthy ? "bg-success" : "bg-destructive"
+                        )}
+                      />
+                      <span className="text-[10px] text-muted-foreground">{meta.interval}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {isHealthy
+                        ? `${w.tasksProcessed} tasks · ${w.durationMs}ms · ${formatRelativeTime(new Date(w.lastRun))}`
+                        : `Failed: ${w.error?.slice(0, 60) ?? "unknown error"}`}
+                    </p>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "text-[10px] capitalize",
+                      isHealthy ? "border-success/30 text-success" : "border-destructive/30 text-destructive"
+                    )}
+                  >
+                    {w.status}
+                  </Badge>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

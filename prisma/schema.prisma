@@ -54,3 +54,34 @@ model SubnetOverride {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }
+
+model ChainSnapshot {
+  id              Int      @id @default(autoincrement())
+  blockNumber     Int
+  totalSubnets    Int
+  scannedSubnets  Int
+  neuronCount     Int
+  taoPriceUsd     Float
+  taoMarketCapUsd Float
+  taoChange24h    Float
+  subnetsJson     String   // JSON array of LiveSubnetMetrics
+  neuronsJson     String   @default("[]") // JSON array of NeuronMetrics
+  source          String
+  createdAt       DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model WorkerStatus {
+  id              Int      @id @default(autoincrement())
+  workerName      String
+  status          String   // "running" | "completed" | "failed"
+  lastRun         DateTime
+  durationMs      Int
+  tasksProcessed  Int
+  error           String?
+  createdAt       DateTime @default(now())
+
+  @@index([workerName])
+  @@index([createdAt])
+}

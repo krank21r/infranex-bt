@@ -5,10 +5,11 @@ import { subnets as curatedSubnets, opportunities as curatedOpportunities } from
 import type {
   LiveNetworkSnapshot,
   LiveSubnetMetrics,
+  NeuronMetrics,
 } from "./chain";
 import type { Subnet, Opportunity } from "./types";
 
-export type { LiveNetworkSnapshot, LiveSubnetMetrics };
+export type { LiveNetworkSnapshot, LiveSubnetMetrics, NeuronMetrics };
 
 async function fetchNetwork(): Promise<LiveNetworkSnapshot> {
   const res = await fetch("/api/network", { cache: "no-store" });
@@ -147,6 +148,8 @@ export function getLiveDashboardMetrics(snap: LiveNetworkSnapshot | undefined) {
     taoMarketCap: snap?.taoMarketCapUsd ?? 0,
     blockNumber: snap?.blockNumber ?? 0,
     totalSubnets: snap?.totalSubnets ?? 0,
+    scannedSubnets: snap?.subnets.length ?? 0,
+    neuronCount: snap?.neurons.length ?? 0,
     isLive: snap?.source === "live",
     lastFetched: snap?.fetchedAt,
   };
