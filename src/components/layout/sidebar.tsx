@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { useNetwork } from "@/lib/infranex/use-network";
 import {
   LayoutDashboard,
@@ -95,6 +95,10 @@ export function Sidebar({
       {/* Mobile */}
       <Sheet open={mobileOpen} onOpenChange={onMobileOpenChange}>
         <SheetContent side="left" className="w-72 border-r bg-sidebar p-0">
+          <SheetTitle className="sr-only">Navigation menu</SheetTitle>
+          <SheetDescription className="sr-only">
+            Primary navigation for the Infranex BT dashboard
+          </SheetDescription>
           <div className="flex items-center justify-between pr-4">
             <SidebarBrand />
             <Button
