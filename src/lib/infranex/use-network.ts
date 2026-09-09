@@ -84,7 +84,7 @@ export function mergeSubnets(
     if (override) {
       for (const [key, value] of Object.entries(override)) {
         if (value != null && value !== "") {
-          (merged as Record<string, unknown>)[key] = value;
+          (merged as unknown as Record<string, unknown>)[key] = value;
           overriddenFields.add(key);
         }
       }
@@ -131,7 +131,7 @@ export function mergeSubnets(
     if (override) {
       for (const [key, value] of Object.entries(override)) {
         if (value != null && value !== "" && !(key in merged)) {
-          (merged as Record<string, unknown>)[key] = value;
+          (merged as unknown as Record<string, unknown>)[key] = value;
           overriddenFields.add(key);
         }
       }

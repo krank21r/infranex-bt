@@ -23,7 +23,8 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { cn, formatCurrency, formatNumber, formatRelativeTime, formatDuration } from "@/lib/utils";
-import { useMonitoring, type MonitoringOverview, type MonitoredDeployment } from "@/lib/infranex/use-monitoring";
+import { useMonitoring, type MonitoringOverview } from "@/lib/infranex/use-monitoring";
+import type { MonitoredDeployment } from "@/lib/infranex/monitoring";
 import type { ViewKey } from "@/lib/infranex/types";
 
 interface MonitoringViewProps {

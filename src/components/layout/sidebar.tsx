@@ -182,5 +182,3 @@ function SidebarFooter() {
     </div>
   );
 }
-
-export { SheetTrigger };

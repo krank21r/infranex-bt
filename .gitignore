@@ -51,5 +51,13 @@ test
 prompt
 
 server.log
+
 # Skills directory
-/skills/
+/skills
+
+# runtime artifacts
+.chain-metadata.json
+nohup.out
+
+# runtime database (recreated via prisma db:push)
+db/custom.db

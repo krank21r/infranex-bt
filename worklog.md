@@ -107,3 +107,54 @@ Stage Summary:
 - Deployment config tab shows the exact docker image, nvidia runtime, ports, miner command (python neurons/miner.py --subtensor.network finney --netuid 7 --wallet.name infranex ...), env vars, requirements (Python 3.10, CUDA 12.2), and cost projection ($1793/mo cost, $3200/mo revenue, 78% ROI).
 - Mock mode simulates the full lifecycle safely. RunPod mode creates real GPU pods via the authenticated API (with cost warning + confirmation in the wizard).
 - `bun run lint` clean, no runtime errors. Deployments persist to SQLite (survive page reloads).
+
+---
+Task ID: 6
+Agent: main (Z.ai Code)
+Task: Review and run the nextjs-platform branch of github.com/krank21r/infranex-bt in the Z.ai sandbox.
+
+Work Log:
+- Cloned nextjs-platform branch (HEAD 0a221e1). Reviewed: Next.js 16 App Router + React 19 + Tailwind 4 + shadcn/ui, Prisma/SQLite, @polkadot/api chain client, CoinGecko price feed, RunPod GraphQL adapter, 11-state deployment engine, background worker system, 10-view dashboard UI.
+- Sandbox anomaly handled: /home/z/my-project root sits on a PolarFS FUSE mount where the kata-agent periodically runs drop_caches; bulk copies (cp -a) made shortly before a cycle were lost (writes via plain write() — git clone, bun install, echo — survived). Root-level project copies were reverted 4 times by this mechanism.
+- Mitigation: ran the entire app from /home/z/my-project/infranex-bt/ (the clone itself, never affected). Created .env there (DATABASE_URL=file:/home/z/my-project/infranex-bt/db/custom.db, RUNPOD_API_KEY empty → graceful degradation), bun install (889 pkgs), prisma generate + db:push (schema synced to committed SQLite db).
+- Dev server started with platform-style detachment: nohup bash run-dev.sh (port 3000), survived across tool sessions.
+
+Stage Summary:
+- App fully verified in browser (agent-browser): Dashboard renders LIVE Finney chain data (block 9,030,832, TAO $258.71, 129 subnets, 29.78K miners, "LIVE · FINNEY CHAIN" banner); Subnets view shows 129 live subnets + GitHub-scraped user overrides; GPU Catalog degrades gracefully without RunPod key ("RunPod offline" badge, indicative pricing); Deployments view lists persisted demo deployments and the 3-step Create Deployment wizard works (subnet select enables step 2); System & Errors shows 4 health-check cards and 0 captured runtime errors.
+- All API endpoints return 200: /api/network (live chain snapshot, 30s cache), /api/gpu-offers, /api/deployments, /api/subnet-overrides, /api/workers/status, /api/monitoring. Background workers (chain-scanner, github metadata scraper, monitoring) active and writing to SQLite.
+- Known minor issue: System page health-check probe #2 (browser-side direct POST to Finney RPC) can hang pending due to CORS on the public entrypoint; server-side chain reads work fine (source=live). To enable live RunPod GPU pricing, set RUNPOD_API_KEY in infranex-bt/.env.
+
+---
+Task ID: 7
+Agent: main (Z.ai Code)
+Task: Fix /api/network hanging (45s+ requests) and make the live chain pipeline fast and reliable.
+
+Work Log:
+- Diagnosed: fetchFromChain() made ~2000+ individual HTTP RPC round-trips per refresh (129 subnets × 7 queries + 3 × 50 neurons × 8 queries), then called recycleChainApi() — disconnecting the singleton so every refresh re-paid the metadata cold start. With the public RPC under load, each refresh took 45s+ while the 30s cache expired sooner, so every /api/network request blocked on a full cold chain read.
+- Rewrote chain.ts connection layer: WebSocket-first (wss://entrypoint-finney.opentensor.ai:443) with HTTP fallback; persistent singleton (removed recycle calls from hot paths in chain.ts and monitoring.ts); chain metadata (~700KB) persisted to .chain-metadata.json (gitignored) and passed back via ApiPromise.create({ metadata }) — cold start dropped from 10-60s to ~1.7s.
+- Rewrote subnet scan to use .multi() batch queries: 7 RPC calls per batch of 50 netuids instead of 7 per subnet (~20 calls total instead of ~900).
+- Fixed neuron fetching: discovered the old code referenced non-existent storage maps (rank/trust/neurons) and double-map keying that never worked (returned all-zero stubs). Real subtensorModule maps are per-SUBNET vectors keyed by netuid (active, incentive, consensus, dividends, emission, lastUpdate, validatorTrust — each a Vec indexed by uid, length 256). Now 7 RPC calls per subnet return real per-neuron data.
+- Rewrote SnapshotCache with stale-while-revalidate: 60s TTL; expired-but-present snapshots are served instantly while a background refresh runs; a 25s Promise.race timeout prevents any hang; failed refreshes keep serving the last good snapshot.
+- Fixed a pre-existing TS error introduced by my edits (metadata type + unknown casts in chain.ts). Remaining tsc errors in the repo are pre-existing (emission-donut.tsx, sidebar.tsx, monitoring-view.tsx, examples/websocket) and untouched; ESLint passes clean.
+
+Stage Summary:
+- /api/network: cold boot 10.5s (connect + first full snapshot), warm 10-24ms (was 45s+ hang/timeouts).
+- Live data verified: block 9,030,945, 129/129 subnets scanned, source=live, TAO $258.88, 12 neurons (8 active) on top-3 subnets.
+- Monitoring and workers endpoints healthy; homepage renders; no errors in server logs; lint clean.
+
+---
+Task ID: 8
+Agent: main (Z.ai Code)
+Task: Full project review — find and fix all errors, identify and clean up unwanted files.
+
+Work Log:
+- TypeScript audit (bunx tsc --noEmit): found and fixed 6 errors across 4 files. emission-donut.tsx: tooltip used non-existent EmissionShare.value (renamed to .emission) + removed dead "const total" lines. sidebar.tsx: removed dead `export { SheetTrigger }` re-export (SheetTrigger was never imported; no consumers). monitoring-view.tsx: fixed wrong import of MonitoredDeployment (now from @/lib/infranex/monitoring instead of use-monitoring). use-network.ts: 2× fixed invalid Subnet→Record cast (as unknown as). tsconfig.json: excluded examples/tests/mini-services (examples/websocket depends on socket.io deps not installed; not part of the app build). Result: tsc 100% clean, ESLint clean.
+- Dead code: removed unused recycleChainApi export from chain.ts (no consumers left after Task 7 fix). Sampled other lib exports (scoreBand, shortAddress, hooks, views) — all used.
+- Unwanted files cleaned: deleted tsconfig.tsbuildinfo (448KB tsc artifact), deleted stale dev.log (20KB old log). Fixed .gitignore glitch where a previous append glued "/skills" + ".chain-metadata.json" into one bogus line; now properly ignores .chain-metadata.json + nohup.out. Kept: nohup.out (live server log, gitignored), run-dev.sh (server runner, untracked — user may commit), .chain-metadata.json (runtime cache, gitignored).
+- Flagged, not acted: db/custom.db is tracked in git but modified by runtime data (upstream design choice — consider git rm --cached + ignore if runtime churn in commits is unwanted); examples/websocket lacks socket.io deps (excluded from tsc; install deps or delete dir if examples unneeded).
+- Runtime + browser audit: nohup.out free of errors/warnings; all 10 views (Dashboard→System) toured via agent-browser — zero page errors, zero console errors/warnings; app 200 in ~90ms, /api/network 200 in ~9ms warm.
+
+Stage Summary:
+- tsc --noEmit: 0 errors. ESLint: 0 errors. Browser tour of all 10 views: 0 runtime/console errors.
+- Repo hygiene: 2 junk files deleted, .gitignore repaired, dead export removed.
+- Remaining known limitations (by design): RUNPOD_API_KEY empty → GPU pricing degrades to indicative; browser-side health check #2 (direct RPC from browser) can hang due to public-endpoint CORS — server-side chain reads unaffected.

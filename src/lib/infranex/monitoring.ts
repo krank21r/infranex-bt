@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { getChainApi, recycleChainApi } from "./chain";
+import { getChainApi } from "./chain";
 import { deserializeConfig } from "./deployment/config";
 import { deserializeSteps } from "./deployment/state-machine";
 
@@ -111,7 +111,7 @@ async function fetchChainMinerMetrics(
       const minerCount = Number(totalMiners?.toString() ?? "0");
       const avgInc = avgIncentive ? Number(avgIncentive.toString()) / 1e18 / Math.max(minerCount, 1) : null;
       const avgTru = avgTrust ? Number(avgTrust.toString()) / 1e18 / Math.max(minerCount, 1) : null;
-      await recycleChainApi();
+      // Keep the shared chain connection alive for other consumers.
       return {
         rank: minerCount > 0 ? Math.floor(Math.random() * minerCount) + 1 : null,
         incentive: avgInc,
@@ -123,7 +123,6 @@ async function fetchChainMinerMetrics(
         found: minerCount > 0,
       };
     } catch {
-      try { await recycleChainApi(); } catch { /* ignore */ }
       return { rank: null, incentive: null, trust: null, emission: null, consensus: null, validatorTrust: null, dividends: null, found: false };
     }
   })();
@@ -347,8 +346,6 @@ class MonitoringCache {
       const totalStarted = monitored.filter((m) => m.status === "started").length;
       const allAlerts = monitored.flatMap((m) => m.monitoring.alerts);
       const criticalAlerts = allAlerts.filter((a) => a.level === "critical").length;
-
-      try { await recycleChainApi(); } catch { /* ignore */ }
 
       return {
         deployments: monitored,
