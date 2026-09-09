@@ -20,6 +20,7 @@
 
 import type { LiveSubnetMetrics } from "./chain";
 import type { OpportunityFactor } from "./types";
+import { electricityMonthlyUsd } from "./profitability";
 
 const clampScore = (v: number, lo: number, hi: number) =>
   Math.min(hi, Math.max(lo, v));
@@ -112,17 +113,19 @@ export interface GpuTier {
   minVramGb: number;
   /** Monthly all-in rental at market rate (or power for owned-equivalent). */
   monthlyRentUsd: number;
+  /** GPU board power draw in watts — drives the owned-hardware electricity line. */
+  powerWatts: number;
 }
 
 export const GPU_TIERS = {
-  h200: { label: "H200-class", recommendedGpu: "H200 141GB", minVramGb: 141, monthlyRentUsd: 2500 },
-  h100: { label: "H100-class", recommendedGpu: "H100 80GB", minVramGb: 80, monthlyRentUsd: 1700 },
-  a100: { label: "A100-class", recommendedGpu: "A100 80GB", minVramGb: 80, monthlyRentUsd: 950 },
-  a6000: { label: "A6000-class", recommendedGpu: "RTX A6000 48GB", minVramGb: 48, monthlyRentUsd: 320 },
-  consumer24: { label: "Consumer 24GB", recommendedGpu: "RTX 4090 24GB", minVramGb: 24, monthlyRentUsd: 260 },
-  vram16: { label: "Consumer 16GB", recommendedGpu: "RTX 4060 Ti 16GB", minVramGb: 16, monthlyRentUsd: 150 },
-  entry: { label: "Entry GPU", recommendedGpu: "Entry GPU 8GB", minVramGb: 8, monthlyRentUsd: 80 },
-  cpu: { label: "CPU-only", recommendedGpu: "CPU VPS", minVramGb: 0, monthlyRentUsd: 50 },
+  h200: { label: "H200-class", recommendedGpu: "H200 141GB", minVramGb: 141, monthlyRentUsd: 2500, powerWatts: 700 },
+  h100: { label: "H100-class", recommendedGpu: "H100 80GB", minVramGb: 80, monthlyRentUsd: 1700, powerWatts: 700 },
+  a100: { label: "A100-class", recommendedGpu: "A100 80GB", minVramGb: 80, monthlyRentUsd: 950, powerWatts: 400 },
+  a6000: { label: "A6000-class", recommendedGpu: "RTX A6000 48GB", minVramGb: 48, monthlyRentUsd: 320, powerWatts: 300 },
+  consumer24: { label: "Consumer 24GB", recommendedGpu: "RTX 4090 24GB", minVramGb: 24, monthlyRentUsd: 260, powerWatts: 450 },
+  vram16: { label: "Consumer 16GB", recommendedGpu: "RTX 4060 Ti 16GB", minVramGb: 16, monthlyRentUsd: 150, powerWatts: 160 },
+  entry: { label: "Entry GPU", recommendedGpu: "Entry GPU 8GB", minVramGb: 8, monthlyRentUsd: 80, powerWatts: 100 },
+  cpu: { label: "CPU-only", recommendedGpu: "CPU VPS", minVramGb: 0, monthlyRentUsd: 50, powerWatts: 20 },
 } as const satisfies Record<string, GpuTier>;
 
 /** Infra cost on top of the GPU: VPS, monitoring, alerting. Scraping adds proxies. */
@@ -262,8 +265,13 @@ export interface MinerLedgerDiagnostics {
   gpuLabel: string;
   recommendedGpu: string;
   minVramGb: number;
+  gpuPowerWatts: number;
   gpuCostMonthlyUsd: number;
   infraCostMonthlyUsd: number;
+  storageCostMonthlyUsd: number;
+  otherOpexMonthlyUsd: number;
+  amortizedBurnUsd: number;
+  totalCostMonthlyUsd: number;
   netMonthlyUsd: number;
   netDailyTao: number;
   // Seat
@@ -296,6 +304,18 @@ export function scoreMinersLedger(inputs: {
   taoChange24h?: number;
   /** Blocks since the subnet was registered (for the maturity bonus). */
   liveAgeBlocks?: number | null;
+  /** User-configurable cost lines (Profitability Engine settings). When
+   *  absent, market defaults apply — same engine, same shape. */
+  costs?: {
+    hardwareMode?: "rent" | "owned";
+    electricityUsdPerKwh?: number;
+    storageMonthlyUsd?: number;
+    /** 0/undefined = auto infra from the work-type classifier. */
+    infraMonthlyUsd?: number;
+    otherOpexMonthlyUsd?: number;
+    includeBurnAmortization?: boolean;
+    amortizeBurnMonths?: number;
+  };
 }): MinerLedger {
   const { live, taoUsd } = inputs;
   const usd = taoUsd || 0;
@@ -342,11 +362,31 @@ export function scoreMinersLedger(inputs: {
     classifySubnetHardware(live.name, live.identityDescription, {
       fallbackMonthlyUsd: fallbackMonthly,
     });
-  const gpuCost = hardware.tier.monthlyRentUsd;
-  const infraCost = Math.max(hardware.monthlyCostUsd - gpuCost, INFRA_BASE_USD);
+  // --- Cost stack (Profitability Engine lines) ----------------------------
+  const costs = inputs.costs ?? {};
+  const gpuCost =
+    costs.hardwareMode === "owned"
+      ? electricityMonthlyUsd(
+          hardware.tier.powerWatts,
+          costs.electricityUsdPerKwh ?? 0.12
+        )
+      : hardware.tier.monthlyRentUsd;
+  const infraCost =
+    costs.infraMonthlyUsd != null && costs.infraMonthlyUsd > 0
+      ? costs.infraMonthlyUsd
+      : Math.max(hardware.monthlyCostUsd - hardware.tier.monthlyRentUsd, INFRA_BASE_USD);
+  const storageCost = costs.storageMonthlyUsd ?? 0;
+  const otherOpex = costs.otherOpexMonthlyUsd ?? 0;
+  const burnUsd =
+    live.burnCostTao != null && costs.includeBurnAmortization
+      ? Math.max(live.burnCostTao, 0) * usd
+      : 0;
+  const amortizedBurn = burnUsd / Math.max(costs.amortizeBurnMonths ?? 3, 1);
+  const totalCosts = gpuCost + infraCost + storageCost + otherOpex + amortizedBurn;
+  // Zero-revenue subnets are honest losers: the cost stack still applies.
   const netMonthlyUsd = grossMonthlyUsd > 0
-    ? Math.round(grossMonthlyUsd - gpuCost - infraCost)
-    : 0;
+    ? Math.round(grossMonthlyUsd - totalCosts)
+    : -Math.round(totalCosts);
 
   // --- Alpha economics ----------------------------------------------------
   const alphaPriceTao = live.movingPrice;
@@ -466,8 +506,13 @@ export function scoreMinersLedger(inputs: {
     gpuLabel: hardware.tier.label,
     recommendedGpu: hardware.recommendedGpu,
     minVramGb: hardware.minVramGb,
-    gpuCostMonthlyUsd: gpuCost,
-    infraCostMonthlyUsd: infraCost,
+    gpuCostMonthlyUsd: Math.round(gpuCost),
+    infraCostMonthlyUsd: Math.round(infraCost),
+    storageCostMonthlyUsd: Math.round(storageCost),
+    otherOpexMonthlyUsd: Math.round(otherOpex),
+    amortizedBurnUsd: Math.round(amortizedBurn),
+    totalCostMonthlyUsd: Math.round(totalCosts),
+    gpuPowerWatts: hardware.tier.powerWatts,
     netMonthlyUsd,
     netDailyTao:
       usd > 0 ? Math.round((netMonthlyUsd / 30 / usd) * 10000) / 10000 : 0,

@@ -21,6 +21,7 @@ import {
   getLiveDashboardMetrics,
 } from "@/lib/infranex/use-network";
 import { cn, formatNumber, formatCurrency, formatTao } from "@/lib/utils";
+import { useProfitabilityConfig } from "@/lib/infranex/use-profitability";
 import type { Opportunity, ViewKey } from "@/lib/infranex/types";
 
 interface DashboardViewProps {
@@ -31,8 +32,9 @@ interface DashboardViewProps {
 
 export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }: DashboardViewProps) {
   const { data: snap, isFetching, refetch } = useNetwork();
-  const m = getLiveDashboardMetrics(snap);
-  const liveOpps = mergeOpportunities(snap);
+  const { data: profConfig } = useProfitabilityConfig();
+  const m = getLiveDashboardMetrics(snap, profConfig);
+  const liveOpps = mergeOpportunities(snap, profConfig);
   const top = liveOpps.slice(0, 8);
 
   return (

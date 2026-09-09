@@ -136,3 +136,19 @@ export function scoreBand(score: number): {
     return { label: "WATCH", color: "text-warning", bg: "bg-warning/10" };
   return { label: "AVOID", color: "text-destructive", bg: "bg-destructive/10" };
 }
+
+/**
+ * Band with the Profitability Engine's minimum entry rule applied:
+ *   expected net profit < target ($300/mo by default) → AVOID, no matter
+ *   how good the score looks. "Meets target" rows keep their score band.
+ */
+export function opportunityBand(o: {
+  score: number;
+  meetsMinimum?: boolean;
+  targetUsd?: number;
+}): ReturnType<typeof scoreBand> {
+  if (o.meetsMinimum === false) {
+    return { label: "AVOID", color: "text-destructive", bg: "bg-destructive/10" };
+  }
+  return scoreBand(o.score);
+}

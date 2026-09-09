@@ -1,5 +1,7 @@
 // Infranex BT — domain types (adapted for the single-page intelligence platform)
 
+import type { ProfitabilityReport, ProfitVerdict } from "./profitability";
+
 export interface Subnet {
   netuid: number;
   name: string;
@@ -152,6 +154,15 @@ export interface Opportunity {
   freeSlots?: number | null;
   totalSlots?: number | null;
   immunityBlocks?: number | null;
+  // --- Profitability Engine ---
+  /** Full P&L: revenue − GPU − storage − infra − other = net, plus ROI,
+   *  daily/weekly/monthly profit, break-even, margin, risk-adjusted and the
+   *  minimum-entry-rule verdict. */
+  profitability?: ProfitabilityReport;
+  /** Convenience mirror of profitability.verdict for quick band checks. */
+  verdict?: ProfitVerdict;
+  /** Minimum entry rule: net ≥ target. Below → forced AVOID band. */
+  meetsMinimum?: boolean;
 }
 
 export interface UserMiner {

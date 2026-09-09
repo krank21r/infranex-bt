@@ -85,3 +85,20 @@ model WorkerStatus {
   @@index([workerName])
   @@index([createdAt])
 }
+
+// Singleton row (id = 1) — Profitability Engine settings, editable from the UI.
+// The minimum entry rule lives here, NOT buried in code:
+//   net profit < minNetProfitTargetUsd  →  AVOID
+model ProfitabilitySettings {
+  id                      Int      @id @default(1)
+  minNetProfitTargetUsd   Float    @default(300)
+  storageMonthlyUsd       Float    @default(15)
+  infraMonthlyUsd         Float    @default(0) // 0 = auto by work type
+  otherOpexMonthlyUsd     Float    @default(25)
+  hardwareMode            String   @default("rent") // "rent" | "owned"
+  electricityUsdPerKwh    Float    @default(0.12)
+  includeRegistrationBurn Boolean  @default(true)
+  amortizeBurnMonths      Int      @default(3)
+  riskAdjustment          Boolean  @default(true)
+  updatedAt               DateTime @updatedAt
+}

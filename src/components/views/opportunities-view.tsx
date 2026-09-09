@@ -13,9 +13,11 @@ import {
 } from "@/components/ui/select";
 import { OpportunityTable } from "@/components/tables/opportunity-table";
 import { OpportunityCard } from "@/components/cards/opportunity-detail";
+import { ProfitabilitySettingsDialog } from "@/components/cards/profitability-settings";
 import { useNetwork, mergeOpportunities } from "@/lib/infranex/use-network";
-import { cn, scoreBand } from "@/lib/utils";
-import { TrendingUp, LayoutGrid, List, Cpu } from "lucide-react";
+import { useProfitabilityConfig } from "@/lib/infranex/use-profitability";
+import { cn, opportunityBand } from "@/lib/utils";
+import { TrendingUp, LayoutGrid, List, Cpu, Settings2 } from "lucide-react";
 import type { Opportunity } from "@/lib/infranex/types";
 
 interface OpportunitiesViewProps {
@@ -43,8 +45,12 @@ export function OpportunitiesView({ onSelectOpportunity, onStartMining }: Opport
   const [filter, setFilter] = useState<"all" | "RUN" | "WATCH" | "AVOID">("all");
   const [gpuFilter, setGpuFilter] = useState("any");
   const [gpuDirty, setGpuDirty] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const { data: snap } = useNetwork();
-  const opportunities = mergeOpportunities(snap);
+  const { data: profConfig } = useProfitabilityConfig();
+  const opportunities = mergeOpportunities(snap, profConfig);
+  const target = profConfig?.minNetProfitTargetUsd ?? 300;
+  const passCount = opportunities.filter((o) => o.meetsMinimum !== false).length;
 
   // Restore the miner's hardware profile across visits. Deferred past the
   // hydration pass so SSR markup stays deterministic.
@@ -72,15 +78,15 @@ export function OpportunitiesView({ onSelectOpportunity, onStartMining }: Opport
       if (gf.maxVram === 0) r = r.filter((o) => o.minVramGb <= 0);
       else if (gf.maxVram != null) r = r.filter((o) => o.minVramGb <= gf.maxVram!);
     }
-    if (filter !== "all") r = r.filter((o) => scoreBand(o.score).label === filter);
+    if (filter !== "all") r = r.filter((o) => opportunityBand(o).label === filter);
     return r;
   }, [filter, gpuFilter, opportunities]);
 
   const tabs: { key: typeof filter; label: string; count: number }[] = [
     { key: "all", label: "All", count: filtered.length },
-    { key: "RUN", label: "RUN", count: filtered.filter((o) => scoreBand(o.score).label === "RUN").length },
-    { key: "WATCH", label: "WATCH", count: filtered.filter((o) => scoreBand(o.score).label === "WATCH").length },
-    { key: "AVOID", label: "AVOID", count: filtered.filter((o) => scoreBand(o.score).label === "AVOID").length },
+    { key: "RUN", label: "RUN", count: filtered.filter((o) => opportunityBand(o).label === "RUN").length },
+    { key: "WATCH", label: "WATCH", count: filtered.filter((o) => opportunityBand(o).label === "WATCH").length },
+    { key: "AVOID", label: "AVOID", count: filtered.filter((o) => opportunityBand(o).label === "AVOID").length },
   ];
 
   return (
@@ -96,6 +102,17 @@ export function OpportunitiesView({ onSelectOpportunity, onStartMining }: Opport
             revenue minus GPU + infra cost, seat safety (slot pressure, reward
             concentration, burn, immunity), alpha economics (24h trend,
             liquidity, slippage) and earning reality.
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Profitability Engine: revenue − GPU − storage − infra − other = net.
+            Minimum entry rule: net &lt;{" "}
+            <span className="font-semibold text-foreground/80">
+              ${target.toLocaleString()}/mo
+            </span>{" "}
+            → AVOID ·{" "}
+            <span className={cn("font-semibold", passCount > 0 ? "text-success" : "text-destructive")}>
+              {passCount} pass
+            </span>
           </p>
         </div>
         <div className="flex items-center gap-1 rounded-lg border bg-card/40 p-1">
@@ -153,8 +170,24 @@ export function OpportunitiesView({ onSelectOpportunity, onStartMining }: Opport
               ))}
             </SelectContent>
           </Select>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-full"
+            title="Profitability settings — minimum net profit target, cost lines"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <Settings2 className="h-4 w-4" />
+          </Button>
         </div>
       </div>
+
+      <ProfitabilitySettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        passCount={passCount}
+        totalCount={opportunities.length}
+      />
 
       <Card className="border-border/60 bg-card/40 backdrop-blur-sm">
         <CardHeader className="pb-3">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { cn, formatCurrency, formatPercent, getStatusColor, scoreBand } from "@/lib/utils";
+import { cn, formatCurrency, formatPercent, getStatusColor, opportunityBand } from "@/lib/utils";
 import { ChevronUp, ChevronDown, ChevronsUpDown, Search, MoreHorizontal, Zap } from "lucide-react";
 import {
   Table,
@@ -261,8 +261,9 @@ export function OpportunityTable({
               </TableRow>
             ) : (
               filtered.map((o) => {
-                const band = scoreBand(o.score);
+                const band = opportunityBand(o);
                 const risk = getStatusColor(o.riskLevel);
+                const prof = o.profitability;
                 return (
                   <TableRow
                     key={o.id}
@@ -310,23 +311,44 @@ export function OpportunityTable({
                       </TableCell>
                     )}
                     <TableCell className="text-right">
-                      <span
-                        title={
-                          o.gpuCostMonthlyUsd != null
-                            ? `Gross $${(o.grossMonthlyUsd ?? 0).toLocaleString()} − GPU $${Math.round(o.gpuCostMonthlyUsd).toLocaleString()} − infra $${Math.round(o.infraCostMonthlyUsd ?? 0).toLocaleString()} — what a median-performing miner keeps per month`
-                            : "Per-earning-miner monthly revenue"
-                        }
-                        className={cn(
-                          "tabular font-semibold",
-                          (o.netMonthlyUsd ?? o.estimatedMonthlyRewardUsd) > 0
-                            ? "text-success"
-                            : (o.netMonthlyUsd ?? o.estimatedMonthlyRewardUsd) < 0
-                              ? "text-destructive"
-                              : "text-muted-foreground"
+                      <div className="flex flex-col items-end gap-0.5">
+                        <span
+                          title={
+                            prof
+                              ? `Revenue ${formatCurrency(prof.expectedRevenueUsd)} − GPU ${formatCurrency(prof.gpuRentalUsd)} − storage ${formatCurrency(prof.storageUsd)} − infra ${formatCurrency(prof.infrastructureUsd)} − other ${formatCurrency(prof.otherOperatingTotalUsd)} = net ${formatCurrency(prof.netMonthlyUsd)}/mo`
+                              : o.gpuCostMonthlyUsd != null
+                                ? `Gross $${(o.grossMonthlyUsd ?? 0).toLocaleString()} − GPU $${Math.round(o.gpuCostMonthlyUsd).toLocaleString()} − infra $${Math.round(o.infraCostMonthlyUsd ?? 0).toLocaleString()} — what a median-performing miner keeps per month`
+                                : "Per-earning-miner monthly revenue"
+                          }
+                          className={cn(
+                            "tabular font-semibold",
+                            (o.netMonthlyUsd ?? o.estimatedMonthlyRewardUsd) > 0
+                              ? "text-success"
+                              : (o.netMonthlyUsd ?? o.estimatedMonthlyRewardUsd) < 0
+                                ? "text-destructive"
+                                : "text-muted-foreground"
+                          )}
+                        >
+                          {formatCurrency(o.netMonthlyUsd ?? o.estimatedMonthlyRewardUsd)}
+                        </span>
+                        {prof && (
+                          <span
+                            className={cn(
+                              "text-[10px] font-medium",
+                              prof.meetsMinimum ? "text-success" : "text-destructive"
+                            )}
+                            title={
+                              prof.meetsMinimum
+                                ? `Meets the minimum net profit target ($${prof.targetUsd.toLocaleString()}/mo) — margin ${prof.profitMarginPct.toFixed(0)}%, ROI ${prof.roiMonthlyPct.toFixed(0)}%/mo`
+                                : `Below the minimum net profit target by ${formatCurrency(prof.shortfallUsd)}/mo — AVOID`
+                            }
+                          >
+                            {prof.meetsMinimum
+                              ? `✓ ≥ $${prof.targetUsd.toLocaleString()} target`
+                              : `✗ < $${prof.targetUsd.toLocaleString()} target`}
+                          </span>
                         )}
-                      >
-                        {formatCurrency(o.netMonthlyUsd ?? o.estimatedMonthlyRewardUsd)}
-                      </span>
+                      </div>
                     </TableCell>
                     {!compact && (
                       <TableCell className="text-right">

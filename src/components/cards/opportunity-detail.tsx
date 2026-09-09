@@ -1,6 +1,6 @@
 "use client";
 
-import { cn, formatCurrency, formatPercent, getStatusColor, scoreBand } from "@/lib/utils";
+import { cn, formatCurrency, formatPercent, getStatusColor, opportunityBand } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -12,7 +12,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { TrendingUp, AlertTriangle, Cpu, Wallet } from "lucide-react";
+import { TrendingUp, AlertTriangle, Cpu, Wallet, Calculator } from "lucide-react";
 import { formatNumber } from "@/lib/utils";
 import type { Opportunity } from "@/lib/infranex/types";
 
@@ -29,8 +29,9 @@ export function OpportunityDetailDialog({
 }: OpportunityDetailDialogProps) {
   if (!opportunity) return null;
   const o = opportunity;
-  const band = scoreBand(o.score);
+  const band = opportunityBand(o);
   const risk = getStatusColor(o.riskLevel);
+  const prof = o.profitability;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -43,6 +44,20 @@ export function OpportunityDetailDialog({
             <Badge variant="outline" className={cn(band.bg, band.color)}>
               {band.label}
             </Badge>
+            {prof && (
+              <Badge
+                variant="outline"
+                className={cn(
+                  prof.verdict === "PROFITABLE" && "bg-success/10 text-success",
+                  prof.verdict === "MARGINAL" && "bg-warning/10 text-warning",
+                  prof.verdict === "AVOID" && "bg-destructive/10 text-destructive"
+                )}
+              >
+                {prof.verdict === "PROFITABLE" && "✓ Profitable"}
+                {prof.verdict === "MARGINAL" && "≈ Marginal"}
+                {prof.verdict === "AVOID" && "✗ Below target"}
+              </Badge>
+            )}
             <Badge variant="outline" className={cn(risk.bg, risk.text, "capitalize")}>
               {o.riskLevel} risk
             </Badge>
@@ -56,6 +71,178 @@ export function OpportunityDetailDialog({
             {new Date(o.updatedAt).toLocaleTimeString()}
           </DialogDescription>
         </DialogHeader>
+
+        {/* --- Profitability Engine: P&L waterfall + minimum entry rule --- */}
+        {prof && (
+          <div
+            className={cn(
+              "rounded-lg border p-4",
+              prof.meetsMinimum
+                ? "border-success/30 bg-success/5"
+                : "border-destructive/40 bg-destructive/5"
+            )}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-display flex items-center gap-2 text-base font-semibold">
+                <Calculator className="h-4 w-4 text-primary" />
+                Profitability engine
+              </h3>
+              <span className="text-eyebrow text-muted-foreground">
+                monthly USD · per mid-pack miner
+              </span>
+            </div>
+
+            {!prof.meetsMinimum && (
+              <div className="mt-2 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                <p className="text-xs text-destructive">
+                  <span className="font-bold">AVOID</span> — expected net profit{" "}
+                  {formatCurrency(prof.netMonthlyUsd)}/mo is below the minimum target of{" "}
+                  {formatCurrency(prof.targetUsd)}/mo (shortfall{" "}
+                  {formatCurrency(prof.shortfallUsd)}). Raise the bar or skip this subnet.
+                </p>
+              </div>
+            )}
+
+            {/* Waterfall: revenue − cost lines = net */}
+            <div className="mt-3 space-y-1 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Expected revenue</span>
+                <span className="tabular font-semibold">{formatCurrency(prof.expectedRevenueUsd)}</span>
+              </div>
+              <div className="flex items-center justify-between pl-4 text-muted-foreground">
+                <span>− GPU rental{prof.gpuRentalUsd === 0 && " (none)"}</span>
+                <span className="tabular">−{formatCurrency(prof.gpuRentalUsd)}</span>
+              </div>
+              <div className="flex items-center justify-between pl-4 text-muted-foreground">
+                <span>− Storage</span>
+                <span className="tabular">−{formatCurrency(prof.storageUsd)}</span>
+              </div>
+              <div className="flex items-center justify-between pl-4 text-muted-foreground">
+                <span>− Infrastructure</span>
+                <span className="tabular">−{formatCurrency(prof.infrastructureUsd)}</span>
+              </div>
+              <div className="flex items-center justify-between pl-4 text-muted-foreground">
+                <span
+                  title={
+                    prof.amortizedBurnUsd > 0
+                      ? `Includes ${formatCurrency(prof.amortizedBurnUsd)}/mo amortized registration burn`
+                      : "Bandwidth, fees, misc operating costs"
+                  }
+                >
+                  − Other operating
+                  {prof.amortizedBurnUsd > 0 && (
+                    <span className="ml-1 text-[10px]">(incl. reg burn)</span>
+                  )}
+                </span>
+                <span className="tabular">−{formatCurrency(prof.otherOperatingTotalUsd)}</span>
+              </div>
+              <div className="flex items-center justify-between border-t border-border/60 pt-1.5">
+                <span className="font-semibold">= Net profit</span>
+                <span
+                  className={cn(
+                    "tabular text-lg font-bold",
+                    prof.netMonthlyUsd >= 0 ? "text-success" : "text-destructive"
+                  )}
+                >
+                  {formatCurrency(prof.netMonthlyUsd)}
+                  <span className="ml-1 text-[10px] font-normal text-muted-foreground">/mo</span>
+                </span>
+              </div>
+              <p className="text-right text-[10px] text-muted-foreground">
+                minimum target {formatCurrency(prof.targetUsd)}/mo ·{" "}
+                {prof.meetsMinimum ? (
+                  <span className="text-success">PASSED</span>
+                ) : (
+                  <span className="text-destructive">FAILED</span>
+                )}
+              </p>
+            </div>
+
+            {/* Metrics grid */}
+            <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-border/60 pt-3 text-sm sm:grid-cols-4">
+              <div>
+                <p className="text-[10px] text-muted-foreground">ROI (monthly)</p>
+                <p
+                  className={cn(
+                    "tabular font-semibold",
+                    prof.roiMonthlyPct >= 0 ? "text-success" : "text-destructive"
+                  )}
+                  title={`Net profit ÷ total operating cost — annualized ≈ ${prof.roiAnnualPct.toFixed(0)}%`}
+                >
+                  {prof.roiMonthlyPct.toFixed(1)}%
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground">Daily profit</p>
+                <p
+                  className={cn(
+                    "tabular font-semibold",
+                    prof.netDailyUsd >= 0 ? "text-success" : "text-destructive"
+                  )}
+                >
+                  {formatCurrency(prof.netDailyUsd)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground">Weekly profit</p>
+                <p
+                  className={cn(
+                    "tabular font-semibold",
+                    prof.netWeeklyUsd >= 0 ? "text-success" : "text-destructive"
+                  )}
+                >
+                  {formatCurrency(prof.netWeeklyUsd)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground">Monthly profit</p>
+                <p
+                  className={cn(
+                    "tabular font-semibold",
+                    prof.netMonthlyUsd >= 0 ? "text-success" : "text-destructive"
+                  )}
+                >
+                  {formatCurrency(prof.netMonthlyUsd)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground">Break-even</p>
+                <p className="tabular font-semibold">
+                  {prof.breakEvenDays != null ? `${prof.breakEvenDays} days` : "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground">Profit margin</p>
+                <p
+                  className={cn(
+                    "tabular font-semibold",
+                    prof.profitMarginPct >= 15 ? "text-success" : prof.profitMarginPct >= 0 ? "text-warning" : "text-destructive"
+                  )}
+                >
+                  {prof.profitMarginPct.toFixed(1)}%
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground" title={`Risk haircut ${(prof.riskFactor * 100).toFixed(0)}% from seat safety, alpha economics and earning reality`}>
+                  Risk-adjusted
+                </p>
+                <p
+                  className={cn(
+                    "tabular font-semibold",
+                    prof.riskAdjustedMonthlyUsd >= prof.targetUsd ? "text-success" : "text-warning"
+                  )}
+                >
+                  {formatCurrency(prof.riskAdjustedMonthlyUsd)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground">Total opex</p>
+                <p className="tabular font-semibold">{formatCurrency(prof.totalCostsUsd)}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid gap-4 sm:grid-cols-3">
           <Card className="bg-card/40">
@@ -290,8 +477,9 @@ export function OpportunityDetailDialog({
 
 /** Compact card for grid layouts. */
 export function OpportunityCard({ opportunity: o }: { opportunity: Opportunity }) {
-  const band = scoreBand(o.score);
+  const band = opportunityBand(o);
   const risk = getStatusColor(o.riskLevel);
+  const prof = o.profitability;
   return (
     <Card className="editorial-card transition-all hover:border-primary/40">
       <CardHeader className="pb-3">
@@ -339,6 +527,18 @@ export function OpportunityCard({ opportunity: o }: { opportunity: Opportunity }
             >
               {formatCurrency(o.netMonthlyUsd ?? o.estimatedMonthlyRewardUsd)}
             </p>
+            {prof && (
+              <p
+                className={cn(
+                  "text-[10px] font-medium",
+                  prof.meetsMinimum ? "text-success" : "text-destructive"
+                )}
+              >
+                {prof.meetsMinimum
+                  ? `✓ ≥ $${prof.targetUsd.toLocaleString()} target`
+                  : `✗ AVOID · < $${prof.targetUsd.toLocaleString()}`}
+              </p>
+            )}
           </div>
           <div>
             <p className="text-xs text-muted-foreground">GPU</p>

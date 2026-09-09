@@ -11,6 +11,11 @@ import {
   totalScore,
   riskLevel,
 } from "./miner-score";
+import {
+  computeProfitabilityReport,
+  DEFAULT_PROFITABILITY_CONFIG,
+  type ProfitabilityConfig,
+} from "./profitability";
 import type {
   LiveNetworkSnapshot,
   LiveSubnetMetrics,
@@ -192,13 +197,15 @@ export function mergeSubnets(
 // ---------------------------------------------------------------------------
 
 export function mergeOpportunities(
-  snap: LiveNetworkSnapshot | undefined
+  snap: LiveNetworkSnapshot | undefined,
+  profConfig?: ProfitabilityConfig
 ): LiveOpportunity[] {
   if (!snap || snap.subnets.length === 0) return curatedOpportunities;
   const curatedByNetuid = new Map(
     curatedOpportunities.map((o) => [o.netuid, o])
   );
   const usd = snap.taoPriceUsd || 0;
+  const config = profConfig ?? DEFAULT_PROFITABILITY_CONFIG;
   const updatedAt = new Date().toISOString();
   const rows: LiveOpportunity[] = [];
 
@@ -239,8 +246,33 @@ export function mergeOpportunities(
       taoUsd: usd,
       hardware,
       liveAgeBlocks,
+      costs: {
+        hardwareMode: config.hardwareMode,
+        electricityUsdPerKwh: config.electricityUsdPerKwh,
+        storageMonthlyUsd: config.storageMonthlyUsd,
+        infraMonthlyUsd: config.infraMonthlyUsd,
+        otherOpexMonthlyUsd: config.otherOpexMonthlyUsd,
+        includeBurnAmortization: config.includeRegistrationBurn,
+        amortizeBurnMonths: config.amortizeBurnMonths,
+      },
     });
     const score = totalScore(components);
+
+    // --- Profitability Engine: full P&L + minimum entry rule ---------------
+    const profitability = computeProfitabilityReport({
+      grossMonthlyUsd: diag.grossMonthlyUsd,
+      gpuRentMonthlyUsd: hardware.tier.monthlyRentUsd,
+      gpuPowerWatts: diag.gpuPowerWatts,
+      autoInfraMonthlyUsd: Math.max(
+        hardware.monthlyCostUsd - hardware.tier.monthlyRentUsd,
+        0
+      ),
+      burnCostTao: live.burnCostTao,
+      rampWeeks: diag.rampWeeks,
+      taoUsd: usd,
+      score: components,
+      config,
+    });
 
     // Utilization: share of registered slots that actually earned reward
     // last epoch — the reward-concentration signal from the chain vecs.
@@ -295,10 +327,13 @@ export function mergeOpportunities(
       recommendedGpu: diag.recommendedGpu,
       workType: diag.category,
       grossMonthlyUsd: diag.grossMonthlyUsd,
-      netMonthlyUsd: diag.netMonthlyUsd,
+      netMonthlyUsd: profitability.netMonthlyUsd,
       gpuCostMonthlyUsd: diag.gpuCostMonthlyUsd,
       infraCostMonthlyUsd: diag.infraCostMonthlyUsd,
       netDailyTao: diag.netDailyTao,
+      profitability,
+      verdict: profitability.verdict,
+      meetsMinimum: profitability.meetsMinimum,
       alphaPriceUsd: diag.alphaPriceUsd,
       alphaChange24h: diag.alphaChange24h,
       liquidityTao: diag.liquidityTao,
@@ -324,9 +359,12 @@ export function mergeOpportunities(
 }
 
 /** Aggregated dashboard metrics using live values where available. */
-export function getLiveDashboardMetrics(snap: LiveNetworkSnapshot | undefined) {
+export function getLiveDashboardMetrics(
+  snap: LiveNetworkSnapshot | undefined,
+  profConfig?: ProfitabilityConfig
+) {
   const liveSubnets = mergeSubnets(snap);
-  const liveOpps = mergeOpportunities(snap);
+  const liveOpps = mergeOpportunities(snap, profConfig);
   const trackedSubnets = curatedSubnets.length;
   const activeSubnets = liveSubnets.filter((s) => s.status === "active").length;
   const totalMiners = liveSubnets.reduce((a, s) => a + s.minersCount, 0);
@@ -335,9 +373,14 @@ export function getLiveDashboardMetrics(snap: LiveNetworkSnapshot | undefined) {
     : liveSubnets.reduce((a, s) => a + s.marketCap, 0);
   const avgScore =
     liveOpps.reduce((a, o) => a + o.score, 0) / liveOpps.length;
-  const runCount = liveOpps.filter((o) => o.score >= 60).length;
-  const watchCount = liveOpps.filter((o) => o.score >= 40 && o.score < 60).length;
-  const avoidCount = liveOpps.filter((o) => o.score < 40).length;
+  const runCount = liveOpps.filter((o) => o.score >= 60 && o.meetsMinimum !== false).length;
+  const watchCount = liveOpps.filter(
+    (o) => o.score >= 40 && o.score < 60 && o.meetsMinimum !== false
+  ).length;
+  // AVOID = weak score OR below the minimum net-profit target.
+  const avoidCount = liveOpps.filter(
+    (o) => o.score < 40 || o.meetsMinimum === false
+  ).length;
 
   return {
     trackedSubnets,
