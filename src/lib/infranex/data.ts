@@ -412,6 +412,185 @@ export const subnets: Subnet[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Mining requirements — per-category technical specs
+// ---------------------------------------------------------------------------
+
+import type { MiningRequirements } from "./types";
+
+const CATEGORY_REQUIREMENTS: Record<
+  string,
+  { dockerImage: string; command: string; extraArgs: string[]; keyDeps: string[]; python: string; cuda: string }
+> = {
+  Inference: {
+    dockerImage: "bittensor/subnet:latest",
+    command: "python neurons/miner.py --no_auto_weights_update",
+    extraArgs: ["--neuron.device cuda", "--neuron.num_workers 1"],
+    keyDeps: ["torch>=2.1", "transformers>=4.36", "bittensor>=6.9", "accelerate>=0.25"],
+    python: "3.10",
+    cuda: "12.1",
+  },
+  Vision: {
+    dockerImage: "bittensor/vision-subnet:latest",
+    command: "python neurons/miner.py --neuron.model_name diffusion",
+    extraArgs: ["--neuron.device cuda", "--neuron.batch_size 4"],
+    keyDeps: ["torch>=2.1", "diffusers>=0.25", "transformers>=4.36", "bittensor>=6.9", "accelerate>=0.25"],
+    python: "3.10",
+    cuda: "12.1",
+  },
+  Training: {
+    dockerImage: "bittensor/training-subnet:latest",
+    command: "python neurons/miner.py --neuron.compile",
+    extraArgs: ["--neuron.device cuda", "--neuron.world_size 1"],
+    keyDeps: ["torch>=2.2", "transformers>=4.36", "deepspeed>=0.13", "bittensor>=6.9", "flash-attn>=2.5"],
+    python: "3.10",
+    cuda: "12.2",
+  },
+  Data: {
+    dockerImage: "bittensor/data-subnet:latest",
+    command: "python neurons/miner.py",
+    extraArgs: ["--neuron.device cuda"],
+    keyDeps: ["torch>=2.1", "pandas>=2.0", "scikit-learn>=1.3", "bittensor>=6.9"],
+    python: "3.10",
+    cuda: "12.1",
+  },
+  Audio: {
+    dockerImage: "bittensor/audio-subnet:latest",
+    command: "python neurons/miner.py",
+    extraArgs: ["--neuron.device cuda"],
+    keyDeps: ["torch>=2.1", "torchaudio>=2.1", "transformers>=4.36", "bittensor>=6.9", "librosa>=0.10"],
+    python: "3.10",
+    cuda: "12.1",
+  },
+  Compute: {
+    dockerImage: "bittensor/compute-subnet:latest",
+    command: "python neurons/miner.py",
+    extraArgs: ["--neuron.device cuda"],
+    keyDeps: ["torch>=2.1", "bittensor>=6.9", "docker>=6.0"],
+    python: "3.10",
+    cuda: "12.1",
+  },
+  Science: {
+    dockerImage: "bittensor/science-subnet:latest",
+    command: "python neurons/miner.py",
+    extraArgs: ["--neuron.device cuda"],
+    keyDeps: ["torch>=2.1", "biopython>=1.83", "transformers>=4.36", "bittensor>=6.9", "fair-esm>=2.0"],
+    python: "3.10",
+    cuda: "12.1",
+  },
+  Security: {
+    dockerImage: "bittensor/security-subnet:latest",
+    command: "python neurons/miner.py",
+    extraArgs: ["--neuron.device cuda"],
+    keyDeps: ["torch>=2.1", "slither-analyzer>=0.9", "bittensor>=6.9", "solc-select>=2.0"],
+    python: "3.10",
+    cuda: "12.1",
+  },
+  DeFi: {
+    dockerImage: "bittensor/defi-subnet:latest",
+    command: "python neurons/miner.py",
+    extraArgs: ["--neuron.device cuda"],
+    keyDeps: ["torch>=2.1", "web3>=6.0", "bittensor>=6.9", "pandas>=2.0"],
+    python: "3.10",
+    cuda: "12.1",
+  },
+  Multimodal: {
+    dockerImage: "bittensor/multimodal-subnet:latest",
+    command: "python neurons/miner.py",
+    extraArgs: ["--neuron.device cuda", "--neuron.batch_size 2"],
+    keyDeps: ["torch>=2.2", "transformers>=4.36", "diffusers>=0.25", "bittensor>=6.9", "accelerate>=0.25", "flash-attn>=2.5"],
+    python: "3.10",
+    cuda: "12.2",
+  },
+};
+
+function buildMiningRequirements(s: typeof subnets[number]): MiningRequirements {
+  const cat = CATEGORY_REQUIREMENTS[s.category] ?? CATEGORY_REQUIREMENTS.Data;
+  const axonPort = 8091;
+  const prometheusPort = 8092;
+
+  const alternativeGpus: string[] = [];
+  if (s.minVramGb <= 24) alternativeGpus.push("RTX 4090 (24GB)", "RTX A5000 (24GB)", "RTX 3090 (24GB)");
+  if (s.minVramGb <= 40) alternativeGpus.push("A100 40GB", "RTX A6000 (48GB)", "L40S (48GB)");
+  if (s.minVramGb <= 80) alternativeGpus.push("A100 80GB", "H100 80GB", "H100 NVL (94GB)");
+  if (s.minVramGb > 80) alternativeGpus.push("H200 141GB", "B200 180GB");
+
+  const minCudaCompute = s.minVramGb >= 80 ? "8.0+ (Ampere/Hopper)" : "7.5+ (Turing+)";
+  const minCpuCores = Math.max(8, Math.ceil(s.minVramGb / 8));
+  const minRamGb = Math.max(64, s.minVramGb);
+  const recommendedRamGb = Math.max(128, s.minVramGb * 2);
+
+  const command = `${cat.command} \\
+  --subtensor.network finney \\
+  --netuid ${s.netuid} \\
+  --wallet.name infranex \\
+  --wallet.hotkey default \\
+  --axon.port ${axonPort} \\
+  --logging.debug \\
+  ${cat.extraArgs.join(" \\\n  ")}`;
+
+  return {
+    gpu: {
+      minVramGb: s.minVramGb,
+      recommendedGpu: s.recommendedGpu,
+      alternativeGpus: alternativeGpus.slice(0, 5),
+      minCudaComputeCapability: minCudaCompute,
+      gpuCount: 1,
+    },
+    runtime: {
+      pythonVersion: cat.python,
+      cudaVersion: cat.cuda,
+      dockerRequired: true,
+      nvidiaRuntimeRequired: true,
+      dockerImage: cat.dockerImage,
+    },
+    hardware: {
+      minCpuCores,
+      minRamGb,
+      minDiskGb: 200,
+      recommendedRamGb,
+    },
+    network: {
+      subtensorNetwork: "finney",
+      subtensorEndpoint: "wss://entrypoint-finney.opentensor.ai:443",
+      axonPort,
+      prometheusPort,
+      openPorts: [`${axonPort}/tcp`, `${prometheusPort}/tcp`],
+    },
+    miner: {
+      command,
+      walletName: "infranex",
+      hotkeyName: "default",
+      extraArgs: cat.extraArgs,
+      keyDependencies: cat.keyDeps,
+    },
+    registration: {
+      minStakeTao: Math.max(0.01, Math.round((s.taoInReserve / Math.max(s.minersCount, 1) * 0.001) * 100) / 100),
+      registrationCostTao: 1.0,
+      tempo: s.tempo,
+      maxRegistrationsPerBlock: 1,
+    },
+    docker: {
+      imageName: cat.dockerImage,
+      ports: [`${axonPort}/tcp`, `${prometheusPort}/tcp`],
+      volumes: [{ path: "/workspace", sizeGb: 100 }],
+      envVars: [
+        { name: "BT_NETWORK", description: "Bittensor network (finney/test)", required: true },
+        { name: "BT_NETUID", description: "Subnet netuid to mine on", required: true },
+        { name: "BT_WALLET_NAME", description: "Wallet name for the miner", required: true },
+        { name: "BT_HOTKEY_NAME", description: "Hotkey name for the miner", required: true },
+        { name: "NVIDIA_VISIBLE_DEVICES", description: "GPU device visibility", required: true },
+        { name: "PYTHONUNBUFFERED", description: "Unbuffered Python output", required: false },
+      ],
+    },
+  };
+}
+
+// Populate mining requirements for all subnets
+subnets.forEach((s) => {
+  s.miningRequirements = buildMiningRequirements(s);
+});
+
+// ---------------------------------------------------------------------------
 // Scoring — 3-pillar model (Utility 30%, Technical 35%, Economics 35%)
 // ---------------------------------------------------------------------------
 

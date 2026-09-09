@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SubnetCard } from "@/components/cards/subnet-card";
 import { SubnetEditDialog } from "@/components/subnets/subnet-edit-dialog";
+import { SubnetRequirementsDialog } from "@/components/subnets/subnet-requirements-dialog";
 import { subnets as curatedSubnets, opportunities as curatedOpportunities } from "@/lib/infranex/data";
 import { useNetwork, mergeSubnets } from "@/lib/infranex/use-network";
 import { useSubnetOverrides, useSyncAllSubnets } from "@/lib/infranex/use-subnet-overrides";
@@ -20,6 +21,8 @@ export function SubnetsView() {
   const [activeOnly, setActiveOnly] = useState<"all" | "active" | "open">("all");
   const [editSubnet, setEditSubnet] = useState<Subnet | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [reqSubnet, setReqSubnet] = useState<Subnet | null>(null);
+  const [reqOpen, setReqOpen] = useState(false);
   const { data: snap, isFetching, refetch } = useNetwork();
   const { data: overrides } = useSubnetOverrides();
   const syncMut = useSyncAllSubnets();
@@ -55,6 +58,11 @@ export function SubnetsView() {
   const handleEdit = (s: Subnet) => {
     setEditSubnet(s);
     setEditOpen(true);
+  };
+
+  const handleViewRequirements = (s: Subnet) => {
+    setReqSubnet(s);
+    setReqOpen(true);
   };
 
   const handleSyncAll = async (force: boolean = false) => {
@@ -210,6 +218,7 @@ export function SubnetsView() {
                 score={sr?.score}
                 rank={sr?.rank}
                 onEdit={handleEdit}
+                onViewRequirements={handleViewRequirements}
               />
             );
           })}
@@ -220,6 +229,12 @@ export function SubnetsView() {
         subnet={editSubnet}
         open={editOpen}
         onOpenChange={setEditOpen}
+      />
+
+      <SubnetRequirementsDialog
+        subnet={reqSubnet}
+        open={reqOpen}
+        onOpenChange={setReqOpen}
       />
     </div>
   );

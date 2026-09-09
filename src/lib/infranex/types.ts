@@ -25,6 +25,57 @@ export interface Subnet {
   recommendedGpu: string;
   githubUrl?: string | null;
   website?: string | null;
+  miningRequirements?: MiningRequirements;
+}
+
+/** Complete technical requirements to mine a subnet. */
+export interface MiningRequirements {
+  gpu: {
+    minVramGb: number;
+    recommendedGpu: string;
+    alternativeGpus: string[];
+    minCudaComputeCapability: string;
+    gpuCount: number;
+  };
+  runtime: {
+    pythonVersion: string;
+    cudaVersion: string;
+    dockerRequired: boolean;
+    nvidiaRuntimeRequired: boolean;
+    dockerImage: string;
+  };
+  hardware: {
+    minCpuCores: number;
+    minRamGb: number;
+    minDiskGb: number;
+    recommendedRamGb: number;
+  };
+  network: {
+    subtensorNetwork: "finney" | "test";
+    subtensorEndpoint: string;
+    axonPort: number;
+    prometheusPort: number;
+    openPorts: string[];
+  };
+  miner: {
+    command: string;
+    walletName: string;
+    hotkeyName: string;
+    extraArgs: string[];
+    keyDependencies: string[];
+  };
+  registration: {
+    minStakeTao: number;
+    registrationCostTao: number;
+    tempo: number;
+    maxRegistrationsPerBlock: number;
+  };
+  docker: {
+    imageName: string;
+    ports: string[];
+    volumes: { path: string; sizeGb: number }[];
+    envVars: { name: string; description: string; required: boolean }[];
+  };
 }
 
 /** Fields that can be sourced from the live chain. */

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Users, Shield, Cpu, TrendingUp, TrendingDown, Settings2 } from "lucide-react";
+import { Users, Shield, Cpu, TrendingUp, TrendingDown, Settings2, FileText } from "lucide-react";
 import type { Subnet } from "@/lib/infranex/types";
 
 interface SubnetCardProps {
@@ -18,6 +18,7 @@ interface SubnetCardProps {
   rank?: number;
   onSelect?: (s: Subnet) => void;
   onEdit?: (s: Subnet) => void;
+  onViewRequirements?: (s: Subnet) => void;
 }
 
 function FieldBadge({
@@ -50,7 +51,7 @@ function FieldBadge({
   return <span>{children}</span>;
 }
 
-export function SubnetCard({ subnet: s, score, rank, onSelect, onEdit }: SubnetCardProps) {
+export function SubnetCard({ subnet: s, score, rank, onSelect, onEdit, onViewRequirements }: SubnetCardProps) {
   const status = getStatusColor(s.status);
   const up = s.change24h >= 0;
   const util = Math.min(100, (s.minersCount / s.maxNeurons) * 100);
@@ -103,20 +104,36 @@ export function SubnetCard({ subnet: s, score, rank, onSelect, onEdit }: SubnetC
                 {score.toFixed(1)}
               </p>
             )}
-            {onEdit && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="mt-1 h-6 w-6"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEdit(s);
-                }}
-                aria-label="Edit metadata"
-              >
-                <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
-              </Button>
-            )}
+            <div className="mt-1 flex items-center gap-0.5">
+              {onViewRequirements && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 gap-1 px-1.5 text-[10px] text-primary"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onViewRequirements(s);
+                  }}
+                >
+                  <FileText className="h-3 w-3" />
+                  Requirements
+                </Button>
+              )}
+              {onEdit && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(s);
+                  }}
+                  aria-label="Edit metadata"
+                >
+                  <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </CardHeader>
