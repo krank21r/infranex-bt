@@ -269,6 +269,10 @@ export function mergeOpportunities(
       ),
       burnCostTao: live.burnCostTao,
       rampWeeks: diag.rampWeeks,
+      bullGrossMonthlyUsd:
+        diag.perEarningDailyTao > 0
+          ? diag.perEarningDailyTao * 30 * usd
+          : undefined,
       taoUsd: usd,
       score: components,
       config,

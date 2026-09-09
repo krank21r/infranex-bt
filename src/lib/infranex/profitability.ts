@@ -93,6 +93,33 @@ export function sanitizeProfitabilityConfig(raw: unknown): ProfitabilityConfig {
 
 export type ProfitVerdict = "PROFITABLE" | "MARGINAL" | "AVOID";
 
+// ---------------------------------------------------------------------------
+// Bear / Base / Bull — a planning RANGE, not a promise. Answers the miner's
+// real question: "what are the chances I earn the headline number every
+// month?" — by showing the downside month, the modeled mid-pack month and
+// today's upside reference side by side.
+// ---------------------------------------------------------------------------
+
+export interface ProfitScenario {
+  /** Scenario gross revenue, monthly USD. */
+  grossMonthlyUsd: number;
+  /** Scenario net profit after the FULL cost stack, monthly USD. */
+  netMonthlyUsd: number;
+  /** True when the scenario still clears the minimum entry target. */
+  meetsTarget: boolean;
+  /** Short explanation of the scenario's assumptions. */
+  note: string;
+}
+
+export interface ProfitScenarios {
+  /** First month: bond-EMA ramp fraction of base revenue + alpha −40%. */
+  bear: ProfitScenario;
+  /** The base P&L — median rewarded miner after ramp, current prices. */
+  base: ProfitScenario;
+  /** Upside — what today's mean earning miner on this subnet grosses. */
+  bull: ProfitScenario;
+}
+
 export interface ProfitabilityReport {
   // --- P&L waterfall (monthly USD) ---
   expectedRevenueUsd: number;
@@ -129,6 +156,8 @@ export interface ProfitabilityReport {
   /** How far below the target the net profit is (0 when it passes). */
   shortfallUsd: number;
   verdict: ProfitVerdict;
+  // --- Bear / Base / Bull planning range (net monthly USD) ---
+  scenarios: ProfitScenarios;
 }
 
 // ---------------------------------------------------------------------------
@@ -174,6 +203,8 @@ export interface ProfitabilityInputs {
   burnCostTao: number | null;
   /** Newcomer ramp estimate in weeks (delays first revenue). */
   rampWeeks: number | null;
+  /** Mean-earner upside gross (perEarningDailyTao × 30 × TAO), when known. */
+  bullGrossMonthlyUsd?: number;
   /** TAO spot price in USD. */
   taoUsd: number;
   score: ScoreComponents;
@@ -255,6 +286,47 @@ export function computeProfitabilityReport(
       ? "MARGINAL"
       : "PROFITABLE";
 
+  // --- Bear / Base / Bull scenarios -----------------------------------------
+  // BEAR ≈ your FIRST month on the subnet: bonds build via EMA so revenue is
+  //        only a fraction of base (~4/rampWeeks, floored at 15%), alpha
+  //        price stressed −40%, while the full cost stack runs regardless.
+  // BASE = the P&L above (median rewarded miner after ramp, current prices).
+  // BULL = what TODAY'S mean earner on this subnet grosses — upside for a
+  //        well-run top seat, never a starting point.
+  const rampFraction =
+    rampWeeks != null && rampWeeks > 4 ? Math.max(4 / rampWeeks, 0.15) : 1;
+  const bearGross =
+    grossMonthlyUsd > 0 ? grossMonthlyUsd * rampFraction * 0.6 : 0;
+  const bullGross = Math.max(
+    inputs.bullGrossMonthlyUsd ?? grossMonthlyUsd,
+    grossMonthlyUsd
+  );
+  const mkScenario = (gross: number, note: string): ProfitScenario => {
+    const net = gross > 0 ? gross - totalCostsUsd : -totalCostsUsd;
+    return {
+      grossMonthlyUsd: Math.round(gross),
+      netMonthlyUsd: Math.round(net),
+      meetsTarget: net >= config.minNetProfitTargetUsd,
+      note,
+    };
+  };
+  const scenarios: ProfitScenarios = {
+    bear: mkScenario(
+      bearGross,
+      rampWeeks != null && rampWeeks > 4
+        ? `first month: ramp-up (~${Math.round(rampWeeks)} wk to full bonds) + alpha price −40%`
+        : "first month: soft alpha price (−40%)"
+    ),
+    base: mkScenario(
+      grossMonthlyUsd,
+      "median rewarded miner after ramp · current prices"
+    ),
+    bull: mkScenario(
+      bullGross,
+      "mean of currently-rewarded miners (today's earners)"
+    ),
+  };
+
   const r1 = (v: number) => Math.round(v * 10) / 10;
   return {
     expectedRevenueUsd: r1(grossMonthlyUsd),
@@ -278,5 +350,6 @@ export function computeProfitabilityReport(
     meetsMinimum,
     shortfallUsd: Math.round(shortfallUsd),
     verdict,
+    scenarios,
   };
 }

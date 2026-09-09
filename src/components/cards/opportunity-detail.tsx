@@ -241,6 +241,67 @@ export function OpportunityDetailDialog({
                 <p className="tabular font-semibold">{formatCurrency(prof.totalCostsUsd)}</p>
               </div>
             </div>
+
+            {/* Bear / Base / Bull — planning range, not a promise */}
+            <div className="mt-3 border-t border-border/60 pt-3">
+              <div className="flex items-baseline justify-between gap-2">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  Monthly scenarios
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  planning range — earnings are not guaranteed
+                </p>
+              </div>
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {([
+                  {
+                    label: "Bear",
+                    sc: prof.scenarios.bear,
+                    cls:
+                      prof.scenarios.bear.netMonthlyUsd >= prof.targetUsd
+                        ? "text-success"
+                        : prof.scenarios.bear.netMonthlyUsd >= 0
+                          ? "text-warning"
+                          : "text-destructive",
+                    border: "border-border/60",
+                  },
+                  {
+                    label: "Base",
+                    sc: prof.scenarios.base,
+                    cls: prof.scenarios.base.meetsTarget ? "text-success" : "text-warning",
+                    border: "border-border/60",
+                  },
+                  {
+                    label: "Bull",
+                    sc: prof.scenarios.bull,
+                    cls: "text-success",
+                    border: "border-primary/30",
+                  },
+                ] as const).map(({ label, sc, cls, border }) => (
+                  <div
+                    key={label}
+                    title={sc.note}
+                    className={cn("rounded-md border px-3 py-2", border)}
+                  >
+                    <p className="text-[10px] font-bold tracking-widest text-muted-foreground">
+                      {label}
+                      {label === "Base" && (
+                        <span className="ml-1 font-normal normal-case tracking-normal">
+                          (the number above)
+                        </span>
+                      )}
+                    </p>
+                    <p className={cn("tabular text-lg font-bold", cls)}>
+                      {formatCurrency(sc.netMonthlyUsd)}
+                      <span className="ml-1 text-[10px] font-normal text-muted-foreground">/mo</span>
+                    </p>
+                    <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
+                      {sc.note}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
