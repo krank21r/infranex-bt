@@ -40,6 +40,7 @@ export const subnets: Subnet[] = [
     tags: ["LLM", "text", "inference"],
     minVramGb: 24,
     recommendedGpu: "NVIDIA A100 80GB",
+    githubUrl: "https://github.com/opentensor/text-prompting",
   },
   {
     netuid: 2,
@@ -88,6 +89,7 @@ export const subnets: Subnet[] = [
     tags: ["image", "diffusion", "vision"],
     minVramGb: 40,
     recommendedGpu: "NVIDIA H100 80GB",
+    githubUrl: "https://github.com/omegalabsinc/omegalabs-bittensor-subnet",
   },
   {
     netuid: 4,
@@ -160,6 +162,7 @@ export const subnets: Subnet[] = [
     tags: ["training", "LLM", "fine-tune"],
     minVramGb: 80,
     recommendedGpu: "NVIDIA H100 80GB",
+    githubUrl: "https://github.com/macrocosm-os/apex",
   },
   {
     netuid: 8,
@@ -208,6 +211,7 @@ export const subnets: Subnet[] = [
     tags: ["training", "federated", "fine-tune"],
     minVramGb: 80,
     recommendedGpu: "NVIDIA H100 80GB",
+    githubUrl: "https://github.com/macrocosm-os/pretraining",
   },
   {
     netuid: 11,
@@ -232,6 +236,7 @@ export const subnets: Subnet[] = [
     tags: ["audio", "ASR", "speech"],
     minVramGb: 24,
     recommendedGpu: "NVIDIA A100 40GB",
+    githubUrl: "https://github.com/UncleTensor/BittAudio",
   },
   {
     netuid: 12,
@@ -328,6 +333,7 @@ export const subnets: Subnet[] = [
     tags: ["video", "vision", "streaming"],
     minVramGb: 80,
     recommendedGpu: "NVIDIA H100 80GB",
+    githubUrl: "https://github.com/omegalabsinc/omegalabs-bittensor-subnet",
   },
   {
     netuid: 21,
@@ -376,6 +382,7 @@ export const subnets: Subnet[] = [
     tags: ["multimodal", "fusion", "LLM"],
     minVramGb: 80,
     recommendedGpu: "NVIDIA H100 80GB",
+    githubUrl: "https://github.com/omegalabsinc/omegalabs-bittensor-subnet",
   },
   {
     netuid: 25,
@@ -400,6 +407,7 @@ export const subnets: Subnet[] = [
     tags: ["science", "bio", "protein"],
     minVramGb: 40,
     recommendedGpu: "NVIDIA A100 80GB",
+    githubUrl: "https://github.com/macrocosm-os/mainframe",
   },
 ];
 

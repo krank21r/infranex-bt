@@ -112,3 +112,39 @@ export function useDeleteOverride() {
     },
   });
 }
+
+export interface SyncResult {
+  netuid: number;
+  name: string;
+  githubUrl: string;
+  status: "scraped" | "skipped" | "error";
+  description: string | null;
+  minVramGb: number | null;
+  recommendedGpu: string | null;
+  readmeUrl: string | null;
+  error?: string;
+}
+
+export interface SyncAllResponse {
+  total: number;
+  scraped: number;
+  skipped: number;
+  errors: number;
+  results: SyncResult[];
+}
+
+export function useSyncAllSubnets() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (force: boolean = false): Promise<SyncAllResponse> => {
+      const res = await fetch(`/api/subnets/sync-all${force ? "?force=true" : ""}`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["subnet-overrides"] });
+    },
+  });
+}

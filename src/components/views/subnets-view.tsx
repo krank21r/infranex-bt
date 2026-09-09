@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,10 @@ import { SubnetCard } from "@/components/cards/subnet-card";
 import { SubnetEditDialog } from "@/components/subnets/subnet-edit-dialog";
 import { subnets as curatedSubnets, opportunities as curatedOpportunities } from "@/lib/infranex/data";
 import { useNetwork, mergeSubnets } from "@/lib/infranex/use-network";
-import { useSubnetOverrides } from "@/lib/infranex/use-subnet-overrides";
-import { Search, RefreshCw, Network, Info } from "lucide-react";
+import { useSubnetOverrides, useSyncAllSubnets } from "@/lib/infranex/use-subnet-overrides";
+import { useToast } from "@/hooks/use-toast";
+import { Search, RefreshCw, Network, Info, Github, CheckCircle2, AlertTriangle } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { Subnet } from "@/lib/infranex/types";
 
 export function SubnetsView() {
@@ -20,6 +22,10 @@ export function SubnetsView() {
   const [editOpen, setEditOpen] = useState(false);
   const { data: snap, isFetching, refetch } = useNetwork();
   const { data: overrides } = useSubnetOverrides();
+  const syncMut = useSyncAllSubnets();
+  const { toast } = useToast();
+  const didAutoSync = useRef(false);
+
   const subnets = mergeSubnets(snap, overrides);
 
   const scoreByNetuid = useMemo(() => {
@@ -51,7 +57,34 @@ export function SubnetsView() {
     setEditOpen(true);
   };
 
+  const handleSyncAll = async (force: boolean = false) => {
+    try {
+      const result = await syncMut.mutateAsync(force);
+      toast({
+        title: "GitHub sync complete",
+        description: `${result.scraped} scraped, ${result.skipped} skipped, ${result.errors} errors`,
+      });
+    } catch (e) {
+      toast({
+        title: "Sync failed",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Auto-sync on first load if no overrides exist
+  useEffect(() => {
+    if (didAutoSync.current) return;
+    if (overrides && overrides.size === 0 && !syncMut.isPending) {
+      didAutoSync.current = true;
+      // Defer to microtask to avoid setState-in-effect
+      void Promise.resolve().then(() => handleSyncAll(false));
+    }
+  }, [overrides, syncMut.isPending]);
+
   const overrideCount = overrides?.size ?? 0;
+  const githubSubnetCount = curatedSubnets.filter((s) => s.githubUrl).length;
 
   return (
     <div className="space-y-6">
@@ -68,19 +101,31 @@ export function SubnetsView() {
             {overrideCount > 0 && ` · ${overrideCount} with user overrides`}
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2 self-start sm:self-end"
-          onClick={() => refetch()}
-          disabled={isFetching}
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} />
-          {isFetching ? "Syncing…" : "Refresh chain"}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => handleSyncAll(true)}
+            disabled={syncMut.isPending}
+          >
+            <Github className={cn("h-3.5 w-3.5", syncMut.isPending && "animate-spin")} />
+            {syncMut.isPending ? "Syncing…" : "Sync from GitHub"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => refetch()}
+            disabled={isFetching}
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
+            {isFetching ? "Syncing…" : "Refresh chain"}
+          </Button>
+        </div>
       </header>
 
-      {/* Data source legend */}
+      {/* Data source legend + sync status */}
       <Card className="border-border/60 bg-card/40">
         <CardContent className="flex flex-wrap items-center gap-3 py-3">
           <Info className="h-4 w-4 text-muted-foreground" />
@@ -93,12 +138,28 @@ export function SubnetsView() {
             <span className="mr-1 h-1.5 w-1.5 rounded-full bg-warning" />
             User override
           </Badge>
+          <Badge variant="outline" className="border-primary/30 text-[10px] text-primary">
+            <Github className="mr-1 h-3 w-3" />
+            GitHub ({githubSubnetCount} repos)
+          </Badge>
           <Badge variant="outline" className="text-[10px] text-muted-foreground">
             <span className="mr-1 h-1.5 w-1.5 rounded-full bg-muted-foreground" />
             Curated (default)
           </Badge>
+          {syncMut.isPending && (
+            <Badge variant="outline" className="text-[10px] text-primary">
+              <RefreshCw className="mr-1 h-3 w-3 animate-spin" />
+              Scraping GitHub…
+            </Badge>
+          )}
+          {overrideCount > 0 && !syncMut.isPending && (
+            <Badge variant="outline" className="border-success/30 text-[10px] text-success">
+              <CheckCircle2 className="mr-1 h-3 w-3" />
+              {overrideCount} synced
+            </Badge>
+          )}
           <span className="ml-auto text-[11px] text-muted-foreground">
-            Click the ⚙ icon on any card to edit or scrape from GitHub
+            Click the ⚙ icon on any card to edit or scrape individually
           </span>
         </CardContent>
       </Card>
