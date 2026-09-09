@@ -158,3 +158,17 @@ Stage Summary:
 - tsc --noEmit: 0 errors. ESLint: 0 errors. Browser tour of all 10 views: 0 runtime/console errors.
 - Repo hygiene: 2 junk files deleted, .gitignore repaired, dead export removed.
 - Remaining known limitations (by design): RUNPOD_API_KEY empty → GPU pricing degrades to indicative; browser-side health check #2 (direct RPC from browser) can hang due to public-endpoint CORS — server-side chain reads unaffected.
+
+---
+Task ID: 9
+Agent: main (Z.ai Code)
+Task: Untrack db/custom.db and commit all review fixes.
+
+Work Log:
+- git rm --cached db/custom.db (working copy kept on disk — app unaffected) + added to .gitignore with prisma db:push note.
+- Staged and committed 11 files: chain.ts, monitoring.ts, use-network.ts, emission-donut.tsx, sidebar.tsx, monitoring-view.tsx, tsconfig.json, .gitignore, worklog.md, run-dev.sh (new) + db untracking.
+- Commit 54dbf78 on nextjs-platform: "perf: fix /api/network hang + fix all TS errors + repo hygiene".
+- Verified post-commit: clean worktree, db file present, app 200, deployments API (SQLite read) 200, gitignore confirmed.
+
+Stage Summary:
+- All review fixes committed in a single atomic commit. Worktree clean. Runtime untouched (performance fixes live, db persists locally, future clones recreate db via prisma db:push).
