@@ -44,8 +44,9 @@ export function OpportunitiesView({ onSelectOpportunity, onStartMining }: Opport
             Opportunities
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Every live Finney subnet ranked — curated picks scored on the
-            3-pillar model, untracked subnets scored from live chain metrics.
+            All 129 Finney subnets scored — real per-miner emission from the
+            chain metagraph, stake utilization vs slot caps, GPU tiers
+            estimated from the reward stream (marked "est.").
           </p>
         </div>
         <div className="flex items-center gap-1 rounded-lg border bg-card/40 p-1">

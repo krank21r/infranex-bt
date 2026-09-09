@@ -94,9 +94,21 @@ export interface LiveSubnetMetrics {
   tempo: number;
   emissionEnabled: boolean;
   movingPrice: number; // alpha price in TAO raw units
-  emission: number | null; // emission value per block
+  /** Whole-subnet emission value in TAO per block (alpha issued × alpha price). */
+  emission: number | null;
+  /** Whole-subnet emission value in TAO per day (per-block × 720). */
+  emissionTaoPerDay: number | null;
+  /** Emission flowing to miners (incentive uids) in TAO per day. */
+  minerEmissionTaoPerDay: number | null;
+  /** UIDs that earned incentive last epoch (actively rewarded miners). */
+  rewardedMiners: number | null;
+  /** Max allowed UIDs (registration capacity). */
+  maxUids: number | null;
   owner: string | null;
   registeredAt: number | null;
+  /** On-chain identity (SubnetIdentitiesV3) when registered. */
+  identityGithub: string | null;
+  identityDescription: string | null;
 }
 
 export interface NeuronMetrics {
@@ -316,12 +328,15 @@ export async function fetchLiveSnapshot(): Promise<LiveNetworkSnapshot> {
 // ---------------------------------------------------------------------------
 
 const CACHE_TTL_MS = 60_000;
-const CHAIN_FETCH_TIMEOUT_MS = 25_000;
+// Cold fetch now includes per-neuron emission vectors + identity registry
+// (~15 batched RPC groups, ~20s measured) — give it headroom.
+const CHAIN_FETCH_TIMEOUT_MS = 45_000;
 
 class SnapshotCache {
   private cached: LiveNetworkSnapshot | null = null;
   private expiresAt = 0;
   private refreshing = false;
+  private refreshPromise: Promise<LiveNetworkSnapshot> | null = null;
 
   async get(): Promise<LiveNetworkSnapshot> {
     const now = Date.now();
@@ -332,14 +347,23 @@ class SnapshotCache {
     if (this.cached) {
       if (!this.refreshing) {
         this.refreshing = true;
-        void this.refresh().finally(() => {
+        this.refreshPromise = this.refresh().finally(() => {
           this.refreshing = false;
+          this.refreshPromise = null;
         });
       }
       return this.cached;
     }
-    // No snapshot at all — must block on the first fetch.
-    return this.refresh();
+    // No snapshot at all — single-flight the first fetch so concurrent
+    // requests share one chain read instead of each spawning their own.
+    if (!this.refreshPromise) {
+      this.refreshing = true;
+      this.refreshPromise = this.refresh().finally(() => {
+        this.refreshing = false;
+        this.refreshPromise = null;
+      });
+    }
+    return this.refreshPromise;
   }
 
   private async refresh(): Promise<LiveNetworkSnapshot> {
@@ -430,6 +454,35 @@ class SnapshotCache {
           multi(mods.subnetMovingPrice as never),
         ]);
 
+        // Real per-neuron emission data + subnet registry info for this
+        // batch — 7 more batched .multi() calls instead of per-subnet
+        // round-trips. The Emission vec holds per-uid alpha totals (rao)
+        // for the last epoch; incentive/dividends split miners vs
+        // validators. (The Active vec only flags validator weight
+        // updates — verified on chain — so it is intentionally skipped.)
+        const [
+          emissionVecs,
+          incentiveVecs,
+          dividendsVecs,
+          identitiesArr,
+          ownerArr,
+          registeredAtArr,
+          maxUidsArr,
+        ] = await Promise.all([
+          multi(mods.emission as never),
+          multi(mods.incentive as never),
+          multi(mods.dividends as never),
+          multi(mods.subnetIdentitiesV3 as never),
+          multi(mods.subnetOwner as never),
+          multi(mods.networkRegisteredAt as never),
+          multi(mods.maxAllowedUids as never),
+        ]);
+
+        const numVec = (raw: unknown): number[] => {
+          const v = (raw as { toJSON?: () => unknown } | null)?.toJSON?.();
+          return Array.isArray(v) ? v.map((x) => Number(x) || 0) : [];
+        };
+
         for (let j = 0; j < batch.length; j++) {
           const n = batch[j];
           try {
@@ -438,20 +491,125 @@ class SnapshotCache {
             const subnetTao = toTao((taoArr[j] as { toString(): string } | null)?.toString());
             if (minerCount === 0 && subnetTao === 0) continue;
             const emEnabled = emEnabledArr[j] as { isEmpty: boolean } | null;
+
+            // --- Real emission accounting from per-neuron vectors ---
+            const emVec = numVec(emissionVecs[j]);
+            const incVec = numVec(incentiveVecs[j]);
+            const divVec = numVec(dividendsVecs[j]);
+            const tempoSafe = Math.max(
+              Number((tempoArr[j] as { toString(): string } | null)?.toString() ?? "0") || 0,
+              1
+            );
+            let epochAlphaRao = 0;
+            let minerAlphaRao = 0;
+            let rewardedMiners = 0;
+            let validators = 0;
+            const uidCount = Math.max(emVec.length, incVec.length);
+            for (let u = 0; u < uidCount; u++) {
+              const e = emVec[u] ?? 0;
+              const inc = incVec[u] ?? 0;
+              const div = divVec[u] ?? 0;
+              if (e > 0) epochAlphaRao += e;
+              if (inc > 0) { rewardedMiners++; minerAlphaRao += Math.max(e, 0); }
+              if (div > 0) validators++;
+            }
+            // Per-uid values are last-epoch alpha totals → per-block = /tempo.
+            const alphaPerBlock = epochAlphaRao / tempoSafe / 1e9; // α/block
+            const movingPrice = toTao((priceArr[j] as { toString(): string } | null)?.toString());
+            const alphaInTao = toTao((alphaInArr[j] as { toString(): string } | null)?.toString());
+            // Alpha price: moving price when present, else pool ratio fallback.
+            const priceTao =
+              movingPrice > 0
+                ? movingPrice
+                : alphaInTao > 0 && subnetTao > 0
+                  ? subnetTao / alphaInTao
+                  : 0;
+            // TAO-value emission for the whole subnet.
+            const emissionPerBlockTao = alphaPerBlock * priceTao;
+            const emissionPerDayTao = emissionPerBlockTao * 720;
+            // Miner share of emission (miners vs validators split); 50/50 fallback.
+            const validatorAlphaRao = Math.max(epochAlphaRao - minerAlphaRao, 0);
+            const minerShare =
+              minerAlphaRao + validatorAlphaRao > 0
+                ? minerAlphaRao / (minerAlphaRao + validatorAlphaRao)
+                : 0.5;
+
+            // --- On-chain identity / owner / registration age ---
+            const identityOpt = identitiesArr[j] as {
+              isEmpty: boolean;
+              unwrap?: () => {
+                subnetName?: unknown;
+                githubRepo?: unknown;
+                description?: unknown;
+              };
+            } | null;
+            // Identity fields are Vec<u8> — decode via toUtf8, hex fallback.
+            const idText = (v: unknown): string => {
+              if (v == null) return "";
+              const codec = v as { toUtf8?: () => string };
+              if (typeof codec.toUtf8 === "function") {
+                try {
+                  const s = codec.toUtf8().trim();
+                  if (s && !s.startsWith("0x")) return s;
+                } catch { /* fall through */ }
+              }
+              const s = typeof v === "string" ? v : String(v);
+              if (s.startsWith("0x") && s.length > 2) {
+                try {
+                  const hex = s.slice(2);
+                  const bytes = new Uint8Array(hex.length / 2);
+                  for (let i = 0; i < bytes.length; i++) {
+                    bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+                  }
+                  return new TextDecoder().decode(bytes).trim();
+                } catch { return ""; }
+              }
+              return s.trim();
+            };
+            let idName = "";
+            let idGithub = "";
+            let idDesc = "";
+            if (identityOpt && !identityOpt.isEmpty && identityOpt.unwrap) {
+              try {
+                const v = identityOpt.unwrap();
+                idName = idText(v.subnetName);
+                idGithub = idText(v.githubRepo);
+                idDesc = idText(v.description);
+              } catch {
+                // identity unreadable — leave empty
+              }
+            }
+            const ownerRaw = ownerArr[j] as
+              | { toString(): string; isEmpty?: boolean }
+              | null;
+            const regBlock = Number(
+              (registeredAtArr[j] as { toString(): string } | null)?.toString() ?? "0"
+            ) || 0;
+            const maxUids = Number(
+              (maxUidsArr[j] as { toString(): string } | null)?.toString() ?? "0"
+            ) || 0;
+
             subnets.push({
               netuid: n,
-              name: null,
+              name: idName || null,
               minersCount: minerCount,
-              validatorsCount: null,
+              validatorsCount: validators || null,
               subnetTao,
-              alphaIn: toTao((alphaInArr[j] as { toString(): string } | null)?.toString()),
+              alphaIn: alphaInTao,
               alphaOut: toTao((alphaOutArr[j] as { toString(): string } | null)?.toString()),
-              tempo: Number((tempoArr[j] as { toString(): string } | null)?.toString() ?? "0") || 0,
+              tempo: tempoSafe,
               emissionEnabled: !emEnabled?.isEmpty,
-              movingPrice: toTao((priceArr[j] as { toString(): string } | null)?.toString()),
-              emission: null,
-              owner: null,
-              registeredAt: null,
+              movingPrice,
+              emission: emissionPerBlockTao > 0 ? emissionPerBlockTao : null,
+              emissionTaoPerDay: emissionPerDayTao > 0 ? emissionPerDayTao : null,
+              minerEmissionTaoPerDay:
+                emissionPerDayTao > 0 ? emissionPerDayTao * minerShare : null,
+              rewardedMiners,
+              maxUids: maxUids || null,
+              owner: ownerRaw && !ownerRaw.isEmpty ? ownerRaw.toString() : null,
+              registeredAt: regBlock || null,
+              identityGithub: idGithub || null,
+              identityDescription: idDesc || null,
             });
           } catch {
             // skip malformed entry
@@ -469,6 +627,33 @@ class SnapshotCache {
         } catch {
           // skip
         }
+      }
+
+      // One runtime-API call for all 129 DynamicInfo records — gives the
+      // REAL TAO pool per subnet (taoIn). The SubnetTAO storage value is
+      // not the full staked pool, and requiredStake/APY math needs the
+      // true figure.
+      try {
+        const dyn = (await api.call.subnetInfoRuntimeApi.getAllDynamicInfo()) as unknown as Array<{
+          netuid: { toString(): string };
+          taoIn: { toString(): string };
+        }>;
+        const taoInByNetuid = new Map<number, number>();
+        for (const d of dyn) {
+          try {
+            const netuid = Number(d.netuid.toString());
+            const taoIn = toTao(d.taoIn.toString());
+            if (Number.isFinite(netuid) && taoIn > 0) taoInByNetuid.set(netuid, taoIn);
+          } catch {
+            // skip malformed entry
+          }
+        }
+        for (const sub of subnets) {
+          const taoIn = taoInByNetuid.get(sub.netuid);
+          if (taoIn && taoIn > sub.subnetTao) sub.subnetTao = taoIn;
+        }
+      } catch {
+        // DynamicInfo unavailable — keep storage values
       }
 
       // Keep the singleton connection alive — recycling it would force the

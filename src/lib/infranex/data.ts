@@ -668,8 +668,9 @@ export function riskLevel(score: number): "low" | "medium" | "high" {
   return "high";
 }
 
-// Per-subnet component scores (representative)
-const componentScores: Record<number, ScoreComponents> = {
+// Per-subnet component scores (representative). Exported so the live
+// merge layer can refresh factors with real chain economics.
+export const curatedComponentScores: Record<number, ScoreComponents> = {
   1: { economic_potential: 78, competition: 52, reward_stability: 71, market_conditions: 68, new_miner_accessibility: 44, network_health: 82, hardware_suitability: 70, profitability_potential: 74 },
   2: { economic_potential: 62, competition: 64, reward_stability: 58, market_conditions: 51, new_miner_accessibility: 60, network_health: 70, hardware_suitability: 66, profitability_potential: 55 },
   3: { economic_potential: 88, competition: 48, reward_stability: 76, market_conditions: 74, new_miner_accessibility: 40, network_health: 85, hardware_suitability: 78, profitability_potential: 90 },
@@ -697,7 +698,7 @@ function stakeFor(s: Subnet): number {
 
 export const opportunities: Opportunity[] = (() => {
   const opps = subnets.map((s) => {
-    const c = componentScores[s.netuid];
+    const c = curatedComponentScores[s.netuid];
     const score = totalScore(c);
     const factors = deriveFactors(c);
     const dailyReward = Math.round(s.emission * 720 * 0.0012 * 100) / 100;
@@ -999,11 +1000,11 @@ export function getDashboardMetrics() {
   const totalEmission = subnets.reduce((a, s) => a + s.emission, 0);
   const avgScore =
     opportunities.reduce((a, o) => a + o.score, 0) / opportunities.length;
-  const runCount = opportunities.filter((o) => o.score >= 75).length;
+  const runCount = opportunities.filter((o) => o.score >= 70).length;
   const watchCount = opportunities.filter(
-    (o) => o.score >= 40 && o.score < 75
+    (o) => o.score >= 46 && o.score < 70
   ).length;
-  const avoidCount = opportunities.filter((o) => o.score < 40).length;
+  const avoidCount = opportunities.filter((o) => o.score < 46).length;
   const portfolioEarnings = userMiners.reduce((a, m) => a + m.totalEarnings, 0);
   const portfolioDailyEmission = userMiners.reduce((a, m) => a + m.emission, 0);
   const activeMiners = userMiners.filter((m) => m.status === "active").length;

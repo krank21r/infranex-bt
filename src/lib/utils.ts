@@ -124,9 +124,12 @@ export function scoreBand(score: number): {
   color: string;
   bg: string;
 } {
-  if (score >= 75)
+  // Calibrated for live chain economics: with real per-miner emission the
+  // 3-pillar score tops out around ~75, so RUN starts at 70 and subnets
+  // below 46 (weak rewards, full slots) are flagged AVOID.
+  if (score >= 70)
     return { label: "RUN", color: "text-success", bg: "bg-success/10" };
-  if (score >= 40)
+  if (score >= 46)
     return { label: "WATCH", color: "text-warning", bg: "bg-warning/10" };
   return { label: "AVOID", color: "text-destructive", bg: "bg-destructive/10" };
 }

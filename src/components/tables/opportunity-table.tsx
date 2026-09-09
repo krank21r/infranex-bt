@@ -304,8 +304,9 @@ export function OpportunityTable({
                     {!compact && (
                       <TableCell className="text-right tabular">
                         <span
+                          title="Share of registered slots that earned reward last epoch — low means rewards are concentrated in few miners"
                           className={cn(
-                            o.utilization > 0.8
+                            o.utilization < 0.05
                               ? "text-warning"
                               : "text-muted-foreground"
                           )}
