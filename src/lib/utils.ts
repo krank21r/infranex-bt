@@ -124,12 +124,15 @@ export function scoreBand(score: number): {
   color: string;
   bg: string;
 } {
-  // Calibrated for live chain economics: with real per-miner emission the
-  // 3-pillar score tops out around ~75, so RUN starts at 70 and subnets
-  // below 46 (weak rewards, full slots) are flagged AVOID.
-  if (score >= 70)
+  // Calibrated for the Miner's Ledger v2 distribution (newcomer-adjusted
+  // net economics): the research reality is that a mid-pack seat on most
+  // subnets hovers near breakeven, so the shortlist of subnets with
+  // genuinely positive net ROI lands at 60+ (typically 3-10 subnets),
+  // the "viable with skill / cheap entry" middle at 40-60, and subnets
+  // with negative mid-pack economics or knife-fight seats below 40.
+  if (score >= 60)
     return { label: "RUN", color: "text-success", bg: "bg-success/10" };
-  if (score >= 46)
+  if (score >= 40)
     return { label: "WATCH", color: "text-warning", bg: "bg-warning/10" };
   return { label: "AVOID", color: "text-destructive", bg: "bg-destructive/10" };
 }

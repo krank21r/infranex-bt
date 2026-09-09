@@ -591,122 +591,84 @@ subnets.forEach((s) => {
 });
 
 // ---------------------------------------------------------------------------
-// Scoring — 3-pillar model (Utility 30%, Technical 35%, Economics 35%)
+// Scoring — Miner's Ledger v2 (5 pillars: Net ROI, Seat Safety, Alpha
+// Economics, Earning Reality, Fit & Feasibility). The engine lives in
+// miner-score.ts and is shared by the live pipeline; re-exported here for
+// compatibility with existing imports.
 // ---------------------------------------------------------------------------
 
-export interface ScoreComponents {
-  economic_potential: number;
-  competition: number;
-  reward_stability: number;
-  market_conditions: number;
-  new_miner_accessibility: number;
-  network_health: number;
-  hardware_suitability: number;
-  profitability_potential: number;
-}
+export {
+  type ScoreComponents,
+  SCORE_WEIGHTS,
+  deriveFactors,
+  totalScore,
+  riskLevel,
+  classifySubnetHardware,
+  scoreMinersLedger,
+  type SubnetHardwareProfile,
+  type MinerLedger,
+  type MinerLedgerDiagnostics,
+  GPU_TIERS,
+  estimateGpuTierFromRevenue,
+} from "./miner-score";
 
-const WEIGHTS: Record<keyof ScoreComponents, number> = {
-  economic_potential: 0.16,
-  competition: 0.1,
-  reward_stability: 0.09,
-  market_conditions: 0.05,
-  new_miner_accessibility: 0.12,
-  network_health: 0.1,
-  hardware_suitability: 0.13,
-  profitability_potential: 0.25,
-};
+import { classifySubnetHardware, scoreMinersLedger, totalScore, riskLevel } from "./miner-score";
+import type { LiveSubnetMetrics } from "./chain";
 
-const FACTOR_LABELS: Record<keyof ScoreComponents, string> = {
-  economic_potential: "Economic Potential",
-  competition: "Competition",
-  reward_stability: "Reward Stability",
-  market_conditions: "Market Conditions",
-  new_miner_accessibility: "New Miner Accessibility",
-  network_health: "Network Health",
-  hardware_suitability: "Hardware Suitability",
-  profitability_potential: "Profitability Potential",
-};
-
-const FACTOR_DESC: Record<keyof ScoreComponents, string> = {
-  economic_potential: "Emission value relative to subnet market cap.",
-  competition: "Inverse of miner saturation on the subnet.",
-  reward_stability: "Consistency of incentive over the last 7 days.",
-  market_conditions: "TAO price momentum and reserve health.",
-  new_miner_accessibility: "Registration openness and rank mobility.",
-  network_health: "Validator trust and consensus weight.",
-  hardware_suitability: "Match between recommended GPU and availability.",
-  profitability_potential: "Net ROI after GPU cost at market rates.",
-};
-
-export function deriveFactors(c: ScoreComponents): OpportunityFactor[] {
-  return (Object.keys(c) as (keyof ScoreComponents)[]).map((k) => {
-    const raw = c[k];
-    const weight = WEIGHTS[k];
-    return {
-      name: FACTOR_LABELS[k],
-      value: Math.round(raw * weight * 100) / 100,
-      weight,
-      raw,
-      impact: raw >= 60 ? "positive" : raw <= 40 ? "negative" : "neutral",
-      description: FACTOR_DESC[k],
-    };
-  });
-}
-
-export function totalScore(c: ScoreComponents): number {
-  return Math.round(
-    (Object.keys(c) as (keyof ScoreComponents)[]).reduce(
-      (acc, k) => acc + c[k] * WEIGHTS[k],
-      0
-    ) * 10
-  ) / 10;
-}
-
-export function riskLevel(score: number): "low" | "medium" | "high" {
-  if (score >= 70) return "low";
-  if (score >= 45) return "medium";
-  return "high";
-}
-
-// Per-subnet component scores (representative). Exported so the live
-// merge layer can refresh factors with real chain economics.
-export const curatedComponentScores: Record<number, ScoreComponents> = {
-  1: { economic_potential: 78, competition: 52, reward_stability: 71, market_conditions: 68, new_miner_accessibility: 44, network_health: 82, hardware_suitability: 70, profitability_potential: 74 },
-  2: { economic_potential: 62, competition: 64, reward_stability: 58, market_conditions: 51, new_miner_accessibility: 60, network_health: 70, hardware_suitability: 66, profitability_potential: 55 },
-  3: { economic_potential: 88, competition: 48, reward_stability: 76, market_conditions: 74, new_miner_accessibility: 40, network_health: 85, hardware_suitability: 78, profitability_potential: 90 },
-  4: { economic_potential: 54, competition: 70, reward_stability: 62, market_conditions: 55, new_miner_accessibility: 72, network_health: 66, hardware_suitability: 60, profitability_potential: 48 },
-  5: { economic_potential: 66, competition: 58, reward_stability: 64, market_conditions: 60, new_miner_accessibility: 56, network_health: 72, hardware_suitability: 64, profitability_potential: 61 },
-  7: { economic_potential: 92, competition: 44, reward_stability: 80, market_conditions: 78, new_miner_accessibility: 36, network_health: 84, hardware_suitability: 82, profitability_potential: 92 },
-  8: { economic_potential: 60, competition: 62, reward_stability: 56, market_conditions: 50, new_miner_accessibility: 64, network_health: 68, hardware_suitability: 60, profitability_potential: 52 },
-  9: { economic_potential: 86, competition: 50, reward_stability: 74, market_conditions: 72, new_miner_accessibility: 42, network_health: 80, hardware_suitability: 80, profitability_potential: 84 },
-  11: { economic_potential: 58, competition: 66, reward_stability: 60, market_conditions: 54, new_miner_accessibility: 62, network_health: 64, hardware_suitability: 62, profitability_potential: 50 },
-  12: { economic_potential: 50, competition: 74, reward_stability: 52, market_conditions: 48, new_miner_accessibility: 76, network_health: 60, hardware_suitability: 56, profitability_potential: 42 },
-  14: { economic_potential: 68, competition: 56, reward_stability: 66, market_conditions: 62, new_miner_accessibility: 54, network_health: 74, hardware_suitability: 68, profitability_potential: 63 },
-  17: { economic_potential: 64, competition: 60, reward_stability: 62, market_conditions: 58, new_miner_accessibility: 58, network_health: 70, hardware_suitability: 64, profitability_potential: 57 },
-  19: { economic_potential: 90, competition: 46, reward_stability: 78, market_conditions: 76, new_miner_accessibility: 38, network_health: 82, hardware_suitability: 80, profitability_potential: 90 },
-  21: { economic_potential: 52, competition: 72, reward_stability: 54, market_conditions: 50, new_miner_accessibility: 70, network_health: 62, hardware_suitability: 58, profitability_potential: 44 },
-  23: { economic_potential: 90, competition: 42, reward_stability: 82, market_conditions: 80, new_miner_accessibility: 34, network_health: 86, hardware_suitability: 84, profitability_potential: 88 },
-  25: { economic_potential: 72, competition: 54, reward_stability: 68, market_conditions: 66, new_miner_accessibility: 50, network_health: 76, hardware_suitability: 72, profitability_potential: 67 },
-};
-
-const TAO_USD = 412; // representative TAO/USD price
+const TAO_USD = 412; // representative TAO/USD price (offline fallback only)
 
 // required stake estimate: reserve spread across miners
 function stakeFor(s: Subnet): number {
   return Math.round((s.taoInReserve / Math.max(s.minersCount, 1)) * 10) / 10;
 }
 
+// Offline fallback ranking — used ONLY when the live chain snapshot is
+// unavailable. Scores flow through the SAME Miner's Ledger engine as the
+// live path (synthesized chain metrics from the curated catalog) so the
+// two pipelines stay consistent.
 export const opportunities: Opportunity[] = (() => {
   const opps = subnets.map((s) => {
-    const c = curatedComponentScores[s.netuid];
-    const score = totalScore(c);
-    const factors = deriveFactors(c);
-    const dailyReward = Math.round(s.emission * 720 * 0.0012 * 100) / 100;
-    const monthlyUsd = Math.round(dailyReward * 30 * TAO_USD);
+    const live: LiveSubnetMetrics = {
+      netuid: s.netuid,
+      name: s.name,
+      minersCount: s.minersCount,
+      validatorsCount: s.validatorsCount,
+      subnetTao: s.taoInReserve,
+      alphaIn: s.price > 0 ? s.taoInReserve / s.price : 0,
+      alphaOut: 0,
+      tempo: s.tempo,
+      emissionEnabled: s.status === "active",
+      movingPrice: s.price,
+      emission: s.emission,
+      emissionTaoPerDay: s.emission * 720,
+      minerEmissionTaoPerDay: s.emission * 720 * 0.41, // docs: miners get 41%
+      rewardedMiners: Math.max(1, Math.round(s.minersCount * 0.7)),
+      top10IncentiveShare: null,
+      incentiveMedianShare: null,
+      burnCostTao: null,
+      immunityBlocks: null,
+      alphaPriceChange24h: s.change24h,
+      maxUids: s.maxNeurons,
+      owner: s.owner,
+      registeredAt: null,
+      identityGithub: s.githubUrl ?? null,
+      identityDescription: s.description,
+    };
+    const hardware = classifySubnetHardware(s.name, s.description, {
+      fallbackCategory: s.category,
+      fallbackVramGb: s.minVramGb,
+      fallbackGpu: s.recommendedGpu,
+    });
+    const { components, factors, diag } = scoreMinersLedger({
+      live,
+      taoUsd: TAO_USD,
+      hardware,
+    });
+    const score = totalScore(components);
     const reqStake = stakeFor(s);
     const apy =
       reqStake > 0
-        ? Math.round(((dailyReward * 365 * TAO_USD) / reqStake) * 10) / 10
+        ? Math.round(((diag.perEarningDailyTao * 365) / reqStake) * 10) / 10
         : 0;
     return {
       id: `opp-${s.netuid}`,
@@ -717,18 +679,37 @@ export const opportunities: Opportunity[] = (() => {
       type: "mining" as const,
       score,
       rank: 0,
-      estimatedDailyReward: dailyReward,
-      estimatedMonthlyRewardUsd: monthlyUsd,
+      estimatedDailyReward: diag.expectedDailyTao,
+      estimatedMonthlyRewardUsd: diag.grossMonthlyUsd,
       estimatedApy: apy,
       requiredStake: reqStake,
-      utilization: Math.min(0.95, s.minersCount / s.maxNeurons),
+      utilization: diag.rewardedRatio ?? Math.min(0.95, s.minersCount / s.maxNeurons),
       riskLevel: riskLevel(score),
       confidence: Math.round(score) / 100,
       factors,
       status: "active" as const,
       updatedAt: new Date().toISOString(),
-      minVramGb: s.minVramGb,
-      recommendedGpu: s.recommendedGpu,
+      minVramGb: hardware.minVramGb,
+      recommendedGpu: hardware.recommendedGpu,
+      workType: hardware.category,
+      grossMonthlyUsd: diag.grossMonthlyUsd,
+      netMonthlyUsd: diag.netMonthlyUsd,
+      gpuCostMonthlyUsd: diag.gpuCostMonthlyUsd,
+      infraCostMonthlyUsd: diag.infraCostMonthlyUsd,
+      netDailyTao: diag.netDailyTao,
+      alphaPriceUsd: diag.alphaPriceUsd,
+      alphaChange24h: diag.alphaChange24h,
+      liquidityTao: diag.liquidityTao,
+      slippagePct: diag.slippagePct,
+      burnCostTao: diag.burnCostTao,
+      top10IncentiveShare: diag.top10IncentiveShare,
+      rewardMedianShare: diag.rewardMedianShare,
+      perEarningMeanDailyTao: diag.perEarningDailyTao,
+      rewardedRatio: diag.rewardedRatio,
+      rampWeeks: diag.rampWeeks,
+      freeSlots: diag.freeSlots,
+      totalSlots: diag.totalSlots,
+      immunityBlocks: diag.immunityBlocks,
     };
   });
   opps.sort((a, b) => b.score - a.score);
@@ -1000,11 +981,11 @@ export function getDashboardMetrics() {
   const totalEmission = subnets.reduce((a, s) => a + s.emission, 0);
   const avgScore =
     opportunities.reduce((a, o) => a + o.score, 0) / opportunities.length;
-  const runCount = opportunities.filter((o) => o.score >= 70).length;
+  const runCount = opportunities.filter((o) => o.score >= 60).length;
   const watchCount = opportunities.filter(
-    (o) => o.score >= 46 && o.score < 70
+    (o) => o.score >= 40 && o.score < 60
   ).length;
-  const avoidCount = opportunities.filter((o) => o.score < 46).length;
+  const avoidCount = opportunities.filter((o) => o.score < 40).length;
   const portfolioEarnings = userMiners.reduce((a, m) => a + m.totalEarnings, 0);
   const portfolioDailyEmission = userMiners.reduce((a, m) => a + m.emission, 0);
   const activeMiners = userMiners.filter((m) => m.status === "active").length;

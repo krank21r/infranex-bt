@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { formatNumber } from "@/lib/utils";
 import type { Opportunity } from "@/lib/infranex/types";
 
 interface OpportunityTableProps {
@@ -35,12 +36,16 @@ type SortKey =
   | "subnetName"
   | "score"
   | "estimatedApy"
-  | "estimatedMonthlyRewardUsd"
+  | "netMonthlyUsd"
+  | "grossMonthlyUsd"
   | "requiredStake"
   | "utilization"
   | "riskLevel"
   | "confidence"
-  | "minVramGb";
+  | "minVramGb"
+  | "alphaChange24h"
+  | "liquidityTao"
+  | "burnCostTao";
 
 function SortIcon({
   k,
@@ -184,23 +189,34 @@ export function OpportunityTable({
                 </SortableTh>
               )}
               <SortableTh
-                k="estimatedMonthlyRewardUsd"
+                k="netMonthlyUsd"
                 align="right"
                 sortKey={sortKey}
                 dir={dir}
                 onSort={handleSort}
               >
-                Monthly
+                Net Monthly
               </SortableTh>
               {!compact && (
                 <SortableTh
-                  k="requiredStake"
+                  k="alphaChange24h"
                   align="right"
                   sortKey={sortKey}
                   dir={dir}
                   onSort={handleSort}
                 >
-                  Stake
+                  Alpha (24h)
+                </SortableTh>
+              )}
+              {!compact && (
+                <SortableTh
+                  k="liquidityTao"
+                  align="right"
+                  sortKey={sortKey}
+                  dir={dir}
+                  onSort={handleSort}
+                >
+                  Liq.
                 </SortableTh>
               )}
               {!compact && (
@@ -237,7 +253,7 @@ export function OpportunityTable({
             {filtered.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={compact ? 4 : 10}
+                  colSpan={compact ? 5 : 11}
                   className="py-12 text-center text-muted-foreground"
                 >
                   No opportunities match your search.
@@ -268,7 +284,7 @@ export function OpportunityTable({
                             </Badge>
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            NetUID {o.netuid} · {o.category}
+                            NetUID {o.netuid} · {o.workType ?? o.category}
                           </p>
                         </div>
                       </div>
@@ -293,12 +309,52 @@ export function OpportunityTable({
                         {formatPercent(o.estimatedApy)}
                       </TableCell>
                     )}
-                    <TableCell className="text-right tabular font-medium">
-                      {formatCurrency(o.estimatedMonthlyRewardUsd)}
+                    <TableCell className="text-right">
+                      <span
+                        title={
+                          o.gpuCostMonthlyUsd != null
+                            ? `Gross $${(o.grossMonthlyUsd ?? 0).toLocaleString()} − GPU $${Math.round(o.gpuCostMonthlyUsd).toLocaleString()} − infra $${Math.round(o.infraCostMonthlyUsd ?? 0).toLocaleString()} — what a median-performing miner keeps per month`
+                            : "Per-earning-miner monthly revenue"
+                        }
+                        className={cn(
+                          "tabular font-semibold",
+                          (o.netMonthlyUsd ?? o.estimatedMonthlyRewardUsd) > 0
+                            ? "text-success"
+                            : (o.netMonthlyUsd ?? o.estimatedMonthlyRewardUsd) < 0
+                              ? "text-destructive"
+                              : "text-muted-foreground"
+                        )}
+                      >
+                        {formatCurrency(o.netMonthlyUsd ?? o.estimatedMonthlyRewardUsd)}
+                      </span>
                     </TableCell>
                     {!compact && (
-                      <TableCell className="text-right mono tabular text-muted-foreground">
-                        {o.requiredStake.toLocaleString()} TAO
+                      <TableCell className="text-right">
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="mono tabular text-muted-foreground">
+                            {o.alphaPriceUsd != null && o.alphaPriceUsd > 0
+                              ? `$${o.alphaPriceUsd < 1 ? o.alphaPriceUsd.toFixed(4) : o.alphaPriceUsd.toFixed(2)}`
+                              : "—"}
+                          </span>
+                          {o.alphaChange24h != null && (
+                            <span
+                              className={cn(
+                                "tabular text-[10px]",
+                                o.alphaChange24h >= 0 ? "text-success" : "text-destructive"
+                              )}
+                            >
+                              {o.alphaChange24h >= 0 ? "▲" : "▼"} {Math.abs(o.alphaChange24h).toFixed(1)}%
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                    )}
+                    {!compact && (
+                      <TableCell
+                        className="text-right mono tabular text-muted-foreground"
+                        title="TAO-side pool depth — exit liquidity for converting mined alpha"
+                      >
+                        {o.liquidityTao != null ? formatNumber(o.liquidityTao) : "—"}
                       </TableCell>
                     )}
                     {!compact && (

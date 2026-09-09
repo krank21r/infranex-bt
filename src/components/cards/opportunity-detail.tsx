@@ -13,6 +13,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { TrendingUp, AlertTriangle, Cpu, Wallet } from "lucide-react";
+import { formatNumber } from "@/lib/utils";
 import type { Opportunity } from "@/lib/infranex/types";
 
 interface OpportunityDetailDialogProps {
@@ -60,22 +61,38 @@ export function OpportunityDetailDialog({
           <Card className="bg-card/40">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 text-muted-foreground">
+                <Wallet className="h-4 w-4" />
+                <span className="text-xs font-medium">Net monthly (after GPU)</span>
+              </div>
+              <p
+                className={cn(
+                  "mt-1 tabular text-xl font-bold",
+                  (o.netMonthlyUsd ?? o.estimatedMonthlyRewardUsd) >= 0
+                    ? "text-success"
+                    : "text-destructive"
+                )}
+              >
+                {formatCurrency(o.netMonthlyUsd ?? o.estimatedMonthlyRewardUsd)}
+              </p>
+              {o.gpuCostMonthlyUsd != null && (
+                <p className="mt-0.5 text-[11px] text-muted-foreground">
+                  gross {formatCurrency(o.grossMonthlyUsd ?? o.estimatedMonthlyRewardUsd)} − GPU{" "}
+                  {formatCurrency(o.gpuCostMonthlyUsd)}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+          <Card className="bg-card/40">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 text-muted-foreground">
                 <TrendingUp className="h-4 w-4" />
                 <span className="text-xs font-medium">Est. APY</span>
               </div>
               <p className="mt-1 tabular text-xl font-bold text-success">
                 {formatPercent(o.estimatedApy)}
               </p>
-            </CardContent>
-          </Card>
-          <Card className="bg-card/40">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Wallet className="h-4 w-4" />
-                <span className="text-xs font-medium">Monthly reward</span>
-              </div>
-              <p className="mt-1 tabular text-xl font-bold">
-                {formatCurrency(o.estimatedMonthlyRewardUsd)}
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                vs {o.requiredStake.toLocaleString()} TAO required stake
               </p>
             </CardContent>
           </Card>
@@ -86,11 +103,100 @@ export function OpportunityDetailDialog({
                 <span className="text-xs font-medium">Daily reward</span>
               </div>
               <p className="mt-1 tabular text-xl font-bold">
-                {o.estimatedDailyReward.toFixed(2)}{" "}
+                {o.estimatedDailyReward.toFixed(3)}{" "}
                 <span className="text-sm font-normal text-muted-foreground">TAO</span>
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                newcomer mid-pack estimate
+                {o.rewardMedianShare != null && o.rewardMedianShare < 0.9 && (
+                  <span title="A top UID (whale) captures most of this subnet's rewards — the estimate is discounted by the median earner's share of the mean">
+                    {" "}· {Math.round(o.rewardMedianShare * 100)}% spread
+                  </span>
+                )}{" "}
+                · {(o.rewardedRatio != null ? (o.rewardedRatio * 100).toFixed(0) : "—")}% of slots rewarded
+                {o.perEarningMeanDailyTao != null && o.perEarningMeanDailyTao > o.estimatedDailyReward * 3 && (
+                  <span title="Mean over currently rewarded UIDs — what top performers earn today (upside if you outcompete)">
+                    {" "}· mean earner {o.perEarningMeanDailyTao.toFixed(2)} TAO/d
+                  </span>
+                )}
               </p>
             </CardContent>
           </Card>
+        </div>
+
+        <Separator />
+
+        <div>
+          <h3 className="text-eyebrow mb-2 text-muted-foreground">Miner's ledger</h3>
+          <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+            <div>
+              <p className="text-xs text-muted-foreground">Work type</p>
+              <p className="font-medium">{o.workType ?? o.category}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">GPU required</p>
+              <p className="mono text-xs font-medium">{o.recommendedGpu.replace("NVIDIA ", "")}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Alpha price</p>
+              <p className="tabular font-medium">
+                {o.alphaPriceUsd != null && o.alphaPriceUsd > 0
+                  ? `$${o.alphaPriceUsd < 1 ? o.alphaPriceUsd.toFixed(4) : o.alphaPriceUsd.toFixed(2)}`
+                  : "—"}
+                {o.alphaChange24h != null && (
+                  <span className={cn("ml-1.5 text-xs", o.alphaChange24h >= 0 ? "text-success" : "text-destructive")}>
+                    {o.alphaChange24h >= 0 ? "▲" : "▼"}
+                    {Math.abs(o.alphaChange24h).toFixed(1)}%
+                  </span>
+                )}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Pool liquidity</p>
+              <p className="mono tabular text-xs font-medium">
+                {o.liquidityTao != null ? `${formatNumber(o.liquidityTao)} TAO` : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Free slots</p>
+              <p className="tabular font-medium">
+                {o.freeSlots != null && o.totalSlots ? `${o.freeSlots} / ${o.totalSlots}` : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Top-10% take</p>
+              <p
+                className={cn(
+                  "tabular font-medium",
+                  o.top10IncentiveShare != null && o.top10IncentiveShare > 0.7
+                    ? "text-warning"
+                    : ""
+                )}
+                title="Share of last-epoch incentive captured by the top 10% of UIDs — near 100% means a knife fight for rewards"
+              >
+                {o.top10IncentiveShare != null
+                  ? `${Math.round(o.top10IncentiveShare * 100)}% of emissions`
+                  : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Registration burn</p>
+              <p className="mono tabular text-xs font-medium">
+                {o.burnCostTao != null ? `${o.burnCostTao.toFixed(3)} TAO` : "—"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Ramp-up estimate</p>
+              <p className="tabular font-medium">
+                {o.rampWeeks != null ? `~${o.rampWeeks.toFixed(0)} weeks` : "—"}
+                {o.immunityBlocks != null && (
+                  <span className="ml-1.5 text-xs text-muted-foreground">
+                    {Math.round((o.immunityBlocks * 12) / 3600)}h immunity
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
         </div>
 
         <Separator />
@@ -101,7 +207,7 @@ export function OpportunityDetailDialog({
               Score breakdown
             </h3>
             <span className="text-eyebrow text-muted-foreground">
-              3-pillar model
+              Miner's Ledger · 5 pillars
             </span>
           </div>
           <div className="space-y-4">
@@ -222,15 +328,22 @@ export function OpportunityCard({ opportunity: o }: { opportunity: Opportunity }
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Monthly</p>
-            <p className="tabular font-medium">
-              {formatCurrency(o.estimatedMonthlyRewardUsd)}
+            <p className="text-xs text-muted-foreground">Net monthly</p>
+            <p
+              className={cn(
+                "tabular font-medium",
+                (o.netMonthlyUsd ?? o.estimatedMonthlyRewardUsd) >= 0
+                  ? "text-success"
+                  : "text-destructive"
+              )}
+            >
+              {formatCurrency(o.netMonthlyUsd ?? o.estimatedMonthlyRewardUsd)}
             </p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Stake</p>
-            <p className="mono tabular text-muted-foreground">
-              {o.requiredStake.toLocaleString()} TAO
+            <p className="text-xs text-muted-foreground">GPU</p>
+            <p className="mono truncate text-xs text-muted-foreground">
+              {o.recommendedGpu.replace("NVIDIA ", "")}
             </p>
           </div>
           <div>

@@ -119,6 +119,39 @@ export interface Opportunity {
   // GPU requirements (copied from the subnet for quick reference)
   minVramGb: number;
   recommendedGpu: string;
+  // --- Miner's Ledger v2 (all optional so legacy rows stay valid) ---
+  /** Work type the classifier detected (drives the GPU requirement). */
+  workType?: string;
+  /** Gross per-EARNING-miner monthly USD (before GPU + infra costs). */
+  grossMonthlyUsd?: number;
+  /** Net monthly USD after GPU rental + infra — the miner's bottom line. */
+  netMonthlyUsd?: number;
+  gpuCostMonthlyUsd?: number;
+  infraCostMonthlyUsd?: number;
+  netDailyTao?: number;
+  /** Alpha token price in USD (pool ratio × TAO spot). */
+  alphaPriceUsd?: number;
+  /** Alpha/TAO price change vs ~24h ago (server-side ring buffer). */
+  alphaChange24h?: number | null;
+  /** TAO-side pool depth — exit liquidity for mined alpha. */
+  liquidityTao?: number;
+  /** Daily earnings ÷ alpha pool, in % — sell-pressure price impact. */
+  slippagePct?: number | null;
+  /** Registration burn cost (TAO) — demand signal for the seat. */
+  burnCostTao?: number | null;
+  /** Share of last-epoch incentive captured by the top 10% of UIDs (0-1). */
+  top10IncentiveShare?: number | null;
+  /** Median earning UID's share vs the mean — ≪1 means a whale takes most rewards. */
+  rewardMedianShare?: number | null;
+  /** Mean daily TAO over rewarded UIDs (the median-earner figure is estimatedDailyReward). */
+  perEarningMeanDailyTao?: number;
+  /** Share of registered miners that earned reward last epoch (0-1). */
+  rewardedRatio?: number | null;
+  /** Estimated weeks until a newcomer's bonds mature (ramp penalty). */
+  rampWeeks?: number | null;
+  freeSlots?: number | null;
+  totalSlots?: number | null;
+  immunityBlocks?: number | null;
 }
 
 export interface UserMiner {

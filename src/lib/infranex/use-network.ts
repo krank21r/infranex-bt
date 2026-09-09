@@ -4,12 +4,13 @@ import { useQuery } from "@tanstack/react-query";
 import {
   subnets as curatedSubnets,
   opportunities as curatedOpportunities,
-  curatedComponentScores,
-  deriveFactors,
+} from "./data";
+import {
+  classifySubnetHardware,
+  scoreMinersLedger,
   totalScore,
   riskLevel,
-  type ScoreComponents,
-} from "./data";
+} from "./miner-score";
 import type {
   LiveNetworkSnapshot,
   LiveSubnetMetrics,
@@ -108,9 +109,10 @@ export function mergeSubnets(
   }
 
   // 2. Add untracked subnets from the chain scan (no curated metadata).
-  //    Names / descriptions / GitHub now come from the on-chain identity
-  //    registry (SubnetIdentitiesV3 — 121/129 subnets registered); GPU
-  //    requirements are estimated from the measured reward stream.
+  //    Names / descriptions / GitHub come from the on-chain identity
+  //    registry (SubnetIdentitiesV3); GPU requirements come from the
+  //    work-type classifier (what the subnet actually computes), with a
+  //    reward-stream fallback for subnets without a registered identity.
   for (const live of snap?.subnets ?? []) {
     if (seen.has(live.netuid)) continue;
     seen.add(live.netuid);
@@ -118,7 +120,18 @@ export function mergeSubnets(
     const liveFields = new Set<string>(["minersCount", "taoInReserve", "price", "tempo", "status", "emission", "validatorsCount"]);
     const overriddenFields = new Set<string>();
 
-    const estGpu = estimateGpuTier(perMinerDailyTao(live) * 30 * (snap?.taoPriceUsd || 0));
+    const rewarded = Math.max(live.rewardedMiners ?? 0, 0);
+    const minerEm = live.minerEmissionTaoPerDay ?? 0;
+    const perEarningDailyTao =
+      rewarded > 0 && minerEm > 0
+        ? minerEm / rewarded
+        : minerEm > 0
+          ? (minerEm / Math.max(live.minersCount, 1)) * 0.6
+          : 0;
+    const fallbackMonthly = perEarningDailyTao * 30 * (snap?.taoPriceUsd || 0);
+    const hw = classifySubnetHardware(live.name, live.identityDescription, {
+      fallbackMonthlyUsd: fallbackMonthly,
+    });
     const regBlock = live.registeredAt;
     const createdAt =
       regBlock && snap && snap.blockNumber > regBlock
@@ -133,7 +146,7 @@ export function mergeSubnets(
         (override?.description as string) ??
         live.identityDescription ??
         (live.name ? "On-chain registered subnet — live chain data." : "Untracked subnet — live chain data only."),
-      category: (override?.category as string) ?? "Live chain",
+      category: (override?.category as string) ?? (hw.classified ? hw.category : live.name ? "Registered subnet" : "Untracked"),
       owner: live.owner ?? "",
       tempo: live.tempo || 0,
       emission: live.emission ?? 0,
@@ -149,8 +162,8 @@ export function mergeSubnets(
       registrationOpen: false,
       createdAt,
       tags: [],
-      minVramGb: (override?.minVramGb as number) ?? estGpu.minVramGb,
-      recommendedGpu: (override?.recommendedGpu as string) ?? estGpu.recommendedGpu,
+      minVramGb: (override?.minVramGb as number) ?? hw.minVramGb,
+      recommendedGpu: (override?.recommendedGpu as string) ?? hw.recommendedGpu,
       githubUrl: (override?.githubUrl as string) ?? live.identityGithub ?? null,
       website: null,
     };
@@ -170,124 +183,14 @@ export function mergeSubnets(
   return result;
 }
 
-const clampScore = (v: number, lo: number, hi: number) =>
-  Math.min(hi, Math.max(lo, v));
-
 // ---------------------------------------------------------------------------
-// Live economics — real per-miner emission accounting, GPU tier estimates.
-// These power the Monthly / APY / GPU Req / Util columns for ALL subnets.
+// Opportunity ranking — Miner's Ledger v2. Every subnet the chain scan
+// returned (129 on Finney) runs through the SAME 5-pillar engine in
+// miner-score.ts: per-EARNING-miner revenue → net of GPU/infra cost →
+// seat safety → alpha economics → fit. No curated special-casing: curated
+// rows only contribute names/categories when the chain identity is absent.
 // ---------------------------------------------------------------------------
 
-/**
- * Real per-miner daily TAO for a subnet: the emission that flowed to
- * rewarded miners last epoch (chain-measured), converted to TAO value
- * and averaged over every registered slot — the standard per-miner view.
- * The Util. column shows how concentrated the rewards actually are.
- * Deterministic per snapshot.
- */
-function perMinerDailyTao(live: LiveSubnetMetrics): number {
-  if (!live.minerEmissionTaoPerDay || live.minerEmissionTaoPerDay <= 0) return 0;
-  return live.minerEmissionTaoPerDay / Math.max(live.minersCount, 1);
-}
-
-/**
- * Deterministic GPU tier estimated from the reward stream: what class of
- * hardware a subnet's per-miner monthly USD can plausibly support. Used
- * only when no curated / user-provided GPU requirement exists — always
- * suffixed "(est.)" in the UI.
- */
-export function estimateGpuTier(monthlyUsdPerMiner: number): {
-  minVramGb: number;
-  recommendedGpu: string;
-} {
-  if (monthlyUsdPerMiner >= 1200) return { minVramGb: 141, recommendedGpu: "H200 141GB (est.)" };
-  if (monthlyUsdPerMiner >= 600) return { minVramGb: 94, recommendedGpu: "H100 NVL (est.)" };
-  if (monthlyUsdPerMiner >= 300) return { minVramGb: 80, recommendedGpu: "H100 80GB (est.)" };
-  if (monthlyUsdPerMiner >= 140) return { minVramGb: 80, recommendedGpu: "A100 80GB (est.)" };
-  if (monthlyUsdPerMiner >= 60) return { minVramGb: 48, recommendedGpu: "RTX A6000 (est.)" };
-  if (monthlyUsdPerMiner >= 25) return { minVramGb: 24, recommendedGpu: "RTX 4090 (est.)" };
-  if (monthlyUsdPerMiner >= 8) return { minVramGb: 16, recommendedGpu: "RTX 4060 Ti (est.)" };
-  return { minVramGb: 8, recommendedGpu: "Entry GPU (est.)" };
-}
-
-/** Hardware accessibility score — lower VRAM requirements are easier to meet. */
-function hardwareScoreForVram(vram: number): number {
-  if (vram <= 8) return 88;
-  if (vram <= 16) return 74;
-  if (vram <= 24) return 64;
-  if (vram <= 48) return 46;
-  if (vram <= 94) return 32;
-  return 22;
-}
-
-/**
- * Profitability from REAL per-miner monthly USD (log-scale, deterministic):
- * $0 → 18, $10 → 39, $100 → 60, $500 → 75, $1k → 81, $5k+ → 96.
- */
-function profitabilityScore(monthlyUsd: number): number {
-  return clampScore(18 + 21 * Math.log10(Math.max(monthlyUsd, 0) + 1), 5, 96);
-}
-
-/**
- * Deterministically synthesize the 3-pillar score components for an
- * untracked subnet from live chain metrics. No randomness — the same
- * snapshot always produces the same score, so ranks stay stable across
- * re-renders. All inputs are measured on chain (per-neuron emission vecs,
- * active/incentive/dividends, max allowed uids, validator counts).
- */
-function synthesizeComponents(
-  live: LiveSubnetMetrics,
-  taoUsd: number,
-  taoChange24h: number
-): ScoreComponents {
-  const stake = Math.max(live.subnetTao, 1);
-  const registered = Math.max(live.minersCount, 1);
-  const maxUids = Math.max(live.maxUids ?? registered, registered, 1);
-  const monthlyUsdPerMiner = perMinerDailyTao(live) * 30 * (taoUsd || 0);
-  const gpu = estimateGpuTier(monthlyUsdPerMiner);
-  // Registration pressure: share of reward slots already taken.
-  const saturation = Math.min(1, registered / maxUids);
-  const roomRatio = Math.max(0, maxUids - registered) / maxUids;
-
-  return {
-    // Deeper staked reserve → stronger economic gravity (log-scaled).
-    economic_potential: clampScore(22 + 13 * Math.log10(stake / 1_000 + 1), 5, 96),
-    // Room left in the metagraph — fuller networks are more contested.
-    competition: clampScore(95 - saturation * 70, 10, 96),
-    // Emission enabled + real TAO-value emission per day → steadier rewards.
-    reward_stability: live.emissionEnabled
-      ? clampScore(48 + (live.emissionTaoPerDay ?? 0) * 1.5, 40, 80)
-      : 20,
-    // Network-wide TAO momentum + deep-reserve bonus.
-    market_conditions: clampScore(
-      50 + clampScore(taoChange24h, -20, 20) + (stake > 100_000 ? 8 : 0),
-      5,
-      92
-    ),
-    // Registration headroom against the subnet's max allowed UIDs.
-    new_miner_accessibility: clampScore(30 + roomRatio * 65, 8, 92),
-    // Emission on + REAL validator coverage from the dividends vector.
-    network_health: clampScore(
-      40 + (live.emissionEnabled ? 25 : 0) + Math.min(15, (live.validatorsCount ?? 0) / 3),
-      20,
-      85
-    ),
-    // Match between the estimated GPU tier and general accessibility.
-    hardware_suitability: hardwareScoreForVram(gpu.minVramGb),
-    // Net economics from measured per-miner monthly USD.
-    profitability_potential: profitabilityScore(monthlyUsdPerMiner),
-  };
-}
-
-/**
- * Build the full opportunity ranking for EVERY subnet the chain scan
- * returned (129 on Finney). Every row — curated and untracked — carries
- * real chain-measured economics: per-miner daily/monthly rewards from the
- * per-neuron emission vectors, APY against required stake, utilization
- * against max allowed UIDs, and a GPU requirement (curated/user data when
- * available, otherwise a deterministic "(est.)" tier from the reward
- * stream). Rows are sorted by score and ranked 1..N together.
- */
 export function mergeOpportunities(
   snap: LiveNetworkSnapshot | undefined
 ): LiveOpportunity[] {
@@ -300,85 +203,115 @@ export function mergeOpportunities(
   const rows: LiveOpportunity[] = [];
 
   for (const live of snap.subnets) {
+    // Root (SN0) is a staking pool, not a mining target — miners cannot
+    // register a miner there, so it does not belong in mining opportunities.
+    if (live.netuid === 0) continue;
     const curated = curatedByNetuid.get(live.netuid);
 
-    // --- Real economics, identical formula for every row ---
-    const dailyTao =
-      Math.round(perMinerDailyTao(live) * 10_000) / 10_000;
-    const monthlyUsd = usd > 0 ? Math.round(dailyTao * 30 * usd) : 0;
-    const reqStake =
-      Math.round(
-        (live.subnetTao / Math.max(live.minersCount, 1)) * 10
-      ) / 10;
+    // --- Top line: per-EARNING-miner revenue (chain-measured) ---
+    const rewarded = Math.max(live.rewardedMiners ?? 0, 0);
+    const minerEm = live.minerEmissionTaoPerDay ?? 0;
+    const perEarningDailyTao =
+      rewarded > 0 && minerEm > 0
+        ? minerEm / rewarded
+        : minerEm > 0
+          ? (minerEm / Math.max(live.minersCount, 1)) * 0.6 // conservative when the reward vec is unavailable
+          : 0;
+    const grossMonthlyUsd = Math.round(perEarningDailyTao * 30 * usd);
+
+    // --- Hardware: work type → GPU requirement + cost ---
+    const name =
+      live.name ?? curated?.subnetName ?? `Subnet ${live.netuid}`;
+    const hardware = classifySubnetHardware(name, live.identityDescription, {
+      fallbackCategory: curated?.category,
+      fallbackVramGb: curated?.minVramGb,
+      fallbackGpu: curated?.recommendedGpu,
+      fallbackMonthlyUsd: grossMonthlyUsd,
+    });
+
+    const liveAgeBlocks =
+      live.registeredAt != null && snap.blockNumber > live.registeredAt
+        ? snap.blockNumber - live.registeredAt
+        : null;
+
+    const { components, factors, diag } = scoreMinersLedger({
+      live,
+      taoUsd: usd,
+      hardware,
+      liveAgeBlocks,
+    });
+    const score = totalScore(components);
+
     // Utilization: share of registered slots that actually earned reward
-    // last epoch (rewarded miners / registered UIDs) — a real measure of
-    // how concentrated rewards are. Falls back to registration pressure.
+    // last epoch — the reward-concentration signal from the chain vecs.
     const util =
-      live.rewardedMiners != null
-        ? Math.min(0.99, live.rewardedMiners / Math.max(live.minersCount, 1))
+      diag.rewardedRatio != null
+        ? diag.rewardedRatio
         : live.maxUids
           ? Math.min(0.99, live.minersCount / live.maxUids)
           : Math.min(0.99, live.minersCount / 4096);
 
-    let components: ScoreComponents;
-    let base: LiveOpportunity;
+    const reqStake =
+      Math.round(
+        (live.subnetTao / Math.max(live.minersCount, 1)) * 10
+      ) / 10;
 
+    let base: LiveOpportunity;
     if (curated) {
-      // Curated subnet — keep the hand-tuned factors, but refresh the
-      // profitability factor from REAL emission economics so it matches
-      // the monthly $ displayed next to it. The on-chain identity name
-      // wins over the curated name when one is registered.
-      const hand = curatedComponentScores[live.netuid];
-      components = {
-        ...(hand ?? {
-          economic_potential: 55,
-          competition: 55,
-          reward_stability: 55,
-          market_conditions: 50,
-          new_miner_accessibility: 55,
-          network_health: 60,
-          hardware_suitability: 55,
-          profitability_potential: 50,
-        }),
-        profitability_potential: profitabilityScore(monthlyUsd),
-      };
-      base = { ...curated };
+      base = { ...curated } as LiveOpportunity;
       if (live.name) base.subnetName = live.name;
     } else {
-      // Untracked subnet — synthesize the full component set.
-      components = synthesizeComponents(live, usd, snap.taoChange24h ?? 0);
-      const gpu = estimateGpuTier(monthlyUsd);
       base = {
         id: `opp-live-${live.netuid}`,
         netuid: live.netuid,
-        subnetName: live.name ?? `Subnet ${live.netuid}`,
+        subnetName: name,
         subnetSymbol: `α${live.netuid}`,
-        category: "Live chain",
+        category: hardware.category,
         type: "mining",
-        minVramGb: gpu.minVramGb,
-        recommendedGpu: gpu.recommendedGpu,
+        minVramGb: hardware.minVramGb,
+        recommendedGpu: hardware.recommendedGpu,
       } as LiveOpportunity;
     }
 
-    const score = totalScore(components);
     rows.push({
       ...base,
+      category: diag.hardwareClassified ? diag.category : base.category,
       score,
       rank: 0,
-      estimatedDailyReward: dailyTao,
-      estimatedMonthlyRewardUsd: monthlyUsd,
-      // APY vs the required stake capital, in percent.
+      estimatedDailyReward: diag.expectedDailyTao,
+      estimatedMonthlyRewardUsd: diag.grossMonthlyUsd,
       estimatedApy:
         reqStake > 0
-          ? Math.round(((dailyTao * 365) / reqStake) * 1000) / 10
+          ? Math.round(((diag.expectedDailyTao * 365) / reqStake) * 1000) / 10
           : 0,
       requiredStake: reqStake,
       utilization: util,
       riskLevel: riskLevel(score),
       confidence: Math.round(score) / 100,
-      factors: deriveFactors(components),
+      factors,
       status: live.emissionEnabled ? "active" : "pending",
       updatedAt,
+      minVramGb: diag.minVramGb,
+      recommendedGpu: diag.recommendedGpu,
+      workType: diag.category,
+      grossMonthlyUsd: diag.grossMonthlyUsd,
+      netMonthlyUsd: diag.netMonthlyUsd,
+      gpuCostMonthlyUsd: diag.gpuCostMonthlyUsd,
+      infraCostMonthlyUsd: diag.infraCostMonthlyUsd,
+      netDailyTao: diag.netDailyTao,
+      alphaPriceUsd: diag.alphaPriceUsd,
+      alphaChange24h: diag.alphaChange24h,
+      liquidityTao: diag.liquidityTao,
+      slippagePct: diag.slippagePct,
+      burnCostTao: diag.burnCostTao,
+      top10IncentiveShare: diag.top10IncentiveShare,
+      rewardMedianShare: diag.rewardMedianShare,
+      perEarningMeanDailyTao: diag.perEarningDailyTao,
+      rewardedRatio: diag.rewardedRatio,
+      rampWeeks: diag.rampWeeks,
+      freeSlots: diag.freeSlots,
+      totalSlots: diag.totalSlots,
+      immunityBlocks: diag.immunityBlocks,
       liveMiners: live.minersCount,
       liveStake: Math.round(live.subnetTao),
       livePrice: live.movingPrice,
@@ -402,9 +335,9 @@ export function getLiveDashboardMetrics(snap: LiveNetworkSnapshot | undefined) {
     : liveSubnets.reduce((a, s) => a + s.marketCap, 0);
   const avgScore =
     liveOpps.reduce((a, o) => a + o.score, 0) / liveOpps.length;
-  const runCount = liveOpps.filter((o) => o.score >= 70).length;
-  const watchCount = liveOpps.filter((o) => o.score >= 46 && o.score < 70).length;
-  const avoidCount = liveOpps.filter((o) => o.score < 46).length;
+  const runCount = liveOpps.filter((o) => o.score >= 60).length;
+  const watchCount = liveOpps.filter((o) => o.score >= 40 && o.score < 60).length;
+  const avoidCount = liveOpps.filter((o) => o.score < 40).length;
 
   return {
     trackedSubnets,

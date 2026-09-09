@@ -16,6 +16,82 @@ import path from "node:path";
 const WS_URL = "wss://entrypoint-finney.opentensor.ai:443";
 const RPC_URL = "https://entrypoint-finney.opentensor.ai/rpc";
 const METADATA_FILE = path.join(process.cwd(), ".chain-metadata.json");
+const PRICE_HISTORY_FILE = path.join(process.cwd(), ".alpha-price-history.json");
+
+// ---------------------------------------------------------------------------
+// Alpha price history — server-side ring buffer that powers the 24h alpha
+// price trend per subnet (the dTAO "rising vs dying subnet" signal).
+// Samples every 10 minutes, keeps 48h, persisted to disk so restarts don't
+// reset the trend window. Alpha price is tracked in TAO (the pool ratio) so
+// the trend reflects subnet-specific flow, not TAO's own USD moves.
+// ---------------------------------------------------------------------------
+
+const PRICE_SAMPLE_INTERVAL_MS = 10 * 60_000;
+const PRICE_HISTORY_TTL_MS = 48 * 3_600_000;
+
+interface PriceSample {
+  t: number; // epoch ms
+  p: Record<string, number>; // netuid → alpha price in TAO
+}
+
+let priceHistoryCache: PriceSample[] | null = null;
+
+function loadPriceHistory(): PriceSample[] {
+  if (priceHistoryCache) return priceHistoryCache;
+  try {
+    if (existsSync(PRICE_HISTORY_FILE)) {
+      const parsed = JSON.parse(readFileSync(PRICE_HISTORY_FILE, "utf8")) as unknown;
+      if (Array.isArray(parsed)) {
+        priceHistoryCache = parsed.filter(
+          (s): s is PriceSample =>
+            !!s && typeof (s as PriceSample).t === "number" && !!(s as PriceSample).p
+        );
+      }
+    }
+  } catch {
+    // corrupt file — start fresh
+  }
+  return priceHistoryCache ?? [];
+}
+
+function recordAlphaPrices(prices: Map<number, number>): void {
+  const hist = loadPriceHistory();
+  const now = Date.now();
+  const last = hist[hist.length - 1];
+  if (last && now - last.t < PRICE_SAMPLE_INTERVAL_MS) return;
+  const p: Record<string, number> = {};
+  for (const [netuid, price] of prices) {
+    if (Number.isFinite(price) && price > 0) p[String(netuid)] = price;
+  }
+  hist.push({ t: now, p });
+  const cutoff = now - PRICE_HISTORY_TTL_MS;
+  const pruned = hist.filter((s) => s.t >= cutoff).slice(-400);
+  priceHistoryCache = pruned;
+  try {
+    writeFileSync(PRICE_HISTORY_FILE, JSON.stringify(pruned));
+  } catch {
+    // best-effort persistence
+  }
+}
+
+/** 24h change in alpha/TAO price for a subnet, in % (1 decimal). */
+function alphaChange24h(netuid: number, current: number): number | null {
+  if (!Number.isFinite(current) || current <= 0) return null;
+  const hist = loadPriceHistory();
+  if (hist.length < 2) return null;
+  const cutoff = Date.now() - 24 * 3_600_000;
+  let ref: PriceSample | null = null;
+  for (const s of hist) {
+    if (s.t >= cutoff) {
+      ref = s;
+      break;
+    }
+  }
+  if (!ref) ref = hist[0];
+  const old = ref.p[String(netuid)];
+  if (!old || old <= 0) return null;
+  return Math.round(((current - old) / old) * 1000) / 10;
+}
 
 let _api: ApiPromise | null = null;
 let _connecting: Promise<ApiPromise> | null = null;
@@ -102,6 +178,23 @@ export interface LiveSubnetMetrics {
   minerEmissionTaoPerDay: number | null;
   /** UIDs that earned incentive last epoch (actively rewarded miners). */
   rewardedMiners: number | null;
+  /** Share of last-epoch incentive captured by the top 10% of UIDs (0-1).
+   *  Wide spread (low share) = a mid-pack miner can hold its seat; a narrow
+   *  spread (share near 1) means any disruption drops you to the bottom. */
+  top10IncentiveShare: number | null;
+  /** Median-vs-mean share across EARNING UIDs: what a median rewarded UID
+   *  receives relative to the mean. ~1 → even spread; ≪1 → a whale takes
+   *  almost everything and the mean overstates mid-pack income. */
+  incentiveMedianShare: number | null;
+  /** Current registration burn cost in TAO — floats with demand, a direct
+   *  competition/demand signal (competitive subnets cost more to enter). */
+  burnCostTao: number | null;
+  /** Immunity period in blocks — the runway a new miner has to start earning
+   *  before becoming evictable (chain default 4096 ≈ 13.7h, subnets set higher). */
+  immunityBlocks: number | null;
+  /** Alpha price (in TAO) change vs ~24h ago, in %. Tracked via a server-side
+   *  ring buffer of pool prices — the dTAO "is this subnet rising or dying" signal. */
+  alphaPriceChange24h: number | null;
   /** Max allowed UIDs (registration capacity). */
   maxUids: number | null;
   owner: string | null;
@@ -417,6 +510,7 @@ class SnapshotCache {
       // Scan ALL subnets on chain (not just the 16 tracked ones).
       const allNetuids = Array.from({ length: Math.min(totalSubnets, 200) }, (_, i) => i);
       const subnets: LiveSubnetMetrics[] = [];
+      const alphaPriceByNetuid = new Map<number, number>();
 
       // Batch queries: 7 .multi() RPC calls per batch of netuids instead of
       // 7 individual round-trips per subnet. Batches of 50 keep each request
@@ -468,6 +562,8 @@ class SnapshotCache {
           ownerArr,
           registeredAtArr,
           maxUidsArr,
+          burnArr,
+          immunityArr,
         ] = await Promise.all([
           multi(mods.emission as never),
           multi(mods.incentive as never),
@@ -476,6 +572,8 @@ class SnapshotCache {
           multi(mods.subnetOwner as never),
           multi(mods.networkRegisteredAt as never),
           multi(mods.maxAllowedUids as never),
+          multi(mods.burn as never),
+          multi(mods.immunityPeriod as never),
         ]);
 
         const numVec = (raw: unknown): number[] => {
@@ -512,6 +610,36 @@ class SnapshotCache {
               if (e > 0) epochAlphaRao += e;
               if (inc > 0) { rewardedMiners++; minerAlphaRao += Math.max(e, 0); }
               if (div > 0) validators++;
+            }
+            // Reward concentration: share of last-epoch incentive captured by
+            // the top 10% of UIDs. A wide spread (low share) means a decent
+            // miner holds its seat safely; a narrow spread (share near 1) is
+            // the taostats "knife fight" signal — any disruption → deregistered.
+            let top10IncentiveShare: number | null = null;
+            const incTotal = incVec.reduce((a, b) => a + b, 0);
+            if (incTotal > 0) {
+              const sorted = [...incVec].sort((a, b) => b - a);
+              const topN = Math.max(1, Math.ceil(sorted.length * 0.1));
+              top10IncentiveShare =
+                Math.round(
+                  (sorted.slice(0, topN).reduce((a, b) => a + b, 0) / incTotal) * 1000
+                ) / 1000;
+            }
+            // Median-vs-mean share across EARNING uids — the taostats
+            // "emission spread" signal. When a whale UID takes the bulk,
+            // the per-earning MEAN wildly overstates what a mid-pack miner
+            // actually receives; the ledger discounts revenue by this.
+            let incentiveMedianShare: number | null = null;
+            if (incTotal > 0 && rewardedMiners > 0) {
+              const nonzero = incVec.filter((v) => v > 0).sort((a, b) => a - b);
+              if (nonzero.length > 0) {
+                const mid = nonzero[Math.floor(nonzero.length / 2)];
+                const mean = incTotal / rewardedMiners;
+                if (mean > 0) {
+                  incentiveMedianShare =
+                    Math.round(Math.min(mid / mean, 1.2) * 1000) / 1000;
+                }
+              }
             }
             // Per-uid values are last-epoch alpha totals → per-block = /tempo.
             const alphaPerBlock = epochAlphaRao / tempoSafe / 1e9; // α/block
@@ -588,6 +716,12 @@ class SnapshotCache {
             const maxUids = Number(
               (maxUidsArr[j] as { toString(): string } | null)?.toString() ?? "0"
             ) || 0;
+            const burnCostTao = toTao(
+              (burnArr[j] as { toString(): string } | null)?.toString()
+            );
+            const immunityBlocks = Number(
+              (immunityArr[j] as { toString(): string } | null)?.toString() ?? "0"
+            ) || 0;
 
             subnets.push({
               netuid: n,
@@ -605,12 +739,20 @@ class SnapshotCache {
               minerEmissionTaoPerDay:
                 emissionPerDayTao > 0 ? emissionPerDayTao * minerShare : null,
               rewardedMiners,
+              top10IncentiveShare,
+              incentiveMedianShare,
+              burnCostTao: burnCostTao > 0 ? burnCostTao : null,
+              immunityBlocks: immunityBlocks > 0 ? immunityBlocks : null,
+              alphaPriceChange24h: alphaChange24h(n, priceTao),
               maxUids: maxUids || null,
               owner: ownerRaw && !ownerRaw.isEmpty ? ownerRaw.toString() : null,
               registeredAt: regBlock || null,
               identityGithub: idGithub || null,
               identityDescription: idDesc || null,
             });
+
+            // Collect this sample window's alpha prices for the ring buffer.
+            if (priceTao > 0) alphaPriceByNetuid.set(n, priceTao);
           } catch {
             // skip malformed entry
           }
@@ -655,6 +797,10 @@ class SnapshotCache {
       } catch {
         // DynamicInfo unavailable — keep storage values
       }
+
+      // Persist this refresh's alpha prices into the 48h ring buffer (no-op
+      // inside the 10-min sample interval) so the 24h trend survives restarts.
+      recordAlphaPrices(alphaPriceByNetuid);
 
       // Keep the singleton connection alive — recycling it would force the
       // next refresh to re-fetch chain metadata (~3s cold start).
