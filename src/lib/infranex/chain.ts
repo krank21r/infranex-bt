@@ -90,30 +90,73 @@ async function fetchTaoPrice(): Promise<{
   marketCap: number;
   change24h: number;
 }> {
+  // Try CoinGecko first (most reliable), then fall back to alternative sources.
+  // CoinGecko rate-limits to ~10-30 req/min; if we get 429, we cache the last
+  // good price and try a fallback API.
+
+  // 1. CoinGecko
   try {
     const res = await fetch(
       "https://api.coingecko.com/api/v3/simple/price?ids=bittensor&vs_currencies=usd&include_24hr_change=true&include_market_cap=true",
       {
         headers: {
-          "User-Agent": "infranex-bt/1.0 (bittensor-intelligence-platform)",
+          "User-Agent": "infranex-bt/1.0",
           Accept: "application/json",
         },
         cache: "no-store",
+        signal: AbortSignal.timeout(5000),
       }
     );
-    if (!res.ok) throw new Error(`CoinGecko ${res.status}`);
-    const j = (await res.json()) as {
-      bittensor?: { usd?: number; usd_market_cap?: number; usd_24h_change?: number };
-    };
-    return {
-      usd: j.bittensor?.usd ?? 0,
-      marketCap: j.bittensor?.usd_market_cap ?? 0,
-      change24h: j.bittensor?.usd_24h_change ?? 0,
-    };
+    if (res.ok) {
+      const j = (await res.json()) as {
+        bittensor?: { usd?: number; usd_market_cap?: number; usd_24h_change?: number };
+      };
+      if (j.bittensor?.usd) {
+        return {
+          usd: j.bittensor.usd,
+          marketCap: j.bittensor.usd_market_cap ?? 0,
+          change24h: j.bittensor.usd_24h_change ?? 0,
+        };
+      }
+    }
+    // 429 or other error — fall through to fallback
   } catch {
-    return { usd: 0, marketCap: 0, change24h: 0 };
+    // timeout or network error — fall through to fallback
   }
+
+  // 2. Fallback: Coinbase (no rate limit, different data path)
+  try {
+    const res = await fetch(
+      "https://api.coinbase.com/v2/prices/TAO-USD/spot",
+      {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+        signal: AbortSignal.timeout(5000),
+      }
+    );
+    if (res.ok) {
+      const j = (await res.json()) as {
+        data?: { amount?: string };
+      };
+      const usd = parseFloat(j.data?.amount ?? "0");
+      if (usd > 0) {
+        return { usd, marketCap: 0, change24h: 0 };
+      }
+    }
+  } catch {
+    // fall through
+  }
+
+  // 3. Last resort: cached price (last known good value)
+  if (lastKnownTaoPrice > 0) {
+    return { usd: lastKnownTaoPrice, marketCap: 0, change24h: 0 };
+  }
+
+  return { usd: 0, marketCap: 0, change24h: 0 };
 }
+
+// Cache the last known good TAO price as a fallback when APIs are rate-limited.
+let lastKnownTaoPrice = 0;
 
 export async function fetchLiveSnapshot(): Promise<LiveNetworkSnapshot> {
   return snapshotCache.get();
@@ -158,6 +201,10 @@ class SnapshotCache {
 
   private async fetchFromChain(): Promise<LiveNetworkSnapshot> {
     const price = await fetchTaoPrice();
+    // Cache the last known good price for fallback during rate-limiting
+    if (price.usd > 0) {
+      lastKnownTaoPrice = price.usd;
+    }
     try {
       const api = await getChainApi();
       const [header, totalNetworks] = await Promise.all([
