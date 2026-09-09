@@ -9,8 +9,9 @@ export function formatNumber(
   num: number,
   options?: Intl.NumberFormatOptions
 ): string {
+  // Full numbers with thousands separators (e.g. 2,540 — never "2.54K"),
+  // per user preference. Callers may still override via options.
   return new Intl.NumberFormat("en-US", {
-    notation: "compact",
     maximumFractionDigits: 2,
     ...options,
   }).format(num);
@@ -20,10 +21,13 @@ export function formatCurrency(amount: number, currency = "USD"): string {
   if (currency === "TAO") {
     return `${amount.toFixed(4)} TAO`;
   }
+  // Full dollar amounts with separators (e.g. $2,540 — never "$2.54K"),
+  // per user preference. min 0 so whole amounts stay clean ("$300",
+  // "$8,360"), while cents still show when they exist ("$191.49").
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
-    notation: "compact",
+    minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(amount);
 }
