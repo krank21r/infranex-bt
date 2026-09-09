@@ -292,16 +292,33 @@ export function OpportunityTable({
                     </TableCell>
                     {!compact && (
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="tabular font-semibold">
-                            {o.score.toFixed(1)}
-                          </span>
-                          <Badge
-                            variant="outline"
-                            className={cn("text-[10px]", band.bg, band.color)}
-                          >
-                            {band.label}
-                          </Badge>
+                        <div className="flex flex-col items-start gap-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="tabular font-semibold">
+                              {o.score.toFixed(1)}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className={cn("text-[10px]", band.bg, band.color)}
+                            >
+                              {band.label}
+                            </Badge>
+                          </div>
+                          {o.earnChance && (
+                            <span
+                              className={cn(
+                                "text-[10px] font-medium",
+                                o.earnChance.level === "high"
+                                  ? "text-success"
+                                  : o.earnChance.level === "medium"
+                                    ? "text-warning"
+                                    : "text-destructive"
+                              )}
+                              title={`Chance to earn · month 1 — ${o.earnChance.note}`}
+                            >
+                              month-1 earn: {o.earnChance.level}
+                            </span>
+                          )}
                         </div>
                       </TableCell>
                     )}

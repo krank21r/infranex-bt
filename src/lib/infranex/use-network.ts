@@ -10,6 +10,7 @@ import {
   scoreMinersLedger,
   totalScore,
   riskLevel,
+  computeEarnChance,
 } from "./miner-score";
 import {
   computeProfitabilityReport,
@@ -351,6 +352,12 @@ export function mergeOpportunities(
       freeSlots: diag.freeSlots,
       totalSlots: diag.totalSlots,
       immunityBlocks: diag.immunityBlocks,
+      earnChance: computeEarnChance({
+        rewardedRatio: diag.rewardedRatio,
+        freeSlots: diag.freeSlots,
+        top10IncentiveShare: diag.top10IncentiveShare,
+        rampWeeks: diag.rampWeeks,
+      }),
       liveMiners: live.minersCount,
       liveStake: Math.round(live.subnetTao),
       livePrice: live.movingPrice,

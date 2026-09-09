@@ -1,6 +1,7 @@
 // Infranex BT — domain types (adapted for the single-page intelligence platform)
 
 import type { ProfitabilityReport, ProfitVerdict } from "./profitability";
+import type { EarnChance } from "./miner-score";
 
 export interface Subnet {
   netuid: number;
@@ -154,6 +155,8 @@ export interface Opportunity {
   freeSlots?: number | null;
   totalSlots?: number | null;
   immunityBlocks?: number | null;
+  /** Chance to earn · month 1 — newcomer odds of earning any reward. */
+  earnChance?: EarnChance;
   // --- Profitability Engine ---
   /** Full P&L: revenue − GPU − storage − infra − other = net, plus ROI,
    *  daily/weekly/monthly profit, break-even, margin, risk-adjusted and the

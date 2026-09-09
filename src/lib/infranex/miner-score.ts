@@ -529,3 +529,82 @@ export function scoreMinersLedger(inputs: {
 
   return { components, factors: deriveFactors(components), diag };
 }
+
+// ---------------------------------------------------------------------------
+// Chance to earn · month 1 — a newcomer's honest odds of earning ANY reward
+// during their first month of continuous, good-uptime mining. Uptime alone
+// keeps the seat; the share of slots that actually earn decides whether the
+// wallet moves. Dominant factor: rewardedRatio (share of registered slots
+// that earned last epoch), discounted for whale dominance, full subnets
+// (must displace an incumbent) and long bond-EMA ramps.
+// ---------------------------------------------------------------------------
+
+export type EarnChanceLevel = "high" | "medium" | "low" | "none";
+
+export interface EarnChance {
+  level: EarnChanceLevel;
+  /** 0–100 modeled chance that a newcomer earns something in month 1. */
+  pct: number;
+  /** Human explanation of the dominant factors. */
+  note: string;
+}
+
+export function computeEarnChance(inputs: {
+  /** Share of registered slots that earned reward last epoch (0..1). */
+  rewardedRatio: number | null;
+  /** Free UID slots (null = unknown). 0 means you must displace an incumbent. */
+  freeSlots: number | null;
+  /** Top-10% share of epoch incentive (0..1) — whale dominance. */
+  top10IncentiveShare: number | null;
+  /** Newcomer bond-EMA ramp estimate in weeks. */
+  rampWeeks: number | null;
+}): EarnChance {
+  const { rewardedRatio, freeSlots, top10IncentiveShare, rampWeeks } = inputs;
+
+  // Base: the fraction of slots that actually earn — the single strongest
+  // predictor of whether a newcomer earns anything at all.
+  let pct = rewardedRatio != null ? rewardedRatio * 100 : 0;
+  const factors: string[] = [];
+
+  // Whale dominance: when the top 10% of UIDs take nearly everything, the
+  // rewarded tail is scraps — being "rewarded" still pays almost nothing.
+  if (top10IncentiveShare != null && top10IncentiveShare > 0.5) {
+    pct *= 1 - Math.min(1, top10IncentiveShare - 0.5) * 0.6;
+    factors.push(
+      `top-10% of UIDs take ${Math.round(top10IncentiveShare * 100)}% of rewards`
+    );
+  }
+
+  // Full subnet: no free seats — you must outperform an incumbent to get in,
+  // and you start from zero bonds against their established ones.
+  if (freeSlots === 0) {
+    pct *= 0.7;
+    factors.push("subnet full — must displace an incumbent");
+  }
+
+  // Long ramp: month 1 is mostly bond-building; long ramps leave little of it.
+  if (rampWeeks != null && rampWeeks > 8) {
+    pct *= 0.8;
+    factors.push(`~${Math.round(rampWeeks)} wk ramp to full bonds`);
+  }
+
+  pct = Math.round(Math.max(0, Math.min(100, pct)));
+  const level: EarnChanceLevel =
+    rewardedRatio != null && rewardedRatio <= 0
+      ? "none"
+      : pct >= 50
+        ? "high"
+        : pct >= 20
+          ? "medium"
+          : pct > 0
+            ? "low"
+            : "none";
+
+  const base = rewardedRatio != null
+    ? `${rewardedRatio < 0.1 && rewardedRatio > 0 ? (rewardedRatio * 100).toFixed(1) : Math.round(rewardedRatio * 100)}% of slots earned last epoch`
+    : "reward spread unknown";
+  const note =
+    factors.length > 0 ? `${base} · ${factors.join(" · ")}` : base;
+
+  return { level, pct, note };
+}

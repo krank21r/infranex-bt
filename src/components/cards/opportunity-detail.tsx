@@ -368,6 +368,46 @@ export function OpportunityDetailDialog({
                   </span>
                 )}
               </p>
+              {o.earnChance && (
+                <div
+                  className={cn(
+                    "mt-2 rounded-md border px-2 py-1.5",
+                    o.earnChance.level === "high"
+                      ? "border-success/30 bg-success/5"
+                      : o.earnChance.level === "medium"
+                        ? "border-warning/30 bg-warning/5"
+                        : "border-destructive/30 bg-destructive/5"
+                  )}
+                  title={`Chance to earn · month 1 — ${o.earnChance.note}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                      Chance to earn · month 1
+                    </span>
+                    <span
+                      className={cn(
+                        "text-xs font-bold uppercase tracking-wide",
+                        o.earnChance.level === "high"
+                          ? "text-success"
+                          : o.earnChance.level === "medium"
+                            ? "text-warning"
+                            : "text-destructive"
+                      )}
+                    >
+                      {o.earnChance.level}
+                      {o.earnChance.pct > 0 && (
+                        <span className="ml-1 font-normal normal-case tracking-normal text-muted-foreground">
+                          ~{o.earnChance.pct}%
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
+                    {o.earnChance.note}. Uptime keeps the seat — performance fills
+                    the wallet.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
