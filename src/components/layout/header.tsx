@@ -30,26 +30,27 @@ interface HeaderProps {
 
 export function Header({ onMenuClick, title, eyebrow }: HeaderProps) {
   const [time, setTime] = useState<Date | null>(null);
-  const [isLight, setIsLight] = useState(false);
+  const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
     // Defer initial sync to a microtask to avoid setState-in-effect warning.
-    void Promise.resolve().then(() => setTime(new Date()));
+    void Promise.resolve().then(() => {
+      setTime(new Date());
+      setIsDark(document.documentElement.classList.contains("dark"));
+    });
     const interval = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
 
   const toggleTheme = () => {
     const html = document.documentElement;
-    const next = html.classList.contains("light");
-    if (next) {
-      html.classList.remove("light");
-      html.classList.add("dark");
-      setIsLight(false);
-    } else {
-      html.classList.remove("dark");
-      html.classList.add("light");
-      setIsLight(true);
+    const next = !html.classList.contains("dark");
+    html.classList.toggle("dark", next);
+    setIsDark(next);
+    try {
+      localStorage.setItem("infranex-theme", next ? "dark" : "light");
+    } catch {
+      // storage unavailable — theme simply won't persist
     }
   };
 
@@ -69,34 +70,37 @@ export function Header({ onMenuClick, title, eyebrow }: HeaderProps) {
     });
 
   return (
-    <header className="sticky top-0 z-30 h-16 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex h-full items-center justify-between gap-3 px-4 lg:px-6">
+    <header className="sticky top-0 z-30 h-16 border-b border-border/60 bg-background/70 backdrop-blur-xl supports-[backdrop-filter]:bg-background/60">
+      <div className="flex h-full items-center justify-between gap-3 px-4 lg:px-8">
         <div className="flex min-w-0 items-center gap-3">
           <Button
             variant="ghost"
             size="icon"
-            className="lg:hidden"
+            className="lg:hidden rounded-lg"
             onClick={onMenuClick}
             aria-label="Open menu"
           >
             <Menu className="h-5 w-5" />
           </Button>
           <div className="min-w-0">
-            <p className="text-eyebrow text-muted-foreground truncate">{eyebrow}</p>
-            <h2 className="text-display truncate text-lg font-semibold leading-tight">
+            <p className="text-eyebrow text-muted-foreground/80 truncate">{eyebrow}</p>
+            <h2 className="text-display truncate text-lg font-bold leading-tight">
               {title}
             </h2>
           </div>
         </div>
 
         <div className="hidden items-center md:flex md:flex-1 md:justify-center md:max-w-sm">
-          <div className="relative w-full">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <div className="group relative w-full">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-primary" />
             <Input
               placeholder="Search subnets, netuid, miners…"
-              className="h-9 pl-9 bg-card/40"
+              className="h-9 rounded-lg border-border/60 bg-card/50 pl-9 pr-12 text-sm transition-colors placeholder:text-muted-foreground/60 focus:border-primary/40"
               aria-label="Search"
             />
+            <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 rounded border border-border/60 bg-muted/60 px-1.5 py-0.5 mono text-[10px] font-medium text-muted-foreground lg:flex">
+              ⌘K
+            </kbd>
           </div>
         </div>
 
@@ -125,7 +129,7 @@ export function Header({ onMenuClick, title, eyebrow }: HeaderProps) {
                   onClick={toggleTheme}
                   aria-label="Toggle theme"
                 >
-                  {isLight ? (
+                  {isDark ? (
                     <Sun className="h-5 w-5" />
                   ) : (
                     <Moon className="h-5 w-5" />
@@ -133,7 +137,7 @@ export function Header({ onMenuClick, title, eyebrow }: HeaderProps) {
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                {isLight ? "Switch to dark" : "Switch to light"}
+                {isDark ? "Switch to light" : "Switch to dark"}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -224,10 +228,10 @@ export function Header({ onMenuClick, title, eyebrow }: HeaderProps) {
           </DropdownMenu>
 
           <div className="hidden flex-col items-end lg:flex">
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[11px] text-muted-foreground">
               {time ? formatDate(time) : "\u00A0"}
             </p>
-            <p className="mono tabular text-xs text-foreground/80">
+            <p className="mono tabular rounded-md border border-border/50 bg-card/50 px-1.5 py-0.5 text-[11px] text-foreground/90">
               {time ? formatTime(time) : "\u00A0"}
             </p>
           </div>

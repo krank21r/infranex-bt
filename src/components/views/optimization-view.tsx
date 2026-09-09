@@ -46,7 +46,7 @@ export function OptimizationView({ onNavigate }: OptimizationViewProps) {
     return (
       <div className="space-y-6">
         <Header onNavigate={onNavigate} />
-        <Card className="border-border/60 bg-card/40">
+        <Card className="border-border/60 bg-card/40 backdrop-blur-sm">
           <CardContent className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
             <RefreshCw className="h-5 w-5 animate-spin" />
             <span className="text-sm">Analyzing deployments…</span>
@@ -148,7 +148,7 @@ function Header({
     <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <p className="text-eyebrow text-muted-foreground">Section · 08 · Optimization Engine</p>
-        <h1 className="text-display text-3xl font-bold tracking-tight md:text-4xl">
+        <h1 className="animate-rise text-display text-3xl font-bold tracking-tight md:text-4xl">
           Optimization
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">

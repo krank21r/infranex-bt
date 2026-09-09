@@ -15,7 +15,7 @@ export function DataSourceBanner({ className }: { className?: string }) {
     return (
       <div
         className={cn(
-          "flex items-center gap-3 rounded-md border border-border/60 bg-card/30 px-4 py-2 text-xs",
+          "flex items-center gap-3 rounded-lg border border-border/60 bg-card/40 backdrop-blur-sm px-4 py-2.5 text-xs backdrop-blur",
           className
         )}
       >
@@ -34,8 +34,8 @@ export function DataSourceBanner({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "group relative flex flex-col gap-2 overflow-hidden rounded-md border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6",
-        isLive && "border-primary/30 bg-primary/[0.04]",
+        "group relative flex flex-col gap-2 overflow-hidden rounded-xl border px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:gap-6",
+        isLive && "border-primary/25 bg-primary/[0.05] glow-soft",
         isPartial && "border-warning/30 bg-warning/[0.05]",
         isError && "border-destructive/30 bg-destructive/[0.05]",
         className

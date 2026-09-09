@@ -147,7 +147,7 @@ export function OpportunityTable({
             placeholder="Search subnets…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
+            className="h-9 rounded-lg border-border/60 bg-card/50 pl-9 focus:border-primary/40"
             aria-label="Search opportunities"
           />
         </div>

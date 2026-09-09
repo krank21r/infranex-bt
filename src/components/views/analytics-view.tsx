@@ -76,7 +76,7 @@ export function AnalyticsView() {
     <div className="space-y-6">
       <header>
         <p className="text-eyebrow text-muted-foreground">Section · 06</p>
-        <h1 className="text-display text-3xl font-bold tracking-tight md:text-4xl">
+        <h1 className="animate-rise text-display text-3xl font-bold tracking-tight md:text-4xl">
           Analytics
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -86,7 +86,7 @@ export function AnalyticsView() {
       </header>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        <Card className="border-border/60 bg-card/40">
+        <Card className="border-border/60 bg-card/40 backdrop-blur-sm">
           <CardHeader>
             <p className="text-eyebrow text-muted-foreground">Trend · 30 days</p>
             <CardTitle className="text-display flex items-center gap-2 text-xl">
@@ -99,7 +99,7 @@ export function AnalyticsView() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/60 bg-card/40">
+        <Card className="border-border/60 bg-card/40 backdrop-blur-sm">
           <CardHeader>
             <p className="text-eyebrow text-muted-foreground">Distribution</p>
             <CardTitle className="text-display flex items-center gap-2 text-xl">
@@ -114,7 +114,7 @@ export function AnalyticsView() {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        <Card className="border-border/60 bg-card/40">
+        <Card className="border-border/60 bg-card/40 backdrop-blur-sm">
           <CardHeader>
             <p className="text-eyebrow text-muted-foreground">Top 12 · by score</p>
             <CardTitle className="text-display flex items-center gap-2 text-xl">
@@ -148,7 +148,7 @@ export function AnalyticsView() {
           </CardContent>
         </Card>
 
-        <Card className="border-border/60 bg-card/40">
+        <Card className="border-border/60 bg-card/40 backdrop-blur-sm">
           <CardHeader>
             <p className="text-eyebrow text-muted-foreground">By category</p>
             <CardTitle className="text-display flex items-center gap-2 text-xl">
@@ -198,7 +198,7 @@ export function AnalyticsView() {
         </Card>
       </section>
 
-      <Card className="border-border/60 bg-card/40">
+      <Card className="border-border/60 bg-card/40 backdrop-blur-sm">
         <CardHeader>
           <p className="text-eyebrow text-muted-foreground">Network totals</p>
           <CardTitle className="text-display text-xl">Platform summary</CardTitle>

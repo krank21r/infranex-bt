@@ -172,3 +172,20 @@ Work Log:
 
 Stage Summary:
 - All review fixes committed in a single atomic commit. Worktree clean. Runtime untouched (performance fixes live, db persists locally, future clones recreate db via prisma db:push).
+
+---
+Task ID: 10
+Agent: main (Z.ai Code)
+Task: UI/UX redesign — "Modern Terminal Luxe" (fullstack-dev skill workflow).
+
+Work Log:
+- Design system (globals.css): rebuilt on zinc near-black palette (240 6% 4%) with lime primary; new utilities — glass/glass-strong surfaces, aurora animated hero glow, stagger + animate-rise entrance animations (prefers-reduced-motion aware), shimmer skeletons, hover-lift, text-gradient, glow-soft, icon-chip; restyled metric-card (inset highlight + lift), sidebar-link (accent bar + glow on active), table-container/header/row.
+- Typography (layout.tsx): swapped Fraunces/Inter Tight for Space Grotesk (display) + Inter (body); JetBrains Mono retained for data.
+- Layout shell: sidebar grouped into Intelligence/Operations/Platform sections with gradient brand mark; header now glass (backdrop-blur) with focus-accent search + cmd-K hint + mono clock pill; dashboard-layout adds ambient grid-pattern + aurora blob background layer and max-w-[1400px] content; footer pills for block/TAO.
+- Shared components: MetricCard icon-chip + 28px display value (trend chip only when no icon — fixed title truncation), DataSourceBanner rounded-xl glass with glow, RevenueChart/EmissionDonut glass-strong tooltips + thicker strokes + active dots.
+- Views: dashboard hero rebuilt (aurora + badge + gradient headline); all 10 view heroes get animate-rise; 24 card containers get backdrop-blur; subnet card description line-clamp fixed.
+- Bug fixed during QA: subnet card description overflow — root cause chain: Tailwind line-clamp sets display:-webkit-box but FieldBadge's inline-flex span acted as one atomic flex item inside the vertical box (unclamped, 272px). Fixed by clamping plain text via inline styles (sandbox headless Chromium maps -webkit-box to flow-root in computed style but lays it out correctly; Lightning CSS drops hand-written .clamp-2 utilities, so utility-based fixes were unreliable).
+- Verification: lint clean, tsc clean, agent-browser tour of Dashboard/Opportunities/Subnets/GPU/Deployments/System at 1440px + mobile 390px incl. sheet menu — zero console/page errors; screenshots reviewed at every step.
+
+Stage Summary:
+- Cohesive modern redesign shipped across design tokens, shell, shared components, and all 10 views with live data intact (/api/network ~9ms warm, block 9,031,125, TAO $256.54).

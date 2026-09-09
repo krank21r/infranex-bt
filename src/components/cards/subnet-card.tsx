@@ -89,8 +89,16 @@ export function SubnetCard({ subnet: s, score, rank, onSelect, onEdit, onViewReq
                 </Badge>
               )}
             </div>
-            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-              <FieldBadge field="description" liveFields={liveFields} overriddenFields={overriddenFields}>{s.description}</FieldBadge>
+            <p
+              className="mt-1 text-xs text-muted-foreground"
+              style={{
+                display: "-webkit-box",
+                WebkitBoxOrient: "vertical",
+                WebkitLineClamp: 2,
+                overflow: "hidden",
+              }}
+            >
+              {s.description.replace(/^[-=*_\s]+/, "").replace(/\s+/g, " ")}
             </p>
           </div>
           <div className="shrink-0 text-right">

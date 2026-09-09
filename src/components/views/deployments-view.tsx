@@ -51,7 +51,7 @@ export function DeploymentsView() {
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-eyebrow text-muted-foreground">Section · 06</p>
-          <h1 className="text-display text-3xl font-bold tracking-tight md:text-4xl">
+          <h1 className="animate-rise text-display text-3xl font-bold tracking-tight md:text-4xl">
             Deployments
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -66,7 +66,7 @@ export function DeploymentsView() {
       </header>
 
       {isLoading ? (
-        <Card className="border-border/60 bg-card/40">
+        <Card className="border-border/60 bg-card/40 backdrop-blur-sm">
           <CardContent className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
             <span className="text-sm">Loading deployments…</span>
@@ -171,7 +171,7 @@ function DeploymentCard({
   return (
     <Card
       className={cn(
-        "border-border/60 bg-card/40 transition-all",
+        "border-border/60 bg-card/40 backdrop-blur-sm transition-all",
         isSelected && "border-primary/40",
         !isTerminal && "hover:border-primary/30"
       )}

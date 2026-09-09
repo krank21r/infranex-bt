@@ -99,7 +99,7 @@ export function SubnetsView() {
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-eyebrow text-muted-foreground">Section · 03</p>
-          <h1 className="text-display text-3xl font-bold tracking-tight md:text-4xl">
+          <h1 className="animate-rise text-display text-3xl font-bold tracking-tight md:text-4xl">
             Subnets
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -134,7 +134,7 @@ export function SubnetsView() {
       </header>
 
       {/* Data source legend + sync status */}
-      <Card className="border-border/60 bg-card/40">
+      <Card className="border-border/60 bg-card/40 backdrop-blur-sm">
         <CardContent className="flex flex-wrap items-center gap-3 py-3">
           <Info className="h-4 w-4 text-muted-foreground" />
           <span className="text-xs text-muted-foreground">Data sources:</span>
@@ -172,7 +172,7 @@ export function SubnetsView() {
         </CardContent>
       </Card>
 
-      <Card className="border-border/60 bg-card/40">
+      <Card className="border-border/60 bg-card/40 backdrop-blur-sm">
         <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -201,7 +201,7 @@ export function SubnetsView() {
       </Card>
 
       {filtered.length === 0 ? (
-        <Card className="border-border/60 bg-card/40">
+        <Card className="border-border/60 bg-card/40 backdrop-blur-sm">
           <CardContent className="flex flex-col items-center gap-2 py-16 text-center text-muted-foreground">
             <Network className="h-8 w-8" />
             <p className="text-sm">No subnets match your filters.</p>

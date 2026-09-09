@@ -24,12 +24,12 @@ function DonutTooltip({
   if (!active || !payload?.length) return null;
   const p = payload[0].payload;
   return (
-    <div className="rounded-lg border bg-popover p-3 shadow-lg">
-      <p className="text-sm font-medium">
+    <div className="glass-strong rounded-xl p-3 shadow-xl">
+      <p className="text-sm font-semibold">
         {p.name}{" "}
-        <span className="mono text-xs text-muted-foreground">{p.symbol}</span>
+        <span className="mono text-xs font-normal text-muted-foreground">{p.symbol}</span>
       </p>
-      <p className="mt-0.5 tabular text-xs text-muted-foreground">
+      <p className="mt-1 tabular text-xs text-muted-foreground">
         {p.emission.toFixed(2)} TAO/block
       </p>
     </div>

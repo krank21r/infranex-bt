@@ -65,28 +65,34 @@ export function MetricCard({
     ) : null;
 
   return (
-    <Card className={cn("metric-card", className)}>
-      <CardContent className="p-6">
+    <Card className={cn("metric-card group", className)}>
+      <CardContent className="p-5 lg:p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-muted-foreground">
+            <p className="truncate text-[13px] font-medium text-muted-foreground">
               {title}
             </p>
-            <div className="mt-1 flex items-baseline gap-2">
-              <p className="tabular text-2xl font-bold">{formattedValue}</p>
-              {icon && <span className="text-muted-foreground">{icon}</span>}
+            <div className="mt-2 flex items-baseline gap-2">
+              <p className="tabular text-display text-[28px] font-bold leading-none tracking-tight">
+                {formattedValue}
+              </p>
             </div>
             {subtitle && (
-              <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
+              <p className="mt-1.5 text-xs text-muted-foreground/90">{subtitle}</p>
             )}
-            {changeComponent}
+            {changeComponent && <div className="mt-2.5">{changeComponent}</div>}
           </div>
-          {trend && (
+          {icon && (
+            <div className="icon-chip text-primary transition-transform duration-300 group-hover:scale-110">
+              {icon}
+            </div>
+          )}
+          {!icon && trend && (
             <div
               className={cn(
                 "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
-                trend === "up" && "bg-success/10 text-success",
-                trend === "down" && "bg-destructive/10 text-destructive",
+                trend === "up" && "bg-success/10 text-success ring-1 ring-success/20",
+                trend === "down" && "bg-destructive/10 text-destructive ring-1 ring-destructive/20",
                 trend === "neutral" && "bg-muted text-muted-foreground"
               )}
               aria-label={`Trend: ${trend}`}

@@ -50,7 +50,7 @@ export function SystemView({ onNavigate }: SystemViewProps) {
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-eyebrow text-muted-foreground">Section · 07</p>
-          <h1 className="text-display text-3xl font-bold tracking-tight md:text-4xl">
+          <h1 className="animate-rise text-display text-3xl font-bold tracking-tight md:text-4xl">
             System &amp; Errors
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -177,7 +177,7 @@ export function SystemView({ onNavigate }: SystemViewProps) {
       )}
 
       {/* Error log */}
-      <Card className="border-border/60 bg-card/40">
+      <Card className="border-border/60 bg-card/40 backdrop-blur-sm">
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <div>
             <p className="text-eyebrow text-muted-foreground">Client-side · this session</p>
@@ -258,7 +258,7 @@ export function SystemView({ onNavigate }: SystemViewProps) {
       <BackgroundWorkersSection />
 
       {/* Quick links */}
-      <Card className="border-border/60 bg-card/40">
+      <Card className="border-border/60 bg-card/40 backdrop-blur-sm">
         <CardHeader>
           <p className="text-eyebrow text-muted-foreground">Quick actions</p>
           <CardTitle className="text-display text-xl">Jump to a view</CardTitle>
@@ -301,7 +301,7 @@ function HealthCheckCard({
   return (
     <Card
       className={cn(
-        "border-border/60 bg-card/40 transition-colors",
+        "border-border/60 bg-card/40 backdrop-blur-sm transition-colors",
         pass && "border-success/30",
         fail && "border-destructive/30"
       )}
@@ -478,7 +478,7 @@ function BackgroundWorkersSection() {
 
   if (isLoading || !data) {
     return (
-      <Card className="border-border/60 bg-card/40">
+      <Card className="border-border/60 bg-card/40 backdrop-blur-sm">
         <CardContent className="flex items-center gap-2 py-8 text-muted-foreground">
           <Activity className="h-5 w-5 animate-pulse" />
           <span className="text-sm">Loading worker status…</span>
@@ -494,7 +494,7 @@ function BackgroundWorkersSection() {
   };
 
   return (
-    <Card className="border-border/60 bg-card/40">
+    <Card className="border-border/60 bg-card/40 backdrop-blur-sm">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
         <div>
           <p className="text-eyebrow text-muted-foreground">Background workers</p>

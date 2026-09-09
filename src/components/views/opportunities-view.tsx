@@ -40,7 +40,7 @@ export function OpportunitiesView({ onSelectOpportunity, onStartMining }: Opport
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-eyebrow text-muted-foreground">Section · 02</p>
-          <h1 className="text-display text-3xl font-bold tracking-tight md:text-4xl">
+          <h1 className="animate-rise text-display text-3xl font-bold tracking-tight md:text-4xl">
             Opportunities
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -90,7 +90,7 @@ export function OpportunitiesView({ onSelectOpportunity, onStartMining }: Opport
         ))}
       </div>
 
-      <Card className="border-border/60 bg-card/40">
+      <Card className="border-border/60 bg-card/40 backdrop-blur-sm">
         <CardHeader className="pb-3">
           <CardTitle className="text-display flex items-center gap-2 text-xl">
             <TrendingUp className="h-4 w-4 text-primary" />

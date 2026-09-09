@@ -28,16 +28,16 @@ function ChartTooltip({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border bg-popover p-3 shadow-lg">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+    <div className="glass-strong rounded-xl p-3 shadow-xl">
+      <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
       {payload.map((entry, i) => (
-        <p key={i} className="mt-1 flex items-center gap-2 text-sm">
+        <p key={i} className="mt-1.5 flex items-center gap-2 text-sm">
           <span
-            className="h-2 w-2 rounded-full"
+            className="h-2 w-2 rounded-full ring-2 ring-background"
             style={{ backgroundColor: entry.color }}
           />
-          <span className="font-medium">{entry.name}: </span>
-          <span className="tabular">
+          <span className="text-muted-foreground">{entry.name}: </span>
+          <span className="tabular font-semibold">
             {entry.name === "TAO"
               ? `${entry.value.toFixed(2)} TAO`
               : formatCurrency(entry.value)}
@@ -63,10 +63,10 @@ export function RevenueChart({ data, height = 280 }: RevenueChartProps) {
           </linearGradient>
         </defs>
         <CartesianGrid
-          strokeDasharray="3 3"
+          strokeDasharray="4 4"
           stroke="hsl(var(--border))"
           vertical={false}
-          opacity={0.4}
+          opacity={0.5}
         />
         <XAxis
           dataKey="day"
@@ -90,16 +90,18 @@ export function RevenueChart({ data, height = 280 }: RevenueChartProps) {
           dataKey="usd"
           name="USD"
           stroke="hsl(var(--primary))"
-          strokeWidth={2}
+          strokeWidth={2.5}
           fill="url(#revUsd)"
+          activeDot={{ r: 4, strokeWidth: 2, stroke: "hsl(var(--background))" }}
         />
         <Area
           type="monotone"
           dataKey="tao"
           name="TAO"
           stroke="hsl(var(--chart-2))"
-          strokeWidth={1.5}
+          strokeWidth={2}
           fill="url(#revTao)"
+          activeDot={{ r: 4, strokeWidth: 2, stroke: "hsl(var(--background))" }}
         />
       </AreaChart>
     </ResponsiveContainer>

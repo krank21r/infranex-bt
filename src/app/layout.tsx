@@ -1,20 +1,19 @@
 import type { Metadata } from "next";
-import { Fraunces, Inter_Tight, JetBrains_Mono } from "next/font/google";
+import { Space_Grotesk, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Providers } from "./providers";
 
-const fraunces = Fraunces({
+const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-fraunces",
-  axes: ["opsz", "SOFT"],
+  variable: "--font-space-grotesk",
 });
 
-const interTight = Inter_Tight({
+const inter = Inter({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-inter-tight",
+  variable: "--font-inter",
 });
 
 const jetbrains = JetBrains_Mono({
@@ -49,15 +48,21 @@ export const metadata: Metadata = {
   },
 };
 
+// Runs before first paint: restores the user's saved theme, defaulting to light.
+const THEME_INIT = `try{if(localStorage.getItem("infranex-theme")==="dark"){document.documentElement.classList.add("dark")}}catch(e){}`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
+      </head>
       <body
-        className={`${fraunces.variable} ${interTight.variable} ${jetbrains.variable} font-sans antialiased bg-background text-foreground min-h-screen`}
+        className={`${spaceGrotesk.variable} ${inter.variable} ${jetbrains.variable} font-sans antialiased bg-background text-foreground min-h-screen`}
       >
         <Providers>
           {children}

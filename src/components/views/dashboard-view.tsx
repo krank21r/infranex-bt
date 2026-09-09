@@ -1,6 +1,6 @@
 "use client";
 
-import { RefreshCw, Network, TrendingUp, Coins, Activity, Zap, ArrowRight } from "lucide-react";
+import { RefreshCw, Network, TrendingUp, Coins, Activity, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +20,7 @@ import {
   mergeOpportunities,
   getLiveDashboardMetrics,
 } from "@/lib/infranex/use-network";
-import { cn, formatNumber, formatCurrency, formatTao, formatPercent } from "@/lib/utils";
+import { cn, formatNumber, formatCurrency, formatTao } from "@/lib/utils";
 import type { Opportunity, ViewKey } from "@/lib/infranex/types";
 
 interface DashboardViewProps {
@@ -38,24 +38,28 @@ export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }
   return (
     <div className="space-y-10">
       {/* Hero */}
-      <header className="grid grid-cols-1 gap-8 lg:grid-cols-[1.5fr_1fr] lg:items-end">
+      <header className="aurora animate-rise grid grid-cols-1 gap-8 rounded-2xl px-1 pb-8 pt-2 lg:grid-cols-[1.5fr_1fr] lg:items-end">
         <div>
-          <p className="text-eyebrow text-muted-foreground">
-            Section · 01 · Network Intelligence
-          </p>
-          <h1 className="text-display mt-3 text-5xl leading-[1.05] md:text-6xl xl:text-7xl">
+          <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/50 px-3 py-1 backdrop-blur">
+            <span className={cn(snap?.source === "live" ? "pulse-dot text-success" : "h-2 w-2 rounded-full bg-warning")} />
+            <span className="text-eyebrow text-muted-foreground">
+              Section · 01 · Network Intelligence
+            </span>
+          </div>
+          <h1 className="animate-rise text-display mt-4 text-4xl font-bold leading-[1.04] md:text-5xl xl:text-6xl">
             Bittensor,
             <br />
-            <em className="font-medium text-primary not-italic">
-              read like a book.
-            </em>
+            <span className="text-gradient">read like a book.</span>
           </h1>
-          <p className="mt-5 max-w-2xl text-base text-muted-foreground">
+          <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
             A single pane for every subnet you track — scores, miners,
             profitability, and the workers that keep the picture current.
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-3">
-            <Button onClick={() => onNavigate("opportunities")} className="gap-2">
+            <Button
+              onClick={() => onNavigate("opportunities")}
+              className="gap-2 rounded-lg shadow-[0_8px_24px_-8px_hsl(var(--primary)/0.5)] transition-all hover:shadow-[0_10px_32px_-8px_hsl(var(--primary)/0.65)]"
+            >
               Explore opportunities
               <ArrowRight className="h-4 w-4" />
             </Button>
@@ -63,6 +67,7 @@ export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }
               variant="outline"
               onClick={() => refetch()}
               disabled={isFetching}
+              className="rounded-lg border-border/60 bg-card/50 backdrop-blur"
             >
               <RefreshCw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
               {isFetching ? "Syncing…" : "Refresh chain"}
@@ -75,7 +80,7 @@ export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }
       </header>
 
       {/* Metrics */}
-      <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+      <section className="stagger grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           title="Chain Subnets"
           value={m.totalSubnets || m.trackedSubnets}
@@ -121,13 +126,13 @@ export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }
 
       {/* Top opportunities + revenue */}
       <section className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
-        <Card className="border-border/60 bg-card/40">
+        <Card className="glass">
           <CardHeader className="flex flex-row items-end justify-between gap-3 space-y-0">
             <div>
               <p className="text-eyebrow text-muted-foreground">
                 Table · ranked · top {top.length}
               </p>
-              <CardTitle className="text-display mt-2 text-2xl">
+              <CardTitle className="text-display mt-2 text-2xl font-bold">
                 Best subnets by score
               </CardTitle>
             </div>
@@ -135,6 +140,7 @@ export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }
               variant="outline"
               size="sm"
               onClick={() => onNavigate("opportunities")}
+              className="rounded-lg border-border/60 bg-card/50"
             >
               View all
               <ArrowRight className="ml-2 h-3.5 w-3.5" />
@@ -151,18 +157,18 @@ export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }
         </Card>
 
         <div className="space-y-6">
-          <Card className="border-border/60 bg-card/40">
+          <Card className="glass">
             <CardHeader className="pb-2">
               <p className="text-eyebrow text-muted-foreground">
                 Emission · last 30 days
               </p>
-              <CardTitle className="text-display text-xl">
+              <CardTitle className="text-display text-xl font-bold">
                 Portfolio revenue
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="mb-2 flex items-baseline gap-2">
-                <span className="tabular text-3xl font-bold">
+                <span className="tabular text-display text-3xl font-bold tracking-tight">
                   {formatCurrency(m.portfolioEarnings * 412)}
                 </span>
                 <span className="text-sm text-muted-foreground">
@@ -173,12 +179,12 @@ export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }
             </CardContent>
           </Card>
 
-          <Card className="border-border/60 bg-card/40">
+          <Card className="glass">
             <CardHeader className="pb-2">
               <p className="text-eyebrow text-muted-foreground">
                 Distribution · TAO/block
               </p>
-              <CardTitle className="text-display text-xl">
+              <CardTitle className="text-display text-xl font-bold">
                 Emission by subnet
               </CardTitle>
             </CardHeader>
@@ -188,11 +194,11 @@ export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }
                 {emissionShares.slice(0, 6).map((e) => (
                   <div key={e.netuid} className="flex items-center gap-2 text-xs">
                     <span
-                      className="h-2 w-2 shrink-0 rounded-full"
+                      className="h-2 w-2 shrink-0 rounded-full ring-2 ring-background"
                       style={{ backgroundColor: e.color }}
                     />
                     <span className="truncate text-muted-foreground">{e.name}</span>
-                    <span className="ml-auto mono tabular">{e.emission.toFixed(2)}</span>
+                    <span className="ml-auto mono tabular font-medium">{e.emission.toFixed(2)}</span>
                   </div>
                 ))}
               </div>
@@ -202,13 +208,13 @@ export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }
       </section>
 
       {/* Decision bands + workers */}
-      <section className="grid gap-6 lg:grid-cols-[1fr_1fr]">
-        <Card className="border-border/60 bg-card/40">
+      <section className="grid gap-6 lg:grid-cols-2">
+        <Card className="glass">
           <CardHeader>
             <p className="text-eyebrow text-muted-foreground">
               Decision engine
             </p>
-            <CardTitle className="text-display text-2xl">
+            <CardTitle className="text-display text-2xl font-bold">
               3-pillar verdicts
             </CardTitle>
           </CardHeader>
@@ -219,7 +225,7 @@ export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }
               count={m.runCount}
               total={liveOpps.length}
               color="text-success"
-              bg="bg-success/10"
+              bg="bg-success/10 ring-1 ring-success/20"
               bar="bg-success"
             />
             <DecisionRow
@@ -228,7 +234,7 @@ export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }
               count={m.watchCount}
               total={liveOpps.length}
               color="text-warning"
-              bg="bg-warning/10"
+              bg="bg-warning/10 ring-1 ring-warning/20"
               bar="bg-warning"
             />
             <DecisionRow
@@ -237,7 +243,7 @@ export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }
               count={m.avoidCount}
               total={liveOpps.length}
               color="text-destructive"
-              bg="bg-destructive/10"
+              bg="bg-destructive/10 ring-1 ring-destructive/20"
               bar="bg-destructive"
             />
             <div className="editorial-rule" />
@@ -249,13 +255,13 @@ export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }
           </CardContent>
         </Card>
 
-        <Card className="border-border/60 bg-card/40">
+        <Card className="glass">
           <CardHeader className="flex flex-row items-center justify-between space-y-0">
             <div>
               <p className="text-eyebrow text-muted-foreground">System</p>
-              <CardTitle className="text-display text-2xl">Workers</CardTitle>
+              <CardTitle className="text-display text-2xl font-bold">Workers</CardTitle>
             </div>
-            <Button variant="ghost" size="sm" className="gap-2">
+            <Button variant="ghost" size="sm" className="gap-2 rounded-lg">
               <RefreshCw className="h-3.5 w-3.5" />
               Refresh
             </Button>
@@ -264,16 +270,16 @@ export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }
             {workers.map((w) => (
               <div
                 key={w.name}
-                className="flex items-center gap-3 rounded-lg border border-border/40 bg-card/30 px-3 py-2.5"
+                className="flex items-center gap-3 rounded-lg border border-border/40 bg-card/30 px-3 py-2.5 transition-colors hover:border-border/70 hover:bg-card/50"
               >
                 <span
                   className={cn(
                     "h-2 w-2 shrink-0 rounded-full",
                     w.status === "healthy"
-                      ? "bg-success"
+                      ? "bg-success shadow-[0_0_8px_0_hsl(var(--success)/0.7)]"
                       : w.status === "degraded"
-                        ? "bg-warning"
-                        : "bg-destructive"
+                        ? "bg-warning shadow-[0_0_8px_0_hsl(var(--warning)/0.7)]"
+                        : "bg-destructive shadow-[0_0_8px_0_hsl(var(--destructive)/0.7)]"
                   )}
                 />
                 <div className="min-w-0 flex-1">
@@ -284,7 +290,7 @@ export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="mono tabular text-sm font-medium">
+                  <p className="mono tabular text-sm font-semibold">
                     {formatNumber(w.tasksProcessed)}
                   </p>
                   <p className="text-[10px] text-muted-foreground">tasks</p>
@@ -331,7 +337,10 @@ function DecisionRow({
         </span>
       </div>
       <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
-        <div className={cn("h-full rounded-full", bar)} style={{ width: `${pct}%` }} />
+        <div
+          className={cn("h-full rounded-full transition-all duration-700", bar)}
+          style={{ width: `${pct}%` }}
+        />
       </div>
     </div>
   );
@@ -340,8 +349,8 @@ function DecisionRow({
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="tabular text-lg font-bold">{value}</p>
-      <p className="text-[10px] text-muted-foreground">{label}</p>
+      <p className="tabular text-display text-lg font-bold tracking-tight">{value}</p>
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
     </div>
   );
 }

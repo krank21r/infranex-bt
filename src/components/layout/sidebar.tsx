@@ -21,17 +21,32 @@ import {
 } from "lucide-react";
 import type { ViewKey } from "@/lib/infranex/types";
 
-const NAV: { key: ViewKey; label: string; icon: typeof LayoutDashboard; hint: string }[] = [
-  { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, hint: "01" },
-  { key: "opportunities", label: "Opportunities", icon: TrendingUp, hint: "02" },
-  { key: "subnets", label: "Subnets", icon: Network, hint: "03" },
-  { key: "gpus", label: "GPU Catalog", icon: Cpu, hint: "04" },
-  { key: "miners", label: "My Miners", icon: Coins, hint: "05" },
-  { key: "deployments", label: "Deployments", icon: Rocket, hint: "06" },
-  { key: "monitoring", label: "Monitoring", icon: Gauge, hint: "07" },
-  { key: "optimization", label: "Optimization", icon: Wand2, hint: "08" },
-  { key: "analytics", label: "Analytics", icon: BarChart3, hint: "09" },
-  { key: "system", label: "System & Errors", icon: AlertTriangle, hint: "10" },
+const NAV_GROUPS: { label: string; items: { key: ViewKey; label: string; icon: typeof LayoutDashboard; hint: string }[] }[] = [
+  {
+    label: "Intelligence",
+    items: [
+      { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, hint: "01" },
+      { key: "opportunities", label: "Opportunities", icon: TrendingUp, hint: "02" },
+      { key: "subnets", label: "Subnets", icon: Network, hint: "03" },
+    ],
+  },
+  {
+    label: "Operations",
+    items: [
+      { key: "gpus", label: "GPU Catalog", icon: Cpu, hint: "04" },
+      { key: "miners", label: "My Miners", icon: Coins, hint: "05" },
+      { key: "deployments", label: "Deployments", icon: Rocket, hint: "06" },
+      { key: "monitoring", label: "Monitoring", icon: Gauge, hint: "07" },
+      { key: "optimization", label: "Optimization", icon: Wand2, hint: "08" },
+    ],
+  },
+  {
+    label: "Platform",
+    items: [
+      { key: "analytics", label: "Analytics", icon: BarChart3, hint: "09" },
+      { key: "system", label: "System & Errors", icon: AlertTriangle, hint: "10" },
+    ],
+  },
 ];
 
 interface SidebarProps {
@@ -53,25 +68,40 @@ export function Sidebar({
   };
 
   const NavList = (
-    <nav className="flex flex-col gap-1" aria-label="Primary">
-      {NAV.map((item) => {
-        const Icon = item.icon;
-        const active = current === item.key;
-        return (
-          <button
-            key={item.key}
-            onClick={() => handleNav(item.key)}
-            className={cn("sidebar-link group", active && "active")}
-            aria-current={active ? "page" : undefined}
-          >
-            <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-            <span className="flex-1 text-left">{item.label}</span>
-            <span className="mono text-[10px] uppercase tracking-wider text-muted-foreground/60">
-              {item.hint}
-            </span>
-          </button>
-        );
-      })}
+    <nav className="flex flex-col gap-5" aria-label="Primary">
+      {NAV_GROUPS.map((group) => (
+        <div key={group.label}>
+          <p className="text-eyebrow px-3 pb-2 text-muted-foreground/60">
+            {group.label}
+          </p>
+          <div className="flex flex-col gap-0.5">
+            {group.items.map((item) => {
+              const Icon = item.icon;
+              const active = current === item.key;
+              return (
+                <button
+                  key={item.key}
+                  onClick={() => handleNav(item.key)}
+                  className={cn("sidebar-link group", active && "active")}
+                  aria-current={active ? "page" : undefined}
+                >
+                  <Icon
+                    className={cn(
+                      "h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110",
+                      active ? "text-primary" : "text-muted-foreground/70"
+                    )}
+                    aria-hidden="true"
+                  />
+                  <span className="flex-1 text-left">{item.label}</span>
+                  <span className="mono text-[10px] tabular text-muted-foreground/50 transition-colors group-hover:text-muted-foreground">
+                    {item.hint}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </nav>
   );
 
@@ -80,12 +110,9 @@ export function Sidebar({
       {/* Desktop */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r bg-sidebar lg:flex">
         <SidebarBrand />
-        <ScrollArea className="flex-1 px-3 py-4 custom-scroll">
-          <p className="text-eyebrow px-3 pb-2 text-muted-foreground/70">
-            Intelligence
-          </p>
+        <ScrollArea className="flex-1 px-3 py-5 custom-scroll">
           {NavList}
-          <div className="mt-6 px-3">
+          <div className="my-5 px-1">
             <div className="editorial-rule" />
           </div>
           <SidebarFooter />
@@ -111,12 +138,9 @@ export function Sidebar({
               <X className="h-4 w-4" />
             </Button>
           </div>
-          <ScrollArea className="flex-1 px-3 py-4 custom-scroll">
-            <p className="text-eyebrow px-3 pb-2 text-muted-foreground/70">
-              Intelligence
-            </p>
+          <ScrollArea className="flex-1 px-3 py-5 custom-scroll">
             {NavList}
-            <div className="mt-6 px-3">
+            <div className="my-5 px-1">
               <div className="editorial-rule" />
             </div>
             <SidebarFooter />
@@ -129,16 +153,17 @@ export function Sidebar({
 
 function SidebarBrand() {
   return (
-    <div className="flex h-16 items-center gap-2.5 border-b px-5">
-      <div className="relative flex h-8 w-8 items-center justify-center rounded-md border border-primary/40 bg-primary/10">
-        <Activity className="h-4 w-4 text-primary" aria-hidden="true" />
+    <div className="flex h-16 items-center gap-3 border-b px-5">
+      <div className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-primary/30 bg-gradient-to-br from-primary/25 via-primary/10 to-transparent shadow-[inset_0_1px_0_0_hsl(var(--primary)/0.25)]">
+        <Activity className="h-4.5 w-4.5 text-primary" aria-hidden="true" />
+        <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-primary glow-soft" aria-hidden="true" />
       </div>
       <div className="leading-none">
-        <p className="text-display text-base font-semibold tracking-tight">
+        <p className="text-display text-[15px] font-bold tracking-tight">
           Infranex
-          <span className="text-primary"> BT</span>
+          <span className="text-gradient"> BT</span>
         </p>
-        <p className="mono text-[10px] uppercase tracking-wider text-muted-foreground">
+        <p className="mono mt-1 text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
           subnet intelligence
         </p>
       </div>
@@ -152,9 +177,10 @@ function SidebarFooter() {
   const block = data?.blockNumber ?? 0;
   const totalSubnets = data?.totalSubnets ?? 0;
   return (
-    <div className="mt-auto px-3 pt-6">
-      <div className="rounded-lg border border-border/60 bg-card/40 p-3">
-        <div className="flex items-center gap-2">
+    <div className="mt-auto px-1 pt-2 pb-4">
+      <div className="relative overflow-hidden rounded-xl border border-border/60 bg-card/50 p-3.5">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/[0.07] via-transparent to-transparent" aria-hidden="true" />
+        <div className="relative flex items-center gap-2">
           <span
             className={
               isLive
@@ -166,18 +192,18 @@ function SidebarFooter() {
             {isLive ? "Chain synced" : "Syncing…"}
           </span>
         </div>
-        <p className="mt-1.5 text-xs text-muted-foreground">
+        <p className="relative mt-2 text-xs text-muted-foreground">
           Finney · block{" "}
-          <span className="mono tabular text-foreground/80">
+          <span className="mono tabular text-foreground/90">
             {block > 0 ? block.toLocaleString() : "—"}
           </span>
         </p>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          {totalSubnets > 0 ? `${totalSubnets} subnets` : "—"} ·{" "}
-          <span className="mono tabular text-success">
+        <div className="relative mt-1 flex items-center justify-between text-xs text-muted-foreground">
+          <span className="tabular">{totalSubnets > 0 ? `${totalSubnets} subnets` : "—"}</span>
+          <span className="mono tabular font-medium text-success">
             {data?.taoPriceUsd ? `$${data.taoPriceUsd.toFixed(2)}` : "—"}
           </span>
-        </p>
+        </div>
       </div>
     </div>
   );

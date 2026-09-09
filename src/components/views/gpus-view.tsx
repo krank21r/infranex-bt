@@ -78,7 +78,7 @@ export function GpusView() {
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-eyebrow text-muted-foreground">Section · 04</p>
-          <h1 className="text-display text-3xl font-bold tracking-tight md:text-4xl">
+          <h1 className="animate-rise text-display text-3xl font-bold tracking-tight md:text-4xl">
             GPU Catalog
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -159,7 +159,7 @@ export function GpusView() {
 
         {/* Offers */}
         <TabsContent value="offers">
-          <Card className="border-border/60 bg-card/40">
+          <Card className="border-border/60 bg-card/40 backdrop-blur-sm">
             <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 <CardTitle className="text-display text-xl">GPU offers</CardTitle>
@@ -297,7 +297,7 @@ export function GpusView() {
 
         {/* Models */}
         <TabsContent value="models">
-          <Card className="border-border/60 bg-card/40">
+          <Card className="border-border/60 bg-card/40 backdrop-blur-sm">
             <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <CardTitle className="text-display text-xl">GPU models</CardTitle>
               <div className="flex flex-wrap items-center gap-2">
