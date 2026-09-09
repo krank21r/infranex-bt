@@ -141,6 +141,14 @@ interface MockHostState {
   dockerInstalled: boolean;
   toolkitInstalled: boolean;
   gpuPresent: boolean;
+  // requirement-installer state (subnet deployment simulation)
+  aptInstalled: boolean;
+  venvCreated: boolean;
+  repoCloned: boolean;
+  depsInstalled: boolean;
+  minerEnvWritten: boolean;
+  walletReady: boolean;
+  minerRunning: boolean;
   key: string;
 }
 
@@ -152,6 +160,13 @@ function getState(key: string): MockHostState {
       dockerInstalled: false,
       toolkitInstalled: false,
       gpuPresent: true,
+      aptInstalled: false,
+      venvCreated: false,
+      repoCloned: false,
+      depsInstalled: false,
+      minerEnvWritten: false,
+      walletReady: false,
+      minerRunning: false,
       key,
     };
     mockState.set(key, s);
@@ -285,6 +300,97 @@ export class MockTransport implements Transport {
     if (command.includes("mkdir -p /root/.infranex") && command.includes("printf"))
       return out("[mock] /root/.infranex/env written\n");
     if (command.startsWith("mkdir -p /root/.infranex")) return out("");
+
+    // ------------------------------------------------------------------
+    // Requirement Installer simulation (subnet deployment on the mock host)
+    // ------------------------------------------------------------------
+
+    // 2 — OS packages
+    if (command.includes("apt-get install")) {
+      const pkgs = command.split("apt-get install -y -qq ")[1]?.trim() ?? "";
+      s.aptInstalled = true;
+      return out(`[mock] Reading package lists... Done\n[mock] The following NEW packages will be installed:\n  ${pkgs.replace(/ /g, ", ")}\n[mock] Setting up ${pkgs.split(" ").length} packages... Done\n`);
+    }
+    if (command === "python3 --version") return out("Python 3.10.12\n");
+
+    // 3 — venv (the plan chains a version grep + mkdir + venv + pip --version)
+    if (command.includes("python3 -m venv") && command.includes("/opt/infranex/")) {
+      s.venvCreated = true;
+      return out("pip 24.0 from /opt/infranex/.../venv/lib/python3.10/site-packages/pip (python 3.10)\n");
+    }
+    if (command.includes("/venv/bin/pip --version")) {
+      if (!s.venvCreated) return out("", "No such file or directory", 127);
+      return out("pip 24.0 from /opt/infranex/.../venv/lib/python3.10/site-packages/pip (python 3.10)\n");
+    }
+
+    // 4 — repo clone
+    if (command.includes("git clone") && command.includes("/opt/infranex/")) {
+      s.repoCloned = true;
+      return out(`Cloning into '/opt/infranex/.../app'...\nremote: Enumerating objects: 128, done.\nReceiving objects: 100% (128/128), done.\n`);
+    }
+
+    // 5 — pip dependencies
+    if (command.includes("pip3 install") && command.includes("uv")) {
+      return out("[mock] Installed 1 package: uv\n");
+    }
+    if (command.includes("uv sync")) {
+      if (!s.repoCloned) return out("", "No such file or directory", 127);
+      s.venvCreated = true;
+      s.depsInstalled = true;
+      return out(
+        "Resolved 42 packages in 3.2s\nInstalled 42 packages in 18.9s\n + bittensor==9.10.1\n + torch==2.5.1\n + …\n"
+      );
+    }
+    if (command.includes("pip install") && command.includes("/opt/infranex/")) {
+      if (!s.venvCreated) return out("", "No such file or directory", 127);
+      s.depsInstalled = true;
+      return out(
+        "Looking in indexes: https://pypi.org/simple\nSuccessfully installed bittensor-9.10.1 async-substrate-interface-1.3.2 torch-2.5.1 rich-13.9.4 …\n"
+      );
+    }
+
+    // 6 — miner env file (printf … > /opt/infranex/snX/env, contains BT_NETUID)
+    if (command.includes("/opt/infranex/") && command.includes("printf") && command.includes("BT_NETUID")) {
+      s.minerEnvWritten = true;
+      return out("BT_NETWORK=finney\nBT_NETUID=…\nBT_WALLET_NAME=…\nBT_HOTKEY_NAME=…\nCUDA_VISIBLE_DEVICES=0\n");
+    }
+
+    // 7 — wallet files check
+    if (command.includes(".bittensor/wallets") && command.includes("test -f")) {
+      if (!s.walletReady)
+        return out(
+          "MISSING: copy your coldkey + hotkey into $HOME/.bittensor/wallets/<wallet>/ on the host (scp from your local machine), then continue\n",
+          "",
+          1
+        );
+      return out("wallet default/miner found\n");
+    }
+
+    // 8 — systemd unit write + launch
+    if (command.includes("/etc/systemd/system/infranex-miner") && command.includes("printf"))
+      return out("[mock] unit file written\n");
+    if (command.includes("systemctl enable --now infranex-miner")) {
+      s.minerRunning = true;
+      return out("Synchronizing state of infranex-miner-sn64.service\nCreated symlink /etc/systemd/system/multi-user.target.wants/infranex-miner-sn64.service → /etc/systemd/system/infranex-miner-sn64.service.\n");
+    }
+
+    // 9 — verify (combined is-active + port + tail) or pieces
+    if (command.includes("systemctl is-active infranex-miner")) {
+      if (!s.minerRunning) return out("inactive\n", "", 3);
+      const logTail =
+        "2026-09-10 12:00:01 | Loaded wallet default/miner — connecting to finney…\n2026-09-10 12:00:04 | Axon serving on 0.0.0.0:8091\n2026-09-10 12:00:06 | Syncing chain head 9,213,442\n";
+      if (command.includes("ss -tlnp"))
+        return out(
+          `active\nLISTEN 0 4096 0.0.0.0:8091 0.0.0.0:* users:(("python",pid=18411,fd=19))\n${logTail}`
+        );
+      return out("active\n");
+    }
+    if (command.includes("tail -n 5 /var/log/infranex-miner"))
+      return out("2026-09-10 12:00:04 | Axon serving on 0.0.0.0:8091\n");
+    if (command.includes("systemctl disable --now infranex-miner")) {
+      s.minerRunning = false;
+      return out("Removed /etc/systemd/system/multi-user.target.wants/infranex-miner-sn64.service.\n");
+    }
 
     return out(`[mock] unrecognised command: ${command}\n`);
   }

@@ -40,6 +40,7 @@ import {
   Loader2,
   Cpu,
   HardDrive,
+  Rocket,
   Terminal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -53,6 +54,7 @@ import {
   type DevopsHost,
   type HostCheckRow,
 } from "@/lib/devops/use-devops";
+import { DeploySubnetDialog } from "./deploy-subnet-dialog";
 
 const HOST_STATUS = {
   ready: { label: "READY", cls: "text-success bg-success/10 border-success/30" },
@@ -74,9 +76,11 @@ export function DevOpsEngineSection() {
   const { data, isLoading } = useDevopsHosts();
   const hosts = data?.hosts ?? [];
   const [wizardHostId, setWizardHostId] = useState<string | null>(null);
+  const [deployHostId, setDeployHostId] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
 
   const wizardHost = hosts.find((h) => h.id === wizardHostId) ?? null;
+  const deployHost = hosts.find((h) => h.id === deployHostId) ?? null;
 
   return (
     <div className="space-y-4">
@@ -87,8 +91,8 @@ export function DevOpsEngineSection() {
             DevOps Engine
           </h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Connect a GPU machine, run the 10-step environment pipeline, fix what is
-            missing — the host becomes deploy-ready for miners.
+            Connect a GPU machine, run the 10-step pipeline, then deploy a subnet —
+            the engine pulls that subnet&apos;s requirements and installs them on the host.
           </p>
         </div>
         <Button onClick={() => setAddOpen(true)} className="gap-2">
@@ -120,7 +124,12 @@ export function DevOpsEngineSection() {
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {hosts.map((h) => (
-            <HostCard key={h.id} host={h} onInspect={() => setWizardHostId(h.id)} />
+            <HostCard
+              key={h.id}
+              host={h}
+              onInspect={() => setWizardHostId(h.id)}
+              onDeploy={() => setDeployHostId(h.id)}
+            />
           ))}
         </div>
       )}
@@ -133,14 +142,32 @@ export function DevOpsEngineSection() {
           onOpenChange={(o) => !o && setWizardHostId(null)}
         />
       )}
+      {deployHost && (
+        <DeploySubnetDialog
+          hostId={deployHost.id}
+          hostName={deployHost.name}
+          open={deployHostId !== null}
+          onOpenChange={(o) => !o && setDeployHostId(null)}
+        />
+      )}
     </div>
   );
 }
 
-function HostCard({ host, onInspect }: { host: DevopsHost; onInspect: () => void }) {
+function HostCard({
+  host,
+  onInspect,
+  onDeploy,
+}: {
+  host: DevopsHost;
+  onInspect: () => void;
+  onDeploy: () => void;
+}) {
   const deleteHost = useDeleteHost();
   const st = HOST_STATUS[host.status] ?? HOST_STATUS.pending;
   const info = host.hostInfo;
+  const inst = host.latestInstall;
+  const deployed = inst?.status === "deployed";
   return (
     <Card className="bg-card/40">
       <CardContent className="space-y-3 p-4">
@@ -198,6 +225,14 @@ function HostCard({ host, onInspect }: { host: DevopsHost; onInspect: () => void
             </Button>
             <Button
               size="sm"
+              variant={deployed ? "default" : "outline"}
+              className="h-7 gap-1 text-xs"
+              onClick={onDeploy}
+            >
+              <Rocket className="h-3 w-3" /> Deploy
+            </Button>
+            <Button
+              size="sm"
               variant="ghost"
               className="h-7 gap-1 px-2 text-xs text-destructive hover:text-destructive"
               disabled={deleteHost.isPending}
@@ -210,6 +245,17 @@ function HostCard({ host, onInspect }: { host: DevopsHost; onInspect: () => void
             </Button>
           </div>
         </div>
+        {inst && (
+          <p className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            {deployed ? (
+              <Rocket className="h-3 w-3 text-success" />
+            ) : (
+              <Terminal className="h-3 w-3" />
+            )}
+            {deployed ? "Running" : "Install"}: SN{inst.netuid} · {inst.subnetName} ·{" "}
+            {inst.status.replace("_", " ")}
+          </p>
+        )}
       </CardContent>
     </Card>
   );

@@ -151,3 +151,37 @@ model HostCheck {
   @@index([hostId, runId])
   @@index([hostId, step])
 }
+
+// ---------------------------------------------------------------------------
+// Subnet Requirements Profiler — what a subnet NEEDS, pulled from the subnet
+// itself: chain identity + its GitHub repo (README, requirements.txt,
+// pyproject.toml, Dockerfile, repo tree → miner entrypoint). Cached per netuid.
+// ---------------------------------------------------------------------------
+model SubnetRequirements {
+  netuid      Int      @id
+  subnetName  String
+  profileJson String   // SubnetRequirementsProfile JSON
+  confidence  String   @default("medium") // "high" | "medium" | "low"
+  sources     String   @default("[]")     // JSON array: "chain" | "github" | "curated"
+  fetchedAt   DateTime
+  updatedAt   DateTime @updatedAt
+}
+
+// One subnet installation on one host — the requirement installer's job record.
+// status: "staged" | "running" | "waiting_approval" | "deployed" | "failed" | "stopped"
+model HostInstall {
+  id               String   @id @default(cuid())
+  hostId           String
+  netuid           Int
+  subnetName       String
+  walletName       String
+  hotkeyName       String
+  status           String   @default("staged")
+  requirementsJson String   // snapshot of the profile used to build the plan
+  stepsJson        String   @default("[]") // InstallStep[] JSON
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([hostId])
+  @@index([netuid])
+}

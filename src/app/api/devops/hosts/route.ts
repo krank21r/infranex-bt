@@ -33,7 +33,29 @@ function publicHost(h: {
 export async function GET() {
   try {
     const hosts = await db.gpuHost.findMany({ orderBy: { createdAt: "desc" } });
-    return NextResponse.json({ hosts: hosts.map(publicHost) });
+    const installs = await db.hostInstall.findMany({ orderBy: { updatedAt: "desc" } });
+    const latestInstallByHost = new Map<string, (typeof installs)[number]>();
+    for (const i of installs) {
+      if (!latestInstallByHost.has(i.hostId)) latestInstallByHost.set(i.hostId, i);
+    }
+    return NextResponse.json({
+      hosts: hosts.map((h) => {
+        const pub = publicHost(h);
+        const inst = latestInstallByHost.get(h.id);
+        return {
+          ...pub,
+          latestInstall: inst
+            ? {
+                id: inst.id,
+                netuid: inst.netuid,
+                subnetName: inst.subnetName,
+                status: inst.status,
+                updatedAt: inst.updatedAt,
+              }
+            : null,
+        };
+      }),
+    });
   } catch (e) {
     return NextResponse.json(
       { hosts: [], error: e instanceof Error ? e.message : "db unavailable" },
