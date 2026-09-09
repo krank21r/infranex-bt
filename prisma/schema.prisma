@@ -102,3 +102,52 @@ model ProfitabilitySettings {
   riskAdjustment          Boolean  @default(true)
   updatedAt               DateTime @updatedAt
 }
+
+// ---------------------------------------------------------------------------
+// DevOps Engine — GPU host inventory + the 10-step validation pipeline.
+// ---------------------------------------------------------------------------
+
+// A GPU machine the engine controls over SSH (BYO box, colo rig, RunPod pod).
+// transport: "ssh" (real machine) | "mock" (simulated host for safe demos)
+model GpuHost {
+  id              String   @id @default(cuid())
+  name            String
+  transport       String   @default("ssh") // "ssh" | "mock"
+  host            String   // hostname / IP
+  port            Int      @default(22)
+  user            String   @default("root")
+  // Auth secret (password or PEM key), AES-256-GCM encrypted at rest.
+  secretEnc       String
+  // "password" | "key"
+  authMethod      String   @default("password")
+  provider        String   @default("byo") // "byo" | "runpod"
+  providerPodId   String?
+  // Overall pipeline status: "pending" | "validating" | "ready" | "needs_fix" | "failed"
+  status          String   @default("pending")
+  // Auto-fix safe items (docker/toolkit installs) without per-step approval.
+  autoFixSafe     Boolean  @default(false)
+  // Last successful inspection summary (gpu model, vram, driver, cuda, os)
+  hostInfo        String?  // JSON
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([status])
+}
+
+// One row per pipeline step per validation run.
+// status: "pending" | "running" | "pass" | "fail" | "fixed" | "skipped"
+model HostCheck {
+  id          String   @id @default(cuid())
+  hostId      String
+  runId       String   // groups the steps of one validation run
+  step        Int      // 1-10
+  name        String
+  status      String   @default("pending")
+  output      String   @default("") // command output / findings
+  remediation String?  // suggested fix (human text) when failed
+  durationMs  Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@index([hostId, runId])
+  @@index([hostId, step])
+}

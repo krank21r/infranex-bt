@@ -31,6 +31,7 @@ import {
   type DeploymentRecord,
 } from "@/lib/infranex/use-deployments";
 import { CreateDeploymentDialog } from "@/components/deployments/create-deployment-dialog";
+import { DevOpsEngineSection } from "@/components/devops/devops-console";
 
 export function DeploymentsView() {
   const { data: deployments, isLoading } = useDeployments();
@@ -64,6 +65,11 @@ export function DeploymentsView() {
           New deployment
         </Button>
       </header>
+
+      {/* --- DevOps Engine: real GPU host onboarding + 10-step pipeline --- */}
+      <DevOpsEngineSection />
+
+      <Separator />
 
       {isLoading ? (
         <Card className="border-border/60 bg-card/40 backdrop-blur-sm">

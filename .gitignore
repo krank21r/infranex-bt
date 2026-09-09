@@ -61,3 +61,4 @@ nohup.out
 
 # runtime database (recreated via prisma db:push)
 db/custom.db
+.devops-secret
