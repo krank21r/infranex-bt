@@ -49,13 +49,21 @@ export interface LiveOpportunity extends Opportunity {
   livePrice?: number;
 }
 
-/** Merge live chain metrics + user overrides into the curated subnet list. */
+/** Merge live chain metrics + user overrides into the curated subnet list.
+ *  Includes ALL subnets from the chain scan (not just the 16 curated ones).
+ *  Untracked subnets get a generic name like "Subnet N" with live data only.
+ */
 export function mergeSubnets(
   snap: LiveNetworkSnapshot | undefined,
   overrides?: Map<number, Record<string, unknown>>
 ): LiveSubnet[] {
   const byNetuid = new Map(snap?.subnets.map((s) => [s.netuid, s]) ?? []);
-  return curatedSubnets.map((s) => {
+  const seen = new Set<number>();
+  const result: LiveSubnet[] = [];
+
+  // 1. Process curated subnets first (they have names, descriptions, etc.)
+  for (const s of curatedSubnets) {
+    seen.add(s.netuid);
     const live = byNetuid.get(s.netuid);
     const override = overrides?.get(s.netuid);
     const liveFields = new Set<string>();
@@ -71,7 +79,6 @@ export function mergeSubnets(
       if (live.tempo) { merged.tempo = live.tempo; liveFields.add("tempo"); }
       merged.status = live.emissionEnabled ? "active" : "inactive";
       liveFields.add("status");
-      merged.emission = live.subnetTao > 0 ? s.emission : 0; // emission approx
     }
 
     if (override) {
@@ -83,8 +90,57 @@ export function mergeSubnets(
       }
     }
 
-    return { ...merged, live, liveFields, overriddenFields };
-  });
+    result.push({ ...merged, live, liveFields, overriddenFields });
+  }
+
+  // 2. Add untracked subnets from the chain scan (no curated metadata)
+  for (const live of snap?.subnets ?? []) {
+    if (seen.has(live.netuid)) continue;
+    seen.add(live.netuid);
+    const override = overrides?.get(live.netuid);
+    const liveFields = new Set<string>(["minersCount", "taoInReserve", "price", "tempo", "status"]);
+    const overriddenFields = new Set<string>();
+
+    const merged: Subnet = {
+      netuid: live.netuid,
+      name: override?.name as string ?? `Subnet ${live.netuid}`,
+      symbol: `α${live.netuid}`,
+      description: (override?.description as string) ?? "Untracked subnet — live chain data only.",
+      category: (override?.category as string) ?? "Unknown",
+      owner: "",
+      tempo: live.tempo || 0,
+      emission: 0,
+      taoInReserve: Math.round(live.subnetTao),
+      price: live.movingPrice,
+      marketCap: snap?.taoPriceUsd ? Math.round(live.subnetTao * snap.taoPriceUsd) : 0,
+      volume24h: 0,
+      change24h: 0,
+      minersCount: live.minersCount,
+      validatorsCount: 0,
+      maxNeurons: 4096,
+      status: live.emissionEnabled ? "active" : "inactive",
+      registrationOpen: false,
+      createdAt: "",
+      tags: [],
+      minVramGb: (override?.minVramGb as number) ?? 0,
+      recommendedGpu: (override?.recommendedGpu as string) ?? "Unknown",
+      githubUrl: (override?.githubUrl as string) ?? null,
+      website: null,
+    };
+
+    if (override) {
+      for (const [key, value] of Object.entries(override)) {
+        if (value != null && value !== "" && !(key in merged)) {
+          (merged as Record<string, unknown>)[key] = value;
+          overriddenFields.add(key);
+        }
+      }
+    }
+
+    result.push({ ...merged, live, liveFields, overriddenFields });
+  }
+
+  return result;
 }
 
 /** Merge live metrics into opportunities (recompute reward with live price). */
