@@ -5,6 +5,7 @@ import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { DashboardView } from "@/components/views/dashboard-view";
 import { OpportunitiesView } from "@/components/views/opportunities-view";
 import { SubnetsView } from "@/components/views/subnets-view";
+import { JudgeView } from "@/components/views/judge-view";
 import { GpusView } from "@/components/views/gpus-view";
 import { MinersView } from "@/components/views/miners-view";
 import { DeploymentsView } from "@/components/views/deployments-view";
@@ -22,6 +23,7 @@ const VIEW_META: Record<
   dashboard: { title: "Network Intelligence", eyebrow: "Section · 01 · Dashboard" },
   opportunities: { title: "Opportunities", eyebrow: "Section · 02 · Scoring" },
   subnets: { title: "Subnets", eyebrow: "Section · 03 · Chain explorer" },
+  judge: { title: "Judge Lab", eyebrow: "Section · 11 · Judge intelligence" },
   gpus: { title: "GPU Catalog", eyebrow: "Section · 04 · Infrastructure" },
   miners: { title: "My Miners", eyebrow: "Section · 05 · Portfolio" },
   deployments: { title: "Deployments", eyebrow: "Section · 06 · Deployment engine" },
@@ -68,6 +70,7 @@ export default function Home() {
         />
       )}
       {view === "subnets" && <SubnetsView />}
+      {view === "judge" && <JudgeView />}
       {view === "gpus" && <GpusView />}
       {view === "miners" && <MinersView onNavigate={setView} />}
       {view === "deployments" && <DeploymentsView />}

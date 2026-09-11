@@ -185,3 +185,108 @@ model HostInstall {
   @@index([hostId])
   @@index([netuid])
 }
+
+// ---------------------------------------------------------------------------
+// Judge Intelligence — per-subnet validator ("judge") scoring profiles + the
+// mock-validator simulation runs. One profile per netuid; runs are persisted
+// simulations of "how would MY miner score against this judge".
+// ---------------------------------------------------------------------------
+
+model JudgeProfile {
+  id             String   @id @default(cuid())
+  netuid         Int      @unique
+  subnetName     String
+  // Archetype: "latency_race" | "quality_judge" | "market_clearing" |
+  //            "uptime_sla" | "resource_fit" | "unknown"
+  judgeKind      String
+  summary        String
+  // Dimension weights JSON: { key, label, weight, evidence[] }[]
+  dimensionsJson String
+  // Cohort telemetry JSON: { registeredUids, earningUids, earningRatio,
+  //   medianIncentive, meanIncentive, top10Take, brutality, band }
+  cohortJson     String
+  confidence     Float    @default(0)
+  // Sources JSON: [{ kind: "validator_code" | "readme" | "tree" | "chain", url?, note }]
+  sourcesJson    String   @default("[]")
+  fetchedAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([netuid])
+}
+
+model JudgeRun {
+  id         String   @id @default(cuid())
+  netuid     Int
+  subnetName String
+  // MinerSpec JSON: { latencyMs, uptimePct, qualityPct, throughputTps, pricePerMTokUsd }
+  specJson   String
+  // SimulationResult JSON: { composite, verdict, percentileEstimate,
+  //   medianMultiple, dimensionScores[], recommendations[] }
+  resultJson String
+  composite  Float
+  verdict    String
+  createdAt  DateTime @default(now())
+
+  @@index([netuid])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Trigger Engine — scheduled evaluations that can propose actions (resync,
+// scale, kill, deregistration defense). Every action is APPROVAL-GATED:
+// the engine creates events, humans approve, then the action executes.
+// ---------------------------------------------------------------------------
+
+model TriggerEvent {
+  id            String   @id @default(cuid())
+  // "RE_SYNC" | "SCALE" | "KILL" | "DEREG_RISK"
+  kind          String
+  severity      String   @default("info") // "info" | "warning" | "critical"
+  // "open" | "approved" | "acted" | "dismissed" | "resolved"
+  status        String   @default("open")
+  title         String
+  detail        String   @default("")
+  // Evidence JSON (arbitrary per-kind payload)
+  evidenceJson  String   @default("{}")
+  deploymentId  String?
+  netuid        Int?
+  // Dedupe key — one open event per (kind, key)
+  dedupeKey     String
+  // Runbook steps JSON: string[] shown to the operator when approving
+  runbookJson   String   @default("[]")
+  createdAt     DateTime @default(now())
+  resolvedAt    DateTime?
+  updatedAt     DateTime @updatedAt
+
+  @@unique([kind, dedupeKey, status])
+  @@index([status])
+  @@index([kind])
+  @@index([deploymentId])
+}
+
+// ---------------------------------------------------------------------------
+// UID Defense — per-deployment metagraph samples of the miner's own UID.
+// ~120-row retention; feeds the DEREG-RISK trigger evaluator.
+// ---------------------------------------------------------------------------
+
+model UidSnapshot {
+  id            String   @id @default(cuid())
+  deploymentId  String
+  netuid        Int
+  uid           Int?
+  hotkey        String
+  // 0-1 normalized u16 chain values
+  active        Boolean?
+  incentive     Float?
+  consensus     Float?
+  emission      Float?
+  validatorTrust Float?
+  lastUpdate    Int?
+  // "healthy" | "warning" | "critical"
+  riskLevel     String   @default("healthy")
+  riskCodesJson String   @default("[]")
+  createdAt     DateTime @default(now())
+
+  @@index([deploymentId, createdAt])
+  @@index([netuid, uid])
+}

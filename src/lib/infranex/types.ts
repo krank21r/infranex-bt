@@ -260,6 +260,7 @@ export type ViewKey =
   | "dashboard"
   | "opportunities"
   | "subnets"
+  | "judge"
   | "gpus"
   | "miners"
   | "deployments"

@@ -18,6 +18,7 @@ import {
   Rocket,
   Gauge,
   Wand2,
+  Gavel,
 } from "lucide-react";
 import type { ViewKey } from "@/lib/infranex/types";
 
@@ -28,6 +29,7 @@ const NAV_GROUPS: { label: string; items: { key: ViewKey; label: string; icon: t
       { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, hint: "01" },
       { key: "opportunities", label: "Opportunities", icon: TrendingUp, hint: "02" },
       { key: "subnets", label: "Subnets", icon: Network, hint: "03" },
+      { key: "judge", label: "Judge Lab", icon: Gavel, hint: "11" },
     ],
   },
   {
