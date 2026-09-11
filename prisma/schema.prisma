@@ -32,6 +32,11 @@ model Deployment {
   providerPodId   String?
   // Hotkey for the miner
   hotkey          String?
+  // Ephemeral per-pod ed25519 SSH key (private side AES-256-GCM encrypted;
+  // public key was injected into the pod at deploy time).
+  sshPublicKey    String?
+  sshPrivKeyEnc   String?
+  sshPort         Int?
   // Step log: JSON array of { name, label, status, startedAt, completedAt, output }
   steps           String   @default("[]")
   createdAt       DateTime @default(now())
@@ -289,4 +294,28 @@ model UidSnapshot {
 
   @@index([deploymentId, createdAt])
   @@index([netuid, uid])
+}
+
+// ---------------------------------------------------------------------------
+// Node Daemon — the tiny agent installed on each GPU host that POSTs HMAC-
+// signed telemetry and polls for approved commands (restart_miner etc.).
+// ---------------------------------------------------------------------------
+
+model DaemonState {
+  id           String   @id @default(cuid())
+  deploymentId String   @unique
+  // "pending" | "online" | "unreachable"
+  status       String   @default("pending")
+  // HMAC-SHA256 secret for telemetry auth (shown once at install).
+  secretEnc    String
+  version      String?
+  // Latest telemetry payload JSON (cpu/mem/gpu/process/latency).
+  telemetryJson String?
+  // Command queue JSON: [{ id, command, args, createdAt, deliveredAt? }]
+  commandsJson String   @default("[]")
+  lastSeenAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([status])
 }

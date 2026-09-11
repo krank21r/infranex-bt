@@ -1,33 +1,21 @@
 import type { DeploymentConfig } from "../config";
-import type { ProviderAdapter, ProvisionResult } from "./base";
+import type { ProviderAdapter, ProvisionResult, ProvisionContext } from "./base";
+import { assertHotkeyOnly, HOTKEY_ONLY_POLICY_TEXT } from "../ssh-keys";
+
 
 /**
- * RunPod provider — creates REAL GPU pods via RunPod's GraphQL API.
+ * RunPod provider v2 — adapted to the CURRENT RunPod GraphQL schema:
+ *   - `env` is a list of {key, value} objects (was a newline-joined string)
+ *   - `dockerArgs` no longer exists — runtime command is carried by the
+ *     image + env contract
+ *   - `publicKey` injects our ephemeral ed25519 SSH key into the pod
+ *   - `supportPrivateIp` requested for SSH-over-private-fabric
  *
- * Uses the authenticated `podFindAndDeployOnDemand` mutation to spin up
- * an on-demand GPU server with the Bittensor miner docker image. Costs
- * real money — the caller must confirm before invoking provision().
+ * HARD GATE: provision() refuses to ship configs that violate the
+ * hotkey-only policy (no coldkeys / mnemonics / private keys on machines).
  */
 
 const RUNPOD_GRAPHQL = "https://api.runpod.io/graphql";
-
-async function runpodGraphQL<T>(query: string): Promise<T> {
-  const apiKey = process.env.RUNPOD_API_KEY;
-  if (!apiKey) throw new Error("RUNPOD_API_KEY not configured");
-  const res = await fetch(RUNPOD_GRAPHQL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({ query }),
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`RunPod ${res.status} ${res.statusText}`);
-  const j = (await res.json()) as { data?: T; errors?: Array<{ message: string }> };
-  if (j.errors?.length) throw new Error(j.errors[0].message);
-  return j.data as T;
-}
 
 // Map our canonical GPU model names to RunPod gpu_type_id values.
 const GPU_TYPE_ID_MAP: Record<string, string> = {
@@ -54,42 +42,120 @@ const GPU_TYPE_ID_MAP: Record<string, string> = {
   "MI300X 192GB": "AMD Instinct MI300X OAM",
 };
 
+export function resolveGpuTypeId(model: string): string | null {
+  return GPU_TYPE_ID_MAP[model] ?? null;
+}
+
+export interface DeployInput {
+  name: string;
+  imageName: string;
+  gpuTypeId: string;
+  envVars: { key: string; value: string }[];
+  ports: string;
+  publicKey?: string;
+  volumeInGb: number;
+  minMemoryInGb: number;
+  minVcpuCount: number;
+}
+
+/** Pure builder — unit-testable against the current RunPod schema. */
+export function buildDeployMutation(input: DeployInput): string {
+  const envJson = JSON.stringify(
+    input.envVars.map((e) => ({ key: e.key, value: e.value }))
+  ).replace(/"/g, '\\"');
+  const publicKeyArg = input.publicKey
+    ? `, publicKey: "${input.publicKey.replace(/"/g, '\\"')}"`
+    : "";
+  return `mutation Deploy {
+  podFindAndDeployOnDemand(input: {
+    name: "${input.name}"
+    imageName: "${input.imageName}"
+    gpuTypeId: "${input.gpuTypeId}"
+    volumeInGb: ${input.volumeInGb}
+    volumeMountPath: "/workspace"
+    minMemoryInGb: ${input.minMemoryInGb}
+    minVcpuCount: ${input.minVcpuCount}
+    ports: "${input.ports}"
+    env: "${envJson}"
+    supportPublicIp: true
+    supportPrivateIp: false${publicKeyArg}
+  }) {
+    id
+    desiredStatus
+    lastStatus
+    machineId
+    costPerHr
+  }
+}`;
+}
+
+async function runpodGraphQL<T>(query: string): Promise<T> {
+  const apiKey = process.env.RUNPOD_API_KEY;
+  if (!apiKey) throw new Error("RUNPOD_API_KEY not configured");
+  const res = await fetch(RUNPOD_GRAPHQL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({ query }),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`RunPod ${res.status} ${res.statusText}${text ? `: ${text.slice(0, 200)}` : ""}`);
+  }
+  const j = (await res.json()) as { data?: T; errors?: Array<{ message: string }> };
+  if (j.errors?.length) throw new Error(j.errors[0].message);
+  return j.data as T;
+}
+
 export const RunPodProvider: ProviderAdapter = {
   name: "runpod",
   isLive: true,
 
-  async provision(config: DeploymentConfig, deploymentId: string): Promise<ProvisionResult> {
-    const gpuTypeId = GPU_TYPE_ID_MAP[config.gpu.model];
+  async provision(
+    config: DeploymentConfig,
+    deploymentId: string,
+    ctx?: ProvisionContext
+  ): Promise<ProvisionResult> {
+    // ---- Security gate --------------------------------------------------
+    const violations = assertHotkeyOnly(config);
+    if (violations.length) {
+      throw new Error(
+        `Hotkey-only policy violation: ${violations
+          .map((v) => `${v.label} in ${v.where}`)
+          .join("; ")}. ${HOTKEY_ONLY_POLICY_TEXT}`
+      );
+    }
+
+    const gpuTypeId = resolveGpuTypeId(config.gpu.model);
     if (!gpuTypeId) {
       throw new Error(`No RunPod GPU type mapping for "${config.gpu.model}"`);
     }
 
-    const name = `infranex-${deploymentId.slice(-8)}`;
-    const portsStr = config.docker.ports.join(",");
-    const envVarsStr = config.docker.envVars
-      .map((e) => `${e.name}=${e.value}`)
-      .join("\n");
+    // The engine generates an ephemeral ed25519 keypair per deployment and
+    // passes the public key through ctx — the pod trusts ONLY this key.
+    const publicKey = ctx?.sshPublicKey;
 
-    const mutation = `mutation {
-      podFindAndDeployOnDemand(input: {
-        name: "${name}"
-        imageName: "${config.docker.imageName}"
-        gpuTypeId: "${gpuTypeId}"
-        volumeInGb: 100
-        volumePath: "/workspace"
-        minMemoryInGb: ${config.docker.minMemoryGb}
-        minVcpuCount: ${config.docker.minVcpuCount}
-        ports: "${portsStr}"
-        env: "${envVarsStr}"
-        dockerArgs: "${config.docker.command.replace(/"/g, '\\"').replace(/\n/g, " ")}"
-        supportPublicIp: true
-      }) {
-        id
-        desiredStatus
-        lastStatus
-        machineId
-      }
-    }`;
+    const mutation = buildDeployMutation({
+      name: `infranex-${deploymentId.slice(-8)}`,
+      imageName: config.docker.imageName,
+      gpuTypeId,
+      envVars: [
+        ...config.docker.envVars.map((e) => ({ key: e.name, value: e.value })),
+        // Network contract — hotkey (public) only, per policy.
+        { key: "NETUID", value: String(config.miner.netuid) },
+        { key: "NETWORK", value: config.miner.network },
+        { key: "HOTKEY", value: config.miner.hotkeyName },
+        { key: "AXON_PORT", value: String(config.miner.axonPort) },
+      ],
+      ports: config.docker.ports.join(","),
+      publicKey,
+      volumeInGb: 100,
+      minMemoryInGb: config.docker.minMemoryGb,
+      minVcpuCount: config.docker.minVcpuCount,
+    });
 
     interface DeployResult {
       podFindAndDeployOnDemand: {
@@ -97,19 +163,22 @@ export const RunPodProvider: ProviderAdapter = {
         desiredStatus: string;
         lastStatus: string;
         machineId?: string;
+        costPerHr?: number;
       } | null;
     }
 
     const result = await runpodGraphQL<DeployResult>(mutation);
     const pod = result.podFindAndDeployOnDemand;
     if (!pod) {
-      throw new Error("RunPod returned null pod — no capacity or insufficient funds");
+      throw new Error(
+        "RunPod returned null pod — no capacity, insufficient funds, or invalid request"
+      );
     }
 
     return {
       podId: pod.id,
       status: pod.lastStatus === "RUNNING" ? "running" : "pending",
-      message: `RunPod pod ${pod.id} created — ${config.gpu.model}, desired ${pod.desiredStatus}, last ${pod.lastStatus}`,
+      message: `RunPod pod ${pod.id} created — ${config.gpu.model}, desired ${pod.desiredStatus}, last ${pod.lastStatus}${pod.costPerHr ? `, $${pod.costPerHr.toFixed(3)}/hr` : ""}`,
     };
   },
 
@@ -119,7 +188,10 @@ export const RunPodProvider: ProviderAdapter = {
         id
         desiredStatus
         lastStatus
-        runtime { ports { ip isIpPublic privateIp } }
+        runtime {
+          ports { ip isIpPublic privateIp }
+          sshPort
+        }
       }
     }`;
     interface PodResult {
@@ -127,16 +199,20 @@ export const RunPodProvider: ProviderAdapter = {
         id: string;
         desiredStatus: string;
         lastStatus: string;
-        runtime?: { ports?: Array<{ ip: string; isIpPublic: boolean; privateIp: string }> };
+        runtime?: {
+          ports?: Array<{ ip: string; isIpPublic: boolean; privateIp: string }>;
+          sshPort?: number;
+        };
       } | null;
     }
     const result = await runpodGraphQL<PodResult>(query);
     const pod = result.pod;
-    if (!pod) return { status: "terminated" };
-    const publicIp = pod.runtime?.ports?.find((p) => p.isIpPublic)?.ip;
+    if (!pod) return { status: "terminated" as const };
+    const publicEntry = pod.runtime?.ports?.find((p) => p.isIpPublic);
     return {
-      status: pod.lastStatus?.toLowerCase() ?? "pending",
-      ipAddress: publicIp,
+      status: (pod.lastStatus?.toLowerCase() ?? "pending") as ProvisionResult["status"],
+      ipAddress: publicEntry?.ip,
+      sshPort: pod.runtime?.sshPort ?? undefined,
     };
   },
 

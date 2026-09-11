@@ -21,6 +21,7 @@ import {
   Cpu,
   DollarSign,
   TrendingUp,
+  Wrench,
 } from "lucide-react";
 import { cn, formatCurrency, formatRelativeTime } from "@/lib/utils";
 import {
@@ -167,6 +168,23 @@ function DeploymentCard({
   const tickMut = useTickDeployment();
   const termMut = useTerminateDeployment();
   const delMut = useDeleteDeployment();
+  const [devopsNote, setDevopsNote] = useState<string | null>(null);
+  const [devopsBusy, setDevopsBusy] = useState(false);
+
+  const registerToDevOps = async () => {
+    setDevopsBusy(true);
+    setDevopsNote(null);
+    try {
+      const res = await fetch(`/api/deployments/${d.id}/to-devops`, { method: "POST" });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j?.error ?? `HTTP ${res.status}`);
+      setDevopsNote(`Registered as host ${String(j.hostName ?? j.hostId)} — run validation in DevOps.`);
+    } catch (e) {
+      setDevopsNote(e instanceof Error ? e.message : "Register failed");
+    } finally {
+      setDevopsBusy(false);
+    }
+  };
 
   const isTerminal = d.status === "terminated" || d.status === "failed";
   const isStarted = d.status === "started";
@@ -284,6 +302,18 @@ function DeploymentCard({
               {tickMut.isPending ? "Advancing…" : "Advance step"}
             </Button>
           )}
+          {d.mode === "runpod" && !isTerminal && d.providerPodId && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={registerToDevOps}
+              disabled={devopsBusy}
+            >
+              {devopsBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wrench className="h-3.5 w-3.5" />}
+              Register to DevOps
+            </Button>
+          )}
           {!isTerminal && (
             <Button
               variant="outline"
@@ -309,6 +339,11 @@ function DeploymentCard({
             </Button>
           )}
         </div>
+        {devopsNote && (
+          <p className="mt-2 rounded-lg border border-primary/25 bg-primary/5 px-3 py-2 text-xs text-primary/90">
+            {devopsNote}
+          </p>
+        )}
       </CardContent>
     </Card>
   );

@@ -8,8 +8,15 @@ import type { DeploymentConfig } from "../config";
 export interface ProvisionResult {
   podId: string;
   ipAddress?: string;
+  /** SSH port when the provider exposes one (RunPod runtime.sshPort). */
+  sshPort?: number;
   status: "running" | "pending" | "failed";
   message: string;
+}
+
+/** Optional context handed to provision() — e.g. the ephemeral SSH public key. */
+export interface ProvisionContext {
+  sshPublicKey?: string;
 }
 
 export interface ProviderAdapter {
@@ -17,10 +24,16 @@ export interface ProviderAdapter {
   readonly isLive: boolean;
 
   /** Create the GPU pod/server. */
-  provision(config: DeploymentConfig, deploymentId: string): Promise<ProvisionResult>;
+  provision(
+    config: DeploymentConfig,
+    deploymentId: string,
+    ctx?: ProvisionContext
+  ): Promise<ProvisionResult>;
 
   /** Check the pod's current status. */
-  getStatus(podId: string): Promise<{ status: string; ipAddress?: string }>;
+  getStatus(
+    podId: string
+  ): Promise<{ status: string; ipAddress?: string; sshPort?: number }>;
 
   /** Terminate/destroy the pod. */
   terminate(podId: string): Promise<{ success: boolean; message: string }>;

@@ -17,6 +17,8 @@ import {
 } from "./config";
 import { MockProvider } from "./providers/mock";
 import { RunPodProvider } from "./providers/runpod";
+import { generateSshKeypair } from "./ssh-keys";
+import { encryptSecret } from "@/lib/devops/crypto";
 import type { ProviderAdapter } from "./providers/base";
 import type { Subnet, GPUOffer } from "../types";
 
@@ -132,6 +134,8 @@ export interface DeploymentRecord {
   config: DeploymentConfig | null;
   providerPodId: string | null;
   hotkey: string | null;
+  sshPublicKey: string | null;
+  sshPort: number | null;
   steps: DeploymentStep[];
   createdAt: string;
   updatedAt: string;
@@ -153,6 +157,8 @@ function toRecord(row: {
   config: string;
   providerPodId: string | null;
   hotkey: string | null;
+  sshPublicKey: string | null;
+  sshPort: number | null;
   steps: string;
   createdAt: Date;
   updatedAt: Date;
@@ -173,6 +179,8 @@ function toRecord(row: {
     config: deserializeConfig(row.config),
     providerPodId: row.providerPodId,
     hotkey: row.hotkey,
+    sshPublicKey: row.sshPublicKey,
+    sshPort: row.sshPort,
     steps: deserializeSteps(row.steps),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -253,33 +261,37 @@ export async function advanceDeployment(
     stepOutputs[s] = stepOutput(s, config);
   }
 
-  // If we're entering provisioning, actually provision the GPU
+  // Entering provisioning — fire the provider request.
+  // mock: completes inline. runpod: kicks off the request, the poller
+  // (pollProvisioning) finishes the transition once the pod is RUNNING.
   if (next === "provisioning" && !providerPodId) {
-    // Provisioning is async — we set state to "provisioning" first,
-    // then the tick() call will complete it once the pod is ready.
-    // For mock, we provision immediately; for runpod, we fire the request.
     try {
-      const provider = getProvider(rec.mode);
-      // Don't await here for runpod (it can take 10s+) — but for mock it's fast
       if (rec.mode === "mock") {
-        const result = await provider.provision(config, id);
+        const result = await MockProvider.provision(config, id);
         providerPodId = result.podId;
         stepOutputs.provision.push(`Pod ID: ${result.podId}`, `IP: ${result.ipAddress ?? "—"}`);
+        return updateDeploymentState(id, next, providerPodId, stepOutputs, null, null, result.ipAddress);
       }
-    } catch (e) {
-      // Provisioning failed
-      await updateDeploymentState(id, "failed", providerPodId, stepOutputs);
-      throw e;
-    }
-  }
-
-  // If we're in provisioning and moving to provisioned, complete it
-  if (current === "provisioning" && next === "provisioned" && !providerPodId && rec.mode === "runpod") {
-    try {
-      const provider = getProvider(rec.mode);
-      const result = await provider.provision(config, id);
+      // runpod — real money path.
+      const keypair = generateSshKeypair(`infranex-${id.slice(-8)}`);
+      const result = await RunPodProvider.provision(config, id, {
+        sshPublicKey: keypair.publicKey,
+      });
       providerPodId = result.podId;
-      stepOutputs.provision.push(`Pod ID: ${result.podId}`, result.message);
+      stepOutputs.provision.push(
+        `Pod ID: ${result.podId}`,
+        result.message,
+        `SSH key ${keypair.fingerprint} injected — hotkey-only policy enforced`,
+        "Polling until RUNNING…"
+      );
+      return updateDeploymentState(
+        id,
+        "provisioning",
+        providerPodId,
+        stepOutputs,
+        keypair.publicKey,
+        encryptSecret(keypair.privateKey)
+      );
     } catch (e) {
       await updateDeploymentState(id, "failed", providerPodId, stepOutputs);
       throw e;
@@ -309,7 +321,10 @@ async function updateDeploymentState(
   id: string,
   state: DeploymentState,
   providerPodId: string | null,
-  outputs: Record<string, string[]>
+  outputs: Record<string, string[]>,
+  sshPublicKey?: string | null,
+  sshPrivKeyEnc?: string | null,
+  ipAddress?: string | null
 ): Promise<DeploymentRecord> {
   const rec = await getDeployment(id);
   if (!rec) throw new Error("Deployment not found");
@@ -321,9 +336,53 @@ async function updateDeploymentState(
       progress: stateToProgress(state),
       providerPodId,
       steps: serializeSteps(steps),
+      ...(sshPublicKey !== undefined ? { sshPublicKey } : {}),
+      ...(sshPrivKeyEnc !== undefined ? { sshPrivKeyEnc } : {}),
     },
   });
   return toRecord(row);
+}
+
+/**
+ * Poll a provisioning runpod deployment — called by tickDeployment.
+ * When the pod reaches RUNNING, captures IP + SSH port and completes the
+ * provisioning step so the lifecycle can advance.
+ */
+export async function pollProvisioning(id: string): Promise<DeploymentRecord> {
+  const rec = await getDeployment(id);
+  if (!rec) throw new Error("Deployment not found");
+  if (rec.status !== "provisioning" || !rec.providerPodId || rec.mode !== "runpod") {
+    return rec;
+  }
+  try {
+    const status = await RunPodProvider.getStatus(rec.providerPodId);
+    if (status.status === "running") {
+      const sshPort = status.sshPort ?? 22;
+      const steps = syncSteps(rec.steps, "provisioned", {
+        provision: [
+          `Pod RUNNING — IP ${status.ipAddress ?? "pending"}, SSH port ${sshPort}`,
+          "Provisioning complete ✓",
+        ],
+      });
+      const row = await db.deployment.update({
+        where: { id },
+        data: {
+          status: "provisioned",
+          progress: stateToProgress("provisioned"),
+          sshPort,
+          steps: serializeSteps(steps),
+        },
+      });
+      return toRecord(row);
+    }
+    if (status.status === "terminated" || status.status === "failed") {
+      return updateDeploymentState(id, "failed", rec.providerPodId, {});
+    }
+    return rec; // still pending — keep polling
+  } catch {
+    // Transient API error — stay in provisioning; next tick retries.
+    return rec;
+  }
 }
 
 /** Terminate a deployment. */
@@ -357,14 +416,17 @@ export async function deleteDeployment(id: string): Promise<void> {
 
 /**
  * Tick — advance a deployment that's in a non-terminal state one step
- * forward. Called by the UI poller every few seconds to simulate the
- * lifecycle progressing.
+ * forward. Called by the UI poller every few seconds to drive the lifecycle.
+ * For runpod deployments in provisioning, polls provider status instead.
  */
 export async function tickDeployment(id: string): Promise<DeploymentRecord> {
   const rec = await getDeployment(id);
   if (!rec) throw new Error("Deployment not found");
   if (rec.status === "started" || rec.status === "terminated" || rec.status === "failed") {
     return rec;
+  }
+  if (rec.status === "provisioning" && rec.mode === "runpod") {
+    return pollProvisioning(id);
   }
   return advanceDeployment(id);
 }

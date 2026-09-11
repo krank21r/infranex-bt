@@ -533,7 +533,7 @@ function SimSlider(props: {
   );
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 function VerdictPanel({ result }: { result: any }) {
   const dims = (result.dimensionScores ?? []) as {
     key: string;

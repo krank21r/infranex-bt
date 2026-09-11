@@ -25,6 +25,9 @@ import {
 import { cn, formatCurrency, formatNumber, formatRelativeTime, formatDuration } from "@/lib/utils";
 import { useMonitoring, type MonitoringOverview } from "@/lib/infranex/use-monitoring";
 import type { MonitoredDeployment } from "@/lib/infranex/monitoring";
+import { TriggerCenter } from "@/components/cards/trigger-center";
+import { UidDefensePanel } from "@/components/cards/uid-defense-panel";
+import { useTriggers } from "@/lib/infranex/use-triggers";
 import type { ViewKey } from "@/lib/infranex/types";
 
 interface MonitoringViewProps {
@@ -58,6 +61,10 @@ export function MonitoringView({ onNavigate }: MonitoringViewProps) {
   return (
     <div className="space-y-6">
       <Header onNavigate={onNavigate} onRefresh={() => refetch()} isFetching={isFetching} />
+
+      {/* Trigger Center — approval-gated defenses */}
+      <TriggerCenter onNavigate={onNavigate} />
+      <UidTelemetry />
 
       {/* Overview metrics */}
       <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
@@ -405,4 +412,13 @@ function MonitorRow({
       <span className={cn("font-medium", mono && "mono tabular", toneClass)}>{value}</span>
     </div>
   );
+}
+
+/** UID Defense telemetry — pulls the uid payload already fetched by the
+ *  trigger poller and renders the per-deployment panel. */
+function UidTelemetry() {
+  const { data } = useTriggers();
+  const uid = data?.uid ?? [];
+  if (uid.length === 0) return null;
+  return <UidDefensePanel states={uid} />;
 }
