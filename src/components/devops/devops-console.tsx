@@ -141,7 +141,7 @@ export function DevOpsEngineSection() {
         </Button>
       </div>
 
-      {/* The guided 4-step journey: choose subnet → get GPU → validate → deploy */}
+      {/* The guided 5-step journey: choose subnet → get GPU → validate → deploy → connect & register */}
       <MiningJourney
         hosts={hosts}
         journey={journey}

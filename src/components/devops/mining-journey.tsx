@@ -2,7 +2,7 @@
 
 // ---------------------------------------------------------------------------
 // Mining Journey — the guided path the DevOps Engine walks, shown as a live
-// 4-step stepper at the top of the section:
+// 5-step stepper at the top of the section:
 //
 //   1 CHOOSE SUBNET  → pull THAT subnet's own requirements (GPU/VRAM, python,
 //                      pip deps, CUDA, repo) so you know WHICH GPU to rent
@@ -12,6 +12,10 @@
 //   3 VALIDATE       → the 10-step environment pipeline checks + fixes the box
 //   4 DEPLOY & MINE  → engine installs the subnet's requirements on the host
 //                      and launches the miner as a systemd service
+//   5 CONNECT        → create the bittensor wallet on the laptop (coldkey +
+//                      hotkey), fund it, copy the keys to the host, REGISTER
+//                      the hotkey to the subnet (burn → UID) and verify it
+//                      live against the chain metagraph
 //
 // The chosen journey subnet persists in localStorage and pre-selects the
 // deploy dialog so every menu follows the same steps.
@@ -33,6 +37,7 @@ import {
   CheckCircle2,
   ChevronRight,
   CloudDownload,
+  KeyRound,
   Loader2,
   Pickaxe,
   RefreshCw,
@@ -49,6 +54,8 @@ import {
   type DevopsHost,
 } from "@/lib/devops/use-devops";
 import { ProfileCard } from "./deploy-subnet-dialog";
+import { WalletRegistrationDialog } from "./wallet-registration-dialog";
+import { useWalletRegistration } from "@/lib/devops/wallet-registration";
 
 // ---------------------------------------------------------------------------
 // Journey state (localStorage-persisted)
@@ -307,11 +314,20 @@ export function MiningJourney({
     hosts[0] ??
     null;
 
+  const reg = useWalletRegistration();
+  const [walletOpen, setWalletOpen] = useState(false);
+
   const s1 = journey !== null;
   const s2 = hosts.length > 0;
   const s3 = hosts.some((h) => h.status === "ready");
   const s4 = hosts.some((h) => h.latestInstall?.status === "deployed");
-  const current = !s1 ? 1 : !s2 ? 2 : !s3 ? 3 : 4;
+  // Step 5 is done when the user verified a UID on-chain for the journey subnet.
+  const s5 =
+    reg.verifiedUid !== null &&
+    reg.netuid !== null &&
+    journey !== null &&
+    reg.netuid === journey.netuid;
+  const current = !s1 ? 1 : !s2 ? 2 : !s3 ? 3 : !s4 ? 4 : 5;
 
   const cells = [
     {
@@ -416,11 +432,41 @@ export function MiningJourney({
         </Button>
       ),
     },
+    {
+      n: 5,
+      title: "Connect & register",
+      done: s5,
+      active: current === 5,
+      body: s5 ? (
+        <p className="text-[11px] text-success">
+          UID {reg.verifiedUid} verified on-chain — the UID Defense panel is
+          tracking it.
+        </p>
+      ) : (
+        <p className="text-[11px] text-muted-foreground">
+          {!journey
+            ? "Pick a subnet first — the guide tailors every command to it."
+            : "Create the wallet on your laptop, fund it, then register the hotkey to the subnet (burn → UID)."}
+        </p>
+      ),
+      cta: (
+        <Button
+          size="sm"
+          variant={s5 ? "outline" : "default"}
+          className="h-7 gap-1 px-2 text-[11px]"
+          onClick={() => setWalletOpen(true)}
+        >
+          <KeyRound className="h-3 w-3" />
+          {s5 ? "Open wallet guide" : "Start wallet setup"}
+        </Button>
+      ),
+    },
   ];
 
   return (
-    <Card className="border-primary/20 bg-primary/[0.03]">
-      <CardContent className="p-4">
+    <>
+      <Card className="border-primary/20 bg-primary/[0.03]">
+        <CardContent className="p-4">
         <div className="mb-3 flex items-center justify-between gap-2">
           <p className="text-eyebrow text-muted-foreground">Mining journey — follow the steps</p>
           {journey && (
@@ -429,7 +475,7 @@ export function MiningJourney({
             </Badge>
           )}
         </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           {cells.map((c, i) => (
             <div key={c.n} className="relative">
               <div
@@ -455,7 +501,14 @@ export function MiningJourney({
             </div>
           ))}
         </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+      <WalletRegistrationDialog
+        open={walletOpen}
+        onOpenChange={setWalletOpen}
+        journey={journey}
+        minerDeployed={s4}
+      />
+    </>
   );
 }

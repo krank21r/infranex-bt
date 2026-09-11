@@ -41,6 +41,9 @@ export interface SubnetHyperparams {
 export interface UidState {
   /** UID of the hotkey, or null when not registered on this subnet. */
   uid: number | null;
+  /** Block at which this hotkey registered (immunity clock origin), or null
+   *  when unregistered / the storage isn't exposed by the current runtime. */
+  registrationBlock: number | null;
   vectors: UidVectors | null;
   hyperparams: SubnetHyperparams;
   /** Cohort stats among REWARDED uids. */
@@ -163,11 +166,21 @@ async function findUidByHotkey(
     const results = await (api.query.subtensorModule.keys as any).multi(args);
     for (let i = 0; i < results.length; i++) {
        
+      // Shape varies by polkadot-js/runtime: some return Option<AccountId32>
+      // (has .isSome), others auto-unwrap to a bare AccountId32 whose
+      // .toString() IS the SS58. Handle both — this bug silently made every
+      // hotkey "not registered" when .isSome was undefined.
       const opt = results[i] as any;
-      if (!opt || !opt.isSome) continue;
-      const bytes = opt.value?.toU8a ? opt.value.toU8a() : opt.value;
+      if (!opt) continue;
+      if (typeof opt.isSome === "boolean" && !opt.isSome) continue;
+      const raw = opt.value !== undefined && opt.value?.toU8a ? opt.value : opt.inner ?? opt;
+      const bytes = raw?.toU8a ? raw.toU8a() : raw;
       if (!bytes) continue;
-      if (bytesEqual(new Uint8Array(bytes), target)) return start + i;
+      const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+      // An auto-unwrapped None arrives as an empty/zero buffer — skip it.
+      if (arr.length !== 32) continue;
+      if (arr.every((b: number) => b === 0)) continue;
+      if (bytesEqual(arr, target)) return start + i;
     }
   }
   return null;
@@ -280,6 +293,27 @@ export async function getUidState(
     uid = await findUidByHotkey(api, netuid, hotkey, registeredUids);
   }
 
+  // Registration block → origin of the immunity window. Optional storage:
+  // probe candidate names (spec drift) and stay null on ANY failure so the
+  // wizard just shows the window length instead of a countdown.
+  let registrationBlock: number | null = null;
+  if (uid !== null) {
+    const mod = api.query.subtensorModule as unknown as Record<string, unknown>;
+    for (const name of ["blockAtRegistration", "BlockAtRegistration", "registrationBlock", "RegistrationBlock"]) {
+      try {
+        if (typeof mod[name] === "undefined") continue;
+        const v = await (mod[name] as (a: number, b: number) => Promise<any>)(netuid, uid);
+        const n = v && !v.isEmpty ? Number(v.toString()) : null;
+        if (n !== null && Number.isFinite(n) && n > 0) {
+          registrationBlock = n;
+          break;
+        }
+      } catch {
+        continue;
+      }
+    }
+  }
+
   // Cohort stats among rewarded uids.
   const rewarded = vectors.incentive.filter((v) => v > 0.0005).sort((a, b) => a - b);
   const cohort = {
@@ -290,5 +324,12 @@ export async function getUidState(
       : 0,
   };
 
-  return { uid, vectors, hyperparams: entry.hyperparams, cohort, fetchedAt: entry.fetchedAt };
+  return {
+    uid,
+    registrationBlock,
+    vectors,
+    hyperparams: entry.hyperparams,
+    cohort,
+    fetchedAt: entry.fetchedAt,
+  };
 }
