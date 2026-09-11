@@ -101,6 +101,11 @@ export function mergeSubnets(
       merged.status = live.emissionEnabled ? "active" : "inactive";
       liveFields.add("status");
     }
+    // Seat/registration metrics — always copy when the chain returned them.
+    if (live?.burnCostTao != null) { merged.burnCostTao = live.burnCostTao; liveFields.add("burnCostTao"); }
+    if (live?.immunityBlocks != null) { merged.immunityBlocks = live.immunityBlocks; liveFields.add("immunityBlocks"); }
+    if (live?.maxUids != null) { merged.maxUids = live.maxUids; liveFields.add("maxUids"); }
+    if (live?.rewardedMiners != null) { merged.rewardedMiners = live.rewardedMiners; liveFields.add("rewardedMiners"); }
 
     if (override) {
       for (const [key, value] of Object.entries(override)) {
@@ -172,6 +177,10 @@ export function mergeSubnets(
       recommendedGpu: (override?.recommendedGpu as string) ?? hw.recommendedGpu,
       githubUrl: (override?.githubUrl as string) ?? live.identityGithub ?? null,
       website: null,
+      burnCostTao: live.burnCostTao ?? null,
+      immunityBlocks: live.immunityBlocks ?? null,
+      maxUids: live.maxUids ?? null,
+      rewardedMiners: live.rewardedMiners ?? null,
     };
 
     if (override) {

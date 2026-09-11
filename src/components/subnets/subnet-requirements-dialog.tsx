@@ -37,9 +37,13 @@ import {
   ShieldCheck,
   FileWarning,
   GitBranch,
+  DoorOpen,
+  Flame,
+  Hourglass,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { assessSeatChance } from "@/lib/infranex/miner-score";
 import type { Subnet, MiningRequirements } from "@/lib/infranex/types";
 import type { SubnetRequirementsProfile } from "@/lib/devops/subnet-requirements";
 
@@ -158,6 +162,8 @@ export function SubnetRequirementsDialog({
           </DialogDescription>
         </DialogHeader>
 
+        <SeatAvailabilitySection subnet={subnet} />
+
         {state.phase === "loading" && <LoadingState netuid={subnet.netuid} />}
 
         {state.phase === "loaded" && (
@@ -182,6 +188,67 @@ export function SubnetRequirementsDialog({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Seat availability — "will I get a slot?" (answers it for EVERY subnet)
+// ---------------------------------------------------------------------------
+
+function SeatAvailabilitySection({ subnet }: { subnet: Subnet }) {
+  const seat = assessSeatChance({
+    minersCount: subnet.minersCount,
+    maxUids: subnet.maxUids ?? subnet.maxNeurons ?? null,
+    burnCostTao: subnet.burnCostTao ?? null,
+    immunityBlocks: subnet.immunityBlocks ?? null,
+    rewardedMiners: subnet.rewardedMiners ?? null,
+  });
+
+  if (seat.verdict === "unknown") return null;
+
+  const tone =
+    seat.verdict === "open"
+      ? "border-success/40 bg-success/[0.06] text-success"
+      : seat.verdict === "burn-entry"
+        ? "border-amber-500/40 bg-amber-500/[0.06] text-amber-500"
+        : "border-destructive/40 bg-destructive/[0.06] text-destructive";
+
+  return (
+    <div className={cn("rounded-lg border p-4", tone)}>
+      <div className="flex items-start gap-3">
+        {seat.verdict === "open" ? (
+          <DoorOpen className="h-5 w-5 mt-0.5 shrink-0" />
+        ) : seat.verdict === "burn-entry" ? (
+          <Flame className="h-5 w-5 mt-0.5 shrink-0" />
+        ) : (
+          <Hourglass className="h-5 w-5 mt-0.5 shrink-0" />
+        )}
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-sm font-semibold">Seat availability</p>
+            <span className="text-xs font-medium">
+              {seat.verdict === "open"
+                ? "You can register now"
+                : seat.verdict === "burn-entry"
+                  ? "Full — but you can still get in"
+                  : "Full — entry is competitive"}
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-foreground/80 leading-relaxed">{seat.detail}</p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Chip mono>{seat.slotsFree ?? "?"} / {seat.totalSlots ?? "?"} slots free</Chip>
+            {seat.fillPct != null && <Chip mono>{seat.fillPct}% filled</Chip>}
+            {seat.burnCostTao != null && (
+              <Chip mono>burn ~{seat.burnCostTao < 1 ? seat.burnCostTao.toFixed(3) : seat.burnCostTao.toFixed(2)} TAO</Chip>
+            )}
+            {seat.immunityHours != null && <Chip mono>immunity ~{seat.immunityHours}h</Chip>}
+            {seat.replaceableShare != null && seat.replaceableShare > 0.05 && (
+              <Chip mono>{Math.round(seat.replaceableShare * 100)}% replaceable bottom</Chip>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

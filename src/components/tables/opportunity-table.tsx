@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { formatNumber } from "@/lib/utils";
+import { assessSeatChance } from "@/lib/infranex/miner-score";
+import { SeatChanceBadge } from "@/components/subnets/seat-chance-badge";
 import type { Opportunity } from "@/lib/infranex/types";
 
 interface OpportunityTableProps {
@@ -319,6 +321,19 @@ export function OpportunityTable({
                               month-1 earn: {o.earnChance.level}
                             </span>
                           )}
+                          {o.totalSlots != null && (() => {
+                            const seat = assessSeatChance({
+                              minersCount: o.totalSlots != null && o.freeSlots != null ? o.totalSlots - o.freeSlots : null,
+                              maxUids: o.totalSlots,
+                              freeSlots: o.freeSlots,
+                              burnCostTao: o.burnCostTao ?? null,
+                              immunityBlocks: o.immunityBlocks ?? null,
+                              rewardedRatio: o.rewardedRatio ?? null,
+                            });
+                            return seat.verdict !== "unknown" ? (
+                              <SeatChanceBadge seat={seat} />
+                            ) : null;
+                          })()}
                         </div>
                       </TableCell>
                     )}

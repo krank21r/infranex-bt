@@ -608,3 +608,155 @@ export function computeEarnChance(inputs: {
 
   return { level, pct, note };
 }
+
+// ---------------------------------------------------------------------------
+// Seat Chance — "can I actually GET IN?" (vs EarnChance's "will I earn?").
+//
+// Bittensor registration mechanics:
+//   • Subnets have a UID cap (maxUids). Free slots → register via burn or PoW.
+//   • FULL subnet → registration STILL works: a burn registration pays the
+//     dynamic recycle cost and the chain replaces the worst-performing
+//     NON-IMMUNE uid. PoW registrations compete for per-block slots the same
+//     way. You are only locked out if every uid is immune (rare — immunity
+//     covers ~14h by default) or registration is disabled on the subnet.
+//   • immunityBlocks = how long YOUR new seat cannot be deregistered — the
+//     runway to start earning before becoming replaceable yourself.
+// ---------------------------------------------------------------------------
+
+export type SeatVerdict = "open" | "burn-entry" | "waitlist" | "unknown";
+
+export interface SeatChance {
+  verdict: SeatVerdict;
+  /** Registration is possible right now (burn path or free slot). */
+  canRegister: boolean;
+  slotsFree: number | null;
+  totalSlots: number | null;
+  /** 0–100 — how full the uid space is. */
+  fillPct: number | null;
+  burnCostTao: number | null;
+  /** Protection window for a NEW seat, in hours (blocks × 12s). */
+  immunityHours: number | null;
+  /** Share of uids that earned NOTHING last epoch — the replaceable bottom
+   *  a newcomer displaces from. High = churn churns in your favor. */
+  replaceableShare: number | null;
+  headline: string;
+  detail: string;
+}
+
+export function assessSeatChance(inputs: {
+  minersCount: number | null;
+  maxUids: number | null;
+  /** Already-computed free slots (skip when you only have counts). */
+  freeSlots?: number | null;
+  burnCostTao: number | null;
+  immunityBlocks: number | null;
+  /** Rewarded uids (either give the ratio directly or the absolute count). */
+  rewardedRatio?: number | null;
+  rewardedMiners?: number | null;
+}): SeatChance {
+  const { maxUids, burnCostTao, immunityBlocks } = inputs;
+  const minersCount = inputs.minersCount ?? 0;
+  const slotsFree =
+    inputs.freeSlots != null
+      ? Math.max(0, inputs.freeSlots)
+      : maxUids != null && maxUids > 0
+        ? Math.max(0, maxUids - minersCount)
+        : null;
+  const fillPct =
+    maxUids != null && maxUids > 0
+      ? Math.min(100, Math.round((minersCount / maxUids) * 100))
+      : null;
+  let replaceableShare: number | null = null;
+  if (inputs.rewardedRatio != null) {
+    replaceableShare = Math.max(0, Math.min(1, 1 - inputs.rewardedRatio));
+  } else if (inputs.rewardedMiners != null && minersCount > 0) {
+    replaceableShare = Math.max(0, Math.min(1, 1 - inputs.rewardedMiners / minersCount));
+  }
+  const immunityHours =
+    immunityBlocks != null && immunityBlocks > 0
+      ? Math.round(((immunityBlocks * 12) / 3600) * 10) / 10
+      : null;
+  const immunityNote = immunityHours != null
+    ? `a new seat is immune for ~${immunityHours}h — your runway to start earning before you're replaceable`
+    : null;
+  const deadNote = replaceableShare != null && replaceableShare > 0.05
+    ? `${Math.round(replaceableShare * 100)}% of uids earned nothing last epoch — a deep replaceable bottom`
+    : replaceableShare != null
+      ? "almost every seat earned last epoch — displacement targets are scarce and strong"
+      : null;
+
+  const unknown: SeatChance = {
+    verdict: "unknown",
+    canRegister: true,
+    slotsFree,
+    totalSlots: maxUids ?? null,
+    fillPct,
+    burnCostTao,
+    immunityHours,
+    replaceableShare,
+    headline: "slot data unavailable",
+    detail:
+      "UID capacity was not returned by the chain snapshot this pass — refresh the network data. " +
+      (burnCostTao != null ? `Burn registration quote: ~${burnCostTao.toFixed(2)} TAO.` : ""),
+  };
+
+  if (slotsFree == null || maxUids == null || maxUids <= 0) return unknown;
+
+  // --- Open: free slots exist ---------------------------------------------
+  if (slotsFree > 0) {
+    return {
+      verdict: "open",
+      canRegister: true,
+      slotsFree,
+      totalSlots: maxUids,
+      fillPct,
+      burnCostTao,
+      immunityHours,
+      replaceableShare,
+      headline: `${slotsFree} of ${maxUids} slots free`,
+      detail:
+        `This subnet is NOT full — ${slotsFree} uid${slotsFree === 1 ? "" : "s"} open (${fillPct}% filled). ` +
+        `Register now via burn${burnCostTao != null ? ` (~${burnCostTao < 1 ? burnCostTao.toFixed(3) : burnCostTao.toFixed(2)} TAO)` : ""} or PoW. ` +
+        (immunityNote ? `${immunityNote}. ` : "") +
+        (deadNote ? `${deadNote}.` : ""),
+    };
+  }
+
+  // --- Full: burn-entry is the deterministic path ---------------------------
+  if (burnCostTao != null && burnCostTao > 0) {
+    return {
+      verdict: "burn-entry",
+      canRegister: true,
+      slotsFree: 0,
+      totalSlots: maxUids,
+      fillPct,
+      burnCostTao,
+      immunityHours,
+      replaceableShare,
+      headline: `full (${minersCount}/${maxUids}) — burn-entry ~${burnCostTao < 1 ? burnCostTao.toFixed(3) : burnCostTao.toFixed(2)} TAO`,
+      detail:
+        `Every uid is taken, but registration still works: paying the burn (~${burnCostTao < 1 ? burnCostTao.toFixed(3) : burnCostTao.toFixed(2)} TAO, floats with demand) ` +
+        `immediately replaces the WORST-performing non-immune uid. ` +
+        (deadNote ? `${deadNote}. ` : "The bottom of this cohort is well-defended — displacement may take several attempts. ") +
+        (immunityNote ? `${immunityNote}.` : ""),
+    };
+  }
+
+  // --- Full, no burn quote: PoW/competitive path ----------------------------
+  return {
+    verdict: "waitlist",
+    canRegister: true,
+    slotsFree: 0,
+    totalSlots: maxUids,
+    fillPct,
+    burnCostTao: null,
+    immunityHours,
+    replaceableShare,
+    headline: `full (${minersCount}/${maxUids}) — entry is competitive`,
+    detail:
+      `No free slots and no burn quote from this snapshot. Entry means winning a PoW registration ` +
+      `and replacing a zero-earning uid — expect per-block competition. ` +
+      (deadNote ? `${deadNote}. ` : "") +
+      (immunityNote ? `${immunityNote}.` : ""),
+  };
+}

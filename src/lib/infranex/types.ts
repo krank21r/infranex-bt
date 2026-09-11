@@ -29,6 +29,15 @@ export interface Subnet {
   githubUrl?: string | null;
   website?: string | null;
   miningRequirements?: MiningRequirements;
+  // --- Live seat/registration data (chain snapshot; absent on curated-only) ---
+  /** Current registration burn cost in TAO — the deterministic entry path when full. */
+  burnCostTao?: number | null;
+  /** Immunity period in blocks — protection window a new seat gets. */
+  immunityBlocks?: number | null;
+  /** Max UIDs (slot capacity). */
+  maxUids?: number | null;
+  /** UIDs that earned incentive last epoch. */
+  rewardedMiners?: number | null;
 }
 
 /** Complete technical requirements to mine a subnet. */

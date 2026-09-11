@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { TrendingUp, AlertTriangle, Cpu, Wallet, Calculator } from "lucide-react";
 import { formatNumber } from "@/lib/utils";
+import { assessSeatChance } from "@/lib/infranex/miner-score";
 import type { Opportunity } from "@/lib/infranex/types";
 
 interface OpportunityDetailDialogProps {
@@ -446,9 +447,37 @@ export function OpportunityDetailDialog({
               </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Free slots</p>
+              <p className="text-xs text-muted-foreground">Seat availability</p>
               <p className="tabular font-medium">
                 {o.freeSlots != null && o.totalSlots ? `${o.freeSlots} / ${o.totalSlots}` : "—"}
+                {(() => {
+                  const seat = assessSeatChance({
+                    minersCount: o.totalSlots != null && o.freeSlots != null ? o.totalSlots - o.freeSlots : null,
+                    maxUids: o.totalSlots,
+                    freeSlots: o.freeSlots,
+                    burnCostTao: o.burnCostTao ?? null,
+                    immunityBlocks: o.immunityBlocks ?? null,
+                    rewardedRatio: o.rewardedRatio ?? null,
+                  });
+                  if (seat.verdict === "unknown") return null;
+                  const cls =
+                    seat.verdict === "open"
+                      ? "text-success"
+                      : seat.verdict === "burn-entry"
+                        ? "text-warning"
+                        : "text-destructive";
+                  return (
+                    <span className={cn("ml-1.5 text-xs font-medium", cls)} title={seat.detail}>
+                      · {seat.verdict === "open" ? "open" : seat.verdict === "burn-entry" ? "burn-entry" : "competitive"}
+                    </span>
+                  );
+                })()}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Burn entry</p>
+              <p className="mono tabular text-xs font-medium" title="Pay this TAO to register immediately — when the subnet is full it replaces the worst-performing non-immune UID">
+                {o.burnCostTao != null ? `~${o.burnCostTao < 1 ? o.burnCostTao.toFixed(3) : o.burnCostTao.toFixed(2)} TAO` : "—"}
               </p>
             </div>
             <div>

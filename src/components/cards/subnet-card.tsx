@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Users, Shield, Cpu, TrendingUp, TrendingDown, Settings2, FileText } from "lucide-react";
+import { assessSeatChance } from "@/lib/infranex/miner-score";
+import { SeatChanceBadge } from "@/components/subnets/seat-chance-badge";
 import type { Subnet } from "@/lib/infranex/types";
 
 interface SubnetCardProps {
@@ -57,6 +59,13 @@ export function SubnetCard({ subnet: s, score, rank, onSelect, onEdit, onViewReq
   const util = Math.min(100, (s.minersCount / s.maxNeurons) * 100);
   const liveFields = s.liveFields;
   const overriddenFields = s.overriddenFields;
+  const seat = assessSeatChance({
+    minersCount: s.minersCount,
+    maxUids: s.maxUids ?? s.maxNeurons ?? null,
+    burnCostTao: s.burnCostTao ?? null,
+    immunityBlocks: s.immunityBlocks ?? null,
+    rewardedMiners: s.rewardedMiners ?? null,
+  });
 
   return (
     <Card
@@ -153,7 +162,9 @@ export function SubnetCard({ subnet: s, score, rank, onSelect, onEdit, onViewReq
           <span className={cn("badge-status", status.bg, status.text)}>
             <FieldBadge field="status" liveFields={liveFields} overriddenFields={overriddenFields}>{s.status}</FieldBadge>
           </span>
-          {s.registrationOpen ? (
+          {seat.verdict !== "unknown" ? (
+            <SeatChanceBadge seat={seat} />
+          ) : s.registrationOpen ? (
             <Badge variant="outline" className="border-success/30 text-[10px] text-success">
               registration open
             </Badge>
