@@ -40,8 +40,10 @@ import {
   CheckCircle2,
   Copy,
   KeyRound,
+  Link2,
   Loader2,
   RefreshCw,
+  Rocket,
   ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -55,9 +57,11 @@ import {
   type WalletRegistrationState,
   type WalletVerifyResponse,
 } from "@/lib/devops/wallet-registration";
+import type { RegistrationWizardContext } from "@/lib/infranex/use-deployments";
 import type { JourneySubnet } from "./mining-journey";
 
 type VerifyPhase = "idle" | "checking" | "registered" | "none" | "error";
+type LinkPhase = "idle" | "linking" | "linked" | "failed";
 
 // One copyable command row.
 function CmdRow({ cmd, disabled }: { cmd: string | null; disabled?: boolean }) {
@@ -162,16 +166,24 @@ export function WalletRegistrationDialog({
   onOpenChange,
   journey,
   minerDeployed,
+  deployment,
+  onLinked,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   journey: JourneySubnet | null;
   minerDeployed: boolean;
+  /** Phase 2 hand-off: register FOR a specific running deployment. */
+  deployment?: RegistrationWizardContext | null;
+  /** Fired after the verified hotkey was attached to the deployment record. */
+  onLinked?: () => void;
 }) {
   const reg = useWalletRegistration();
   const [verify, setVerify] = useState<VerifyPhase>("idle");
   const [result, setResult] = useState<WalletVerifyResponse | null>(null);
   const [errMsg, setErrMsg] = useState("");
+  const [link, setLink] = useState<LinkPhase>("idle");
+  const [linkMsg, setLinkMsg] = useState("");
 
   // Follow the journey subnet whenever the wizard opens.
   useEffect(() => {
@@ -181,8 +193,29 @@ export function WalletRegistrationDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, journey?.netuid]);
 
-  const netuid = reg.netuid ?? journey?.netuid ?? null;
+  // Deployment hand-off: lock onto the deployment's subnet + wallet names.
+  useEffect(() => {
+    if (open && deployment) {
+      const needs =
+        reg.netuid !== deployment.netuid ||
+        reg.walletName !== deployment.walletName ||
+        reg.hotkeyName !== deployment.hotkeyName;
+      if (needs) {
+        saveWalletRegistration({
+          ...reg,
+          netuid: deployment.netuid,
+          walletName: deployment.walletName,
+          hotkeyName: deployment.hotkeyName,
+        });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, deployment?.deploymentId]);
+
+  const netuid = deployment ? deployment.netuid : (reg.netuid ?? journey?.netuid ?? null);
   const c = cmds({ walletName: reg.walletName, hotkeyName: reg.hotkeyName, netuid });
+  const scpCmd = deployment ? deployment.scpCommand : c.scp;
+  const restartCmd = deployment ? deployment.restartCommand : c.restart;
 
   const patch = (p: Partial<WalletRegistrationState>) =>
     saveWalletRegistration({ ...reg, ...p });
@@ -221,6 +254,26 @@ export function WalletRegistrationDialog({
       if (json.registered) {
         setVerify("registered");
         patch({ verifiedUid: json.uid ?? null, verifiedAt: Date.now(), netuid });
+        // Phase 2 hand-off: bind the verified hotkey to the deployment so the
+        // record tracks UID + immunity and offers the approval restart.
+        if (deployment) {
+          setLink("linking");
+          setLinkMsg("");
+          try {
+            const res = await fetch(`/api/deployments/${deployment.deploymentId}/registration`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "attach-hotkey", hotkey: reg.hotkeySs58.trim() }),
+            });
+            const j = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(j?.error ?? `HTTP ${res.status}`);
+            setLink("linked");
+            onLinked?.();
+          } catch (e) {
+            setLink("failed");
+            setLinkMsg(e instanceof Error ? e.message : "linking failed");
+          }
+        }
       } else {
         setVerify("none");
       }
@@ -246,6 +299,24 @@ export function WalletRegistrationDialog({
             tick it off, and finish with the live on-chain check.
           </DialogDescription>
         </DialogHeader>
+
+        {/* Phase 2 hand-off banner — registering FOR a running deployment */}
+        {deployment && (
+          <div className="rounded-md border border-primary/30 bg-primary/[0.06] p-3">
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-primary">
+              <Rocket className="h-3.5 w-3.5" />
+              Registering for deployment {deployment.minerName}
+            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              α{deployment.netuid} · {deployment.subnetName} — the miner is already running on{" "}
+              {deployment.sshHost ?? "the host"} ({deployment.installMode ?? "unknown"} install).
+              Registration is the LAST step: it starts the immunity clock, so do it
+              only once this miner is healthy. Steps 5 and 7 below target the real
+              host, and a successful verify links the hotkey to the deployment
+              record automatically.
+            </p>
+          </div>
+        )}
 
         {/* Wallet identity — commands below re-render from these two names */}
         <div className="grid gap-2 rounded-md border border-primary/30 bg-primary/[0.04] p-3 sm:grid-cols-2">
@@ -342,7 +413,7 @@ export function WalletRegistrationDialog({
           <p className="text-eyebrow pt-2 text-muted-foreground">To the GPU host</p>
 
           <Step n={5} title="Copy the key files to the host" done={reg.doneSteps.includes("5")} onToggle={() => toggleDone("5")}>
-            <CmdRow cmd={c.scp} />
+            <CmdRow cmd={scpCmd} />
             <p className="text-[11px] text-muted-foreground">
               The deploy pipeline&apos;s Wallet gate checks these files. Hardened
               option: the miner only needs <code className="font-mono">coldkeypub.txt</code> +{" "}
@@ -367,10 +438,13 @@ export function WalletRegistrationDialog({
           </Step>
 
           <Step n={7} title="Restart the miner so it serves its axon" done={reg.doneSteps.includes("7")} onToggle={() => toggleDone("7")}>
-            <CmdRow cmd={c.restart} />
+            <CmdRow cmd={restartCmd} />
             <p className="text-[11px] text-muted-foreground">
               The miner announces its axon (IP:port) on-chain at startup, which
               is how validators find you.
+              {deployment
+                ? " Or skip the terminal: press the Restart miner button on the deployment card — the engine runs this over SSH for you."
+                : ""}
             </p>
           </Step>
 
@@ -463,6 +537,33 @@ export function WalletRegistrationDialog({
                   )}{" "}
                   The UID Defense panel now tracks this UID.
                 </p>
+
+                {/* Phase 2 hand-off: link the hotkey to the deployment record */}
+                {deployment && (
+                  <div className="space-y-1.5">
+                    {link === "linking" && (
+                      <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        Attaching the hotkey to deployment {deployment.minerName}…
+                      </p>
+                    )}
+                    {link === "linked" && (
+                      <p className="flex items-start gap-1.5 rounded-md border border-primary/30 bg-primary/[0.06] p-2 text-[11px] text-primary">
+                        <Link2 className="mt-0.5 h-3 w-3 shrink-0" />
+                        Linked to {deployment.minerName} — the deployment record now
+                        tracks UID {result?.uid} and its immunity window. Finish with the
+                        <b className="mx-1">Restart miner</b> approval on the deployment card
+                        so the axon re-announces for this UID.
+                      </p>
+                    )}
+                    {link === "failed" && (
+                      <p className="rounded-md border border-destructive/30 bg-destructive/[0.05] p-2 text-[11px] text-destructive">
+                        Linking failed: {linkMsg} — attach it manually from the deployment
+                        card (Connect &amp; register → attach) or re-verify.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 

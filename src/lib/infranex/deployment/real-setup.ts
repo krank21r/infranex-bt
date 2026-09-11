@@ -64,7 +64,7 @@ async function loadRec(id: string) {
 }
 
 /** Open the transport for a deployment (SSH to the pod, or mock). */
-async function transportFor(id: string): Promise<Transport> {
+export async function transportFor(id: string): Promise<Transport> {
   const row = await loadRec(id);
   if (row.mode === "mock") {
     return openTransport({ kind: "mock", hostId: `deployment-${id}` });
@@ -100,7 +100,7 @@ async function loadPlan(id: string): Promise<{
 }
 
 /** Mirror runner output lines into the deployment step log (setup/deploy/health). */
-async function mirror(
+export async function mirrorStepOutput(
   id: string,
   phase: "setup" | "deploy" | "health",
   lines: string[]
@@ -193,7 +193,7 @@ export async function stageAndRunSetup(id: string): Promise<void> {
       requirementsJsonSnapshot: JSON.stringify(profile),
     },
   });
-  await mirror(id, "setup", [
+  await mirrorStepOutput(id, "setup", [
     `[plan] ${plan.length} steps staged — subnet "${profile.subnetName}" (repo: ${profile.repoUrl ?? "none"}), path: ${profile.dockerfileFound && profile.dockerImage ? "Docker" : "Python venv"}`,
   ]);
   startRunner(id, () => runAutoSteps(id));
@@ -227,7 +227,7 @@ async function runAutoSteps(id: string): Promise<void> {
       await persistInstall(id, steps, step.status === "fail" ? "failed" : "running");
       // "pass" falls into the else — TS's loop-entry narrowing excludes it.
       const mark = step.status === "fail" ? "✗" : step.status === "skipped" ? "·" : "✓";
-      await mirror(id, "setup", [
+      await mirrorStepOutput(id, "setup", [
         `[${step.idx}/${steps.length}] ${mark} ${step.title}`,
         ...step.output.split("\n").filter(Boolean).slice(0, 12),
         ...(step.status === "fail" && step.remediation ? [`[fix hint] ${step.remediation}`] : []),
@@ -235,7 +235,7 @@ async function runAutoSteps(id: string): Promise<void> {
       if (step.status === "fail") return; // tick reports; Advance = retry
     }
     await persistInstall(id, steps, "awaiting_wallet");
-    await mirror(id, "setup", [
+    await mirrorStepOutput(id, "setup", [
       "[plan] environment ready — wallet files gate next.",
       "Copy your keys with the Connect & register wizard (Step 5 of the journey), then press Advance to launch.",
     ]);
@@ -275,7 +275,7 @@ export async function runDeployPhase(id: string): Promise<void> {
       }
       const anyFail = steps.some((s) => s.status === "fail");
       await persistInstall(id, steps, anyFail ? "failed" : "running");
-      await mirror(id, phase, [
+      await mirrorStepOutput(id, phase, [
         `[${step.title}] ${step.status}`,
         ...step.output.split("\n").filter(Boolean).slice(0, 14),
         ...(step.status === "fail" && step.remediation ? [`[fix hint] ${step.remediation}`] : []),
@@ -317,6 +317,6 @@ export async function retrySetup(id: string): Promise<void> {
     where: { id },
     data: { installStepsJson: JSON.stringify(steps), installStatus: "running" },
   });
-  await mirror(id, "setup", ["[plan] retry requested — re-running failed steps…"]);
+  await mirrorStepOutput(id, "setup", ["[plan] retry requested — re-running failed steps…"]);
   startRunner(id, () => runAutoSteps(id));
 }

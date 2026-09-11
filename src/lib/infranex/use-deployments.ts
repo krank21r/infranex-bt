@@ -38,9 +38,92 @@ export interface DeploymentRecord {
   hotkey: string | null;
   sshHost: string | null;
   installStatus: string | null;
+  registrationState: "unregistered" | "registered" | null;
+  registeredUid: number | null;
+  registrationBlock: number | null;
+  registrationCheckedAt: string | null;
+  restartedAfterRegistration: boolean;
   steps: DeploymentStep[];
   createdAt: string;
   updatedAt: string;
+}
+
+// --- Phase 2: registration-aware deployments -------------------------------
+
+export interface RegistrationCheckResult {
+  deploymentId: string;
+  state: "unregistered" | "registered" | "unknown";
+  uid: number | null;
+  registrationBlock: number | null;
+  blockNumber: number | null;
+  immunityWindowBlocks: number | null;
+  checkedAt: string;
+  changed: boolean;
+  note: string | null;
+}
+
+export interface RegistrationWizardContext {
+  deploymentId: string;
+  minerName: string;
+  netuid: number;
+  subnetName: string;
+  walletName: string;
+  hotkeyName: string;
+  sshHost: string | null;
+  installMode: "docker" | "venv" | null;
+  scpCommand: string;
+  restartCommand: string;
+}
+
+async function fetchRegistration(id: string, force = false): Promise<RegistrationCheckResult> {
+  const res = await fetch(`/api/deployments/${id}/registration${force ? "?force=1" : ""}`, {
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`registration ${res.status}`);
+  const j = await res.json();
+  return j.registration as RegistrationCheckResult;
+}
+
+/**
+ * Background registration watcher for ONE started deployment — polls every
+ * 45 s (the server throttles chain scans to 1/30 s). Disabled unless the
+ * deployment is started AND has a plausible hotkey attached.
+ */
+export function useRegistrationWatcher(id: string | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ["registration", id],
+    queryFn: () => fetchRegistration(id!),
+    enabled: !!id && enabled,
+    refetchInterval: 45_000,
+  });
+}
+
+/** Explicit registration actions: attach-hotkey | check | restart. */
+export function useRegistrationAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      id: string;
+      action: "attach-hotkey" | "check" | "restart";
+      hotkey?: string;
+    }) => {
+      const res = await fetch(`/api/deployments/${input.id}/registration`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: input.action, hotkey: input.hotkey }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j?.error ?? `HTTP ${res.status}`);
+      return j.registration as RegistrationCheckResult | undefined;
+    },
+    onSuccess: (_data, input) => {
+      qc.invalidateQueries({ queryKey: ["deployments"] });
+      qc.invalidateQueries({ queryKey: ["registration", input.id] });
+      if (input.action === "restart") {
+        qc.invalidateQueries({ queryKey: ["triggers"] });
+      }
+    },
+  });
 }
 
 async function fetchDeployments(): Promise<DeploymentRecord[]> {

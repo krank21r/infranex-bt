@@ -47,6 +47,21 @@ model Deployment {
   installStepsJson String?
   // Snapshot of the SubnetRequirementsProfile the plan was built from.
   requirementsJsonSnapshot String?
+  // Registration lifecycle (Phase 2) — the miner runs BEFORE its hotkey is
+  // registered; the platform tracks the on-chain transition.
+  //   "unregistered" | "registered"   (null = nothing to check yet: not
+  //   started, or no valid SS58 hotkey attached)
+  registrationState  String?
+  // UID the hotkey occupies on the subnet's metagraph (when registered).
+  registeredUid      Int?
+  // Chain block at which the registration tx confirmed — the origin of the
+  // immunity window (registrationBlock + immunityPeriod − current block).
+  registrationBlock  Int?
+  // Last chain check (throttle: one check per 30 s per deployment).
+  registrationCheckedAt DateTime?
+  // One-shot flag: the approval-gated miner restart after registration
+  // (the axon re-announces on-chain so validators find the new UID).
+  restartedAfterRegistration Boolean @default(false)
   // Step log: JSON array of { name, label, status, startedAt, completedAt, output }
   steps           String   @default("[]")
   createdAt       DateTime @default(now())

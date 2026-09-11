@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +23,9 @@ import {
   DollarSign,
   TrendingUp,
   Wrench,
+  KeyRound,
+  RotateCw,
+  ShieldCheck,
 } from "lucide-react";
 import { cn, formatCurrency, formatRelativeTime } from "@/lib/utils";
 import {
@@ -29,15 +33,22 @@ import {
   useTickDeployment,
   useTerminateDeployment,
   useDeleteDeployment,
+  useRegistrationAction,
+  useRegistrationWatcher,
   type DeploymentRecord,
+  type RegistrationWizardContext,
 } from "@/lib/infranex/use-deployments";
 import { CreateDeploymentDialog } from "@/components/deployments/create-deployment-dialog";
 import { DevOpsEngineSection } from "@/components/devops/devops-console";
+import { WalletRegistrationDialog } from "@/components/devops/wallet-registration-dialog";
+
+const SS58_RE = /^5[1-9A-HJ-NP-Za-km-z]{47}$/;
 
 export function DeploymentsView() {
   const { data: deployments, isLoading } = useDeployments();
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [wizardCtx, setWizardCtx] = useState<RegistrationWizardContext | null>(null);
 
   const active = deployments?.filter(
     (d) => d.status !== "terminated" && d.status !== "failed"
@@ -115,6 +126,7 @@ export function DeploymentsView() {
                     deployment={d}
                     onSelect={() => setSelectedId(d.id)}
                     isSelected={selectedId === d.id}
+                    onOpenWizard={setWizardCtx}
                   />
                 ))}
               </div>
@@ -134,6 +146,7 @@ export function DeploymentsView() {
                     deployment={d}
                     onSelect={() => setSelectedId(d.id)}
                     isSelected={selectedId === d.id}
+                    onOpenWizard={setWizardCtx}
                   />
                 ))}
               </div>
@@ -152,6 +165,17 @@ export function DeploymentsView() {
         onOpenChange={setCreateOpen}
         onCreated={(id) => setSelectedId(id)}
       />
+
+      {/* Phase 2 hand-off: the registration wizard bound to a running deployment */}
+      <WalletRegistrationDialog
+        open={!!wizardCtx}
+        onOpenChange={(o) => {
+          if (!o) setWizardCtx(null);
+        }}
+        journey={null}
+        minerDeployed
+        deployment={wizardCtx}
+      />
     </div>
   );
 }
@@ -160,16 +184,50 @@ function DeploymentCard({
   deployment: d,
   onSelect,
   isSelected,
+  onOpenWizard,
 }: {
   deployment: DeploymentRecord;
   onSelect: () => void;
   isSelected: boolean;
+  onOpenWizard: (ctx: RegistrationWizardContext) => void;
 }) {
   const tickMut = useTickDeployment();
   const termMut = useTerminateDeployment();
   const delMut = useDeleteDeployment();
+  const regAction = useRegistrationAction();
+  const qc = useQueryClient();
   const [devopsNote, setDevopsNote] = useState<string | null>(null);
   const [devopsBusy, setDevopsBusy] = useState(false);
+  const [wizardBusy, setWizardBusy] = useState(false);
+
+  const isStarted = d.status === "started";
+  const hasHotkey = SS58_RE.test(d.hotkey ?? "");
+
+  // Phase 2 background watcher: for a STARTED deployment with a plausible
+  // hotkey, poll the registration check every 45 s (server-throttled).
+  const regWatch = useRegistrationWatcher(d.id, isStarted && hasHotkey);
+  useEffect(() => {
+    if (regWatch.data?.changed) {
+      qc.invalidateQueries({ queryKey: ["deployments"] });
+    }
+  }, [regWatch.data?.changed, regWatch.data?.checkedAt, qc]);
+
+  // Open the wizard pre-bound to THIS deployment (fetch its hand-off context).
+  const openWizard = async () => {
+    setWizardBusy(true);
+    try {
+      const res = await fetch(`/api/deployments/${d.id}/registration`, { cache: "no-store" });
+      const j = await res.json();
+      if (res.ok && j.wizard) onOpenWizard(j.wizard as RegistrationWizardContext);
+      else setDevopsNote(j?.error ?? "Could not load the wizard context");
+    } catch {
+      setDevopsNote("Could not reach the registration API");
+    } finally {
+      setWizardBusy(false);
+    }
+  };
+
+  const restartAfterReg = () => regAction.mutate({ id: d.id, action: "restart" });
 
   const registerToDevOps = async () => {
     setDevopsBusy(true);
@@ -187,11 +245,10 @@ function DeploymentCard({
   };
 
   const isTerminal = d.status === "terminated" || d.status === "failed";
-  const isStarted = d.status === "started";
-  const isInProgress = !isTerminal && !isStarted;
+  const isInProgress = !isTerminal && d.status !== "started";
 
   const statusColor =
-    isStarted
+    d.status === "started"
       ? "bg-success/10 text-success"
       : isTerminal
         ? "bg-muted/50 text-muted-foreground"
@@ -220,6 +277,25 @@ function DeploymentCard({
                 <Badge variant="outline" className={cn("text-[9px]", d.mode === "runpod" ? "border-primary/30 text-primary" : "text-muted-foreground")}>
                   {d.mode}
                 </Badge>
+                {/* Phase 2: registration lifecycle chip */}
+                {isStarted && d.registrationState === "registered" && (
+                  <Badge variant="outline" className="gap-1 border-success/40 text-[10px] text-success">
+                    <ShieldCheck className="h-3 w-3" />
+                    UID {d.registeredUid ?? "?"}
+                  </Badge>
+                )}
+                {isStarted && d.registrationState === "unregistered" && (
+                  <Badge variant="outline" className="gap-1 border-amber-500/40 text-[10px] text-amber-600 dark:text-amber-400">
+                    <KeyRound className="h-3 w-3" />
+                    unregistered
+                  </Badge>
+                )}
+                {isStarted && d.registrationState === null && (
+                  <Badge variant="outline" className={cn("gap-1 text-[10px]", hasHotkey ? "border-amber-500/40 text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
+                    <KeyRound className="h-3 w-3" />
+                    {hasHotkey ? "registration unverified" : "no hotkey"}
+                  </Badge>
+                )}
               </div>
               <p className="mt-1 text-xs text-muted-foreground">
                 {d.gpuModel} · {d.provider}
@@ -308,6 +384,30 @@ function DeploymentCard({
                     : "Advance step"}
             </Button>
           )}
+          {isStarted && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={openWizard}
+              disabled={wizardBusy}
+            >
+              {wizardBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <KeyRound className="h-3.5 w-3.5" />}
+              {d.registrationState === "registered" ? "Wallet & registration" : "Connect & register"}
+            </Button>
+          )}
+          {isStarted && d.registrationState === "registered" && !d.restartedAfterRegistration && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 border-success/40 text-success hover:text-success"
+              onClick={restartAfterReg}
+              disabled={regAction.isPending}
+            >
+              {regAction.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCw className="h-3.5 w-3.5" />}
+              {regAction.isPending ? "Restarting…" : "Restart miner (approval)"}
+            </Button>
+          )}
           {d.mode === "runpod" && !isTerminal && d.providerPodId && (
             <Button
               variant="outline"
@@ -345,6 +445,11 @@ function DeploymentCard({
             </Button>
           )}
         </div>
+        {regAction.error && (
+          <p className="mt-2 rounded-lg border border-destructive/25 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            {regAction.error instanceof Error ? regAction.error.message : "Registration action failed"}
+          </p>
+        )}
         {devopsNote && (
           <p className="mt-2 rounded-lg border border-primary/25 bg-primary/5 px-3 py-2 text-xs text-primary/90">
             {devopsNote}

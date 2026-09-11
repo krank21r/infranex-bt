@@ -138,6 +138,12 @@ export interface DeploymentRecord {
   sshHost: string | null;
   installStatus: string | null;
   installSteps: InstallStep[] | null;
+  // Registration lifecycle (Phase 2).
+  registrationState: "unregistered" | "registered" | null;
+  registeredUid: number | null;
+  registrationBlock: number | null;
+  registrationCheckedAt: string | null;
+  restartedAfterRegistration: boolean;
   steps: DeploymentStep[];
   createdAt: string;
   updatedAt: string;
@@ -164,6 +170,11 @@ function toRecord(row: {
   sshHost: string | null;
   installStatus: string | null;
   installStepsJson: string | null;
+  registrationState: string | null;
+  registeredUid: number | null;
+  registrationBlock: number | null;
+  registrationCheckedAt: Date | null;
+  restartedAfterRegistration: boolean;
   steps: string;
   createdAt: Date;
   updatedAt: Date;
@@ -189,6 +200,11 @@ function toRecord(row: {
     sshHost: row.sshHost,
     installStatus: row.installStatus,
     installSteps: row.installStepsJson ? (JSON.parse(row.installStepsJson) as InstallStep[]) : null,
+    registrationState: (row.registrationState as "unregistered" | "registered" | null) ?? null,
+    registeredUid: row.registeredUid,
+    registrationBlock: row.registrationBlock,
+    registrationCheckedAt: row.registrationCheckedAt ? row.registrationCheckedAt.toISOString() : null,
+    restartedAfterRegistration: row.restartedAfterRegistration,
     steps: deserializeSteps(row.steps),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { getUidState } from "./metagraph";
 import { commitFinding } from "./triggers-core";
+import { syncRegistrationFromUidState } from "./deployment/registration";
 import {
   blocksToHoursApprox,
   computeRemainingBlocks,
@@ -342,6 +343,11 @@ export async function getUidDefensePayload(): Promise<UidDefensePayloadItem[]> {
     // uid, cohort AND the immunity clock in one call when a hotkey is set.
     const hk = dep.hotkey;
     const full = hk && isValidSs58(hk) ? await getUidState(dep.netuid, hk).catch(() => null) : null;
+    // Phase 2 auto-detect: this scan already knows whether the hotkey is
+    // registered — let the deployment record catch up for free.
+    if (full) {
+      await syncRegistrationFromUidState(dep, full).catch(() => {});
+    }
     return {
       deploymentId: dep.id,
       minerName: dep.minerName,

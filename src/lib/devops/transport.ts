@@ -305,6 +305,21 @@ export class MockTransport implements Transport {
         "[+] Building 3.4s (11/11) FINALLY DONE\n => [internal] load build definition from Dockerfile\n => [4/5] RUN pip install -r requirements.txt\n => exporting layers\n => naming to docker.io/infranex/sn90:miner\n"
       );
     }
+    // The installer's LAUNCH is a single chained command:
+    //   docker rm -f <unit> 2>/dev/null || true; docker run -d … --name <unit> …
+    // Handle it BEFORE the plain rm branch (the rm inside it is not a stop).
+    if (
+      command.includes("docker rm -f") &&
+      command.includes("docker run -d") &&
+      command.includes("infranex-miner")
+    ) {
+      if (!s.dockerImageBuilt)
+        return out("", "Unable to find image 'infranex/sn90:miner' locally — build it first", 125);
+      if (!s.dockerInstalled || !s.toolkitInstalled)
+        return out("", "docker: Error — could not select device driver \"nvidia\"", 127);
+      s.minerRunning = true;
+      return out("a1b2c3d4e5f6ac1df39c1b47c8e00b1a61916ecb1a4c10f2fbe2f7db90e6bc11\n");
+    }
     if (command.includes("docker rm -f") && command.includes("infranex-miner")) {
       const wasRunning = s.minerRunning;
       s.minerRunning = false;
@@ -406,6 +421,16 @@ export class MockTransport implements Transport {
     if (command.includes("systemctl enable --now infranex-miner")) {
       s.minerRunning = true;
       return out("Synchronizing state of infranex-miner-sn64.service\nCreated symlink /etc/systemd/system/multi-user.target.wants/infranex-miner-sn64.service → /etc/systemd/system/infranex-miner-sn64.service.\n");
+    }
+    // Post-registration restart (Phase 2) — the miner re-announces its axon.
+    if (command.includes("systemctl restart infranex-miner")) {
+      s.minerRunning = true;
+      return out("(mock) systemd unit restarted — axon re-announced for the registered UID\n");
+    }
+    if (command.includes("docker restart") && command.includes("infranex-miner")) {
+      if (!s.dockerImageBuilt || !s.minerRunning)
+        return out("", "Error response from daemon: No such container", 1);
+      return out("a1b2c3d4e5f6ac1df39c1b47c8e00b1a61916ecb1a4c10f2fbe2f7db90e6bc11\n");
     }
 
     // 9 — verify (combined is-active + port + tail) or pieces
