@@ -7,6 +7,12 @@
 
 import { assessUidRisk } from "../src/lib/infranex/uid-defense";
 import {
+  computeRemainingBlocks,
+  tickRemainingBlocks,
+  formatBlocksLeft,
+  blocksToHoursApprox,
+} from "../src/lib/infranex/immunity";
+import {
   hmacSign,
   verifyHmac,
   buildDaemonScript,
@@ -76,6 +82,67 @@ check("collapse (≤50% of prev) → warning", collapse.riskCodes.includes("INCE
 
 const persistent = assessUidRisk({ ...base, incentive: 0, previousWarningStreak: 2 });
 check("warning ×3 → PERSISTENT_DECLINE critical", persistent.riskCodes.includes("PERSISTENT_DECLINE") && persistent.riskLevel === "critical");
+
+// Authoritative immunity clock (registration block exposed by the runtime).
+const NOW_BLOCK = 8_618_670;
+const immuneFresh = assessUidRisk({
+  ...base,
+  incentive: 0,
+  registeredUids: 256, // at capacity
+  lastUpdateAgeBlocks: 9000, // stale proxy would claim immunity expired
+  registrationBlock: NOW_BLOCK - 100,
+  blockNumber: NOW_BLOCK,
+});
+check(
+  "fresh registration overrides stale lastUpdate proxy → NO EVICTABLE",
+  !immuneFresh.riskCodes.includes("EVICTABLE") &&
+    immuneFresh.notes.some((n) => n.includes("immunity window") && n.includes("eviction protection left") && n.includes("7100 blocks"))
+);
+
+const immuneExpired = assessUidRisk({
+  ...base,
+  incentive: 0,
+  registeredUids: 256,
+  lastUpdateAgeBlocks: 1, // proxy would say protected
+  registrationBlock: NOW_BLOCK - 8000,
+  blockNumber: NOW_BLOCK,
+});
+check(
+  "expired authoritative clock → EVICTABLE despite fresh proxy",
+  immuneExpired.riskCodes.includes("EVICTABLE") && immuneExpired.riskLevel === "critical"
+);
+
+// ---------------------------------------------------------------------------
+section("1b. Immunity countdown math (pure)");
+// ---------------------------------------------------------------------------
+
+check(
+  "computeRemainingBlocks: 8618670 + 5000 − 8618670 = 5000",
+  computeRemainingBlocks({ registrationBlock: 8618670, windowBlocks: 5000, blockNumber: 8618670 }) === 5000
+);
+check(
+  "computeRemainingBlocks clamps at 0",
+  computeRemainingBlocks({ registrationBlock: 100, windowBlocks: 5000, blockNumber: 999999 }) === 0
+);
+check("formatBlocksLeft: 5000 blocks → 16h 40m", formatBlocksLeft(5000) === "16h 40m");
+check("formatBlocksLeft: 210 blocks → 42m 00s", formatBlocksLeft(210) === "42m 00s");
+check("formatBlocksLeft: 45 blocks → 9m 00s", formatBlocksLeft(45) === "9m 00s");
+check("blocksToHoursApprox: 5000 → ≈16.67 h", Math.abs(blocksToHoursApprox(5000) - 16.6667) < 0.001);
+
+const now = Date.now();
+check(
+  "tick: fresh snapshot keeps remaining",
+  tickRemainingBlocks({ remainingBlocks: 5000, sampledAt: now }) === 5000
+);
+check(
+  "tick: 24 s elapsed → −2 blocks",
+  tickRemainingBlocks({ remainingBlocks: 5000, sampledAt: now - 24_000 }) === 4998
+);
+check(
+  "tick: clamps at 0 after long drift",
+  tickRemainingBlocks({ remainingBlocks: 3, sampledAt: now - 10 * 60_000 }) === 0
+);
+check("tick: null remaining stays null (no authoritative clock)", tickRemainingBlocks({ remainingBlocks: null, sampledAt: now }) === null);
 
 // ---------------------------------------------------------------------------
 section("2. Daemon bridge — HMAC + scripts");

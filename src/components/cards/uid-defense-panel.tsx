@@ -1,9 +1,16 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ShieldAlert, Radar } from "lucide-react";
+import { ShieldAlert, ShieldCheck, ShieldOff, ShieldHalf, Radar } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  blocksToHoursApprox,
+  formatBlocksLeft,
+  tickRemainingBlocks,
+  type UidImmunityInfo,
+} from "@/lib/infranex/immunity";
 import type { UidDefenseState } from "@/lib/infranex/use-triggers";
 
 /**
@@ -40,6 +47,77 @@ function Sparkline({ history }: { history: { incentive: number | null }[] }) {
   );
 }
 
+/**
+ * Live-ticking immunity chip — remaining = registrationBlock + window −
+ * current block, aged client-side (1 block ≈ 12 s) between the 45 s polls.
+ *
+ *   IMMUNE · 15h 42m left   emerald — protected, plenty of window left
+ *   IMMUNE · 42m 10s left   amber   — final 10% of the window
+ *   immunity expired        muted   — clock ran out (EVICTABLE risk follows)
+ *   immunity window ≈ 16.7h muted   — runtime doesn't expose the reg block
+ */
+function ImmunityChip({ immunity }: { immunity: UidImmunityInfo }) {
+  // Re-render every second so the countdown ticks between polls.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const left = tickRemainingBlocks(immunity);
+  const windowH = immunity.windowBlocks !== null ? blocksToHoursApprox(immunity.windowBlocks) : null;
+  const title = [
+    immunity.registrationBlock !== null
+      ? `Registered at block ${immunity.registrationBlock.toLocaleString("en-US")}`
+      : "Registration block not exposed by this runtime",
+    windowH !== null ? `window ${immunity.windowBlocks?.toLocaleString("en-US")} blocks ≈ ${windowH.toFixed(1)} h` : null,
+    immunity.blockNumber !== null ? `sampled at block ${immunity.blockNumber.toLocaleString("en-US")}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  if (left === null) {
+    if (immunity.windowBlocks === null) return null;
+    return (
+      <span
+        title={title}
+        className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/30 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+      >
+        <ShieldHalf className="h-3 w-3" />
+        immunity window ≈ {windowH?.toFixed(1)} h
+      </span>
+    );
+  }
+
+  if (left <= 0) {
+    return (
+      <span
+        title={title}
+        className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/30 px-1.5 py-0.5 text-[10px] text-muted-foreground"
+      >
+        <ShieldOff className="h-3 w-3" />
+        immunity expired
+      </span>
+    );
+  }
+
+  const finalStretch = immunity.windowBlocks != null && left < immunity.windowBlocks * 0.1;
+  return (
+    <span
+      title={title}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium",
+        finalStretch
+          ? "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-300"
+          : "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300"
+      )}
+    >
+      <ShieldCheck className="h-3 w-3" />
+      IMMUNE · {formatBlocksLeft(left)} left
+    </span>
+  );
+}
+
 export function UidDefensePanel({ states }: { states: UidDefenseState[] }) {
   if (states.length === 0) return null;
 
@@ -68,7 +146,7 @@ export function UidDefensePanel({ states }: { states: UidDefenseState[] }) {
             )}
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-medium">{s.minerName}</span>
                 <Badge variant="outline" className="mono text-[10px]">
                   α{s.netuid}
@@ -78,6 +156,7 @@ export function UidDefensePanel({ states }: { states: UidDefenseState[] }) {
                     UID {s.uid}
                   </Badge>
                 )}
+                {s.uid !== null && s.immunity && <ImmunityChip immunity={s.immunity} />}
               </div>
               {s.riskCodes.includes("NOT_REGISTERED") ? (
                 <Badge variant="outline" className="border-red-500/50 bg-red-500/10 text-red-300">

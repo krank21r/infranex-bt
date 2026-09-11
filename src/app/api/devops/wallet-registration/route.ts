@@ -35,6 +35,12 @@ export async function GET(req: NextRequest) {
 
   try {
     const state = await getUidState(netuid, hotkey);
+    if (!state.vectors) {
+      return NextResponse.json(
+        { ok: false, error: "chain snapshot unavailable" },
+        { status: 502 }
+      );
+    }
     const uid = state.uid;
     const v = state.vectors;
     const immunityBlocks = state.hyperparams.immunityPeriod;

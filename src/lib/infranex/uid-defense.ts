@@ -1,6 +1,11 @@
 import { db } from "@/lib/db";
 import { getUidState } from "./metagraph";
 import { commitFinding } from "./triggers-core";
+import {
+  blocksToHoursApprox,
+  computeRemainingBlocks,
+  type UidImmunityInfo,
+} from "./immunity";
 
 /**
  * UID Defense — watches the miner's OWN UID on the metagraph every
@@ -14,6 +19,11 @@ import { commitFinding } from "./triggers-core";
  *   UNDERPERFORMING     — incentive < 30% of rewarded median (warning)
  *   INCENTIVE_COLLAPSE  — incentive ≤ 50% of the previous sample (warning)
  *   PERSISTENT_DECLINE  — warning for 3 consecutive samples → critical
+ *
+ * Immunity clock: when the runtime exposes the registration block, the
+ * EVICTABLE check uses the authoritative window (registrationBlock +
+ * immunityPeriod − current block); otherwise it falls back to the
+ * lastUpdateAge proxy (pre-probe behavior).
  *
  * Infra errors (chain down) SKIP the pass — never a false alarm.
  */
@@ -51,6 +61,11 @@ export function assessUidRisk(input: {
   previousIncentive: number | null;
   /** How many consecutive previous samples were warning-level. */
   previousWarningStreak: number;
+  /** Block this hotkey registered (authoritative immunity origin), when
+   *  the runtime exposes it. Null → fall back to the lastUpdateAge proxy. */
+  registrationBlock?: number | null;
+  /** Chain block the sample was taken at (ages the registration block). */
+  blockNumber?: number | null;
 }): UidRiskAssessment {
   const codes: RiskCode[] = [];
   const notes: string[] = [];
@@ -76,12 +91,33 @@ export function assessUidRisk(input: {
   const atCapacity =
     input.hyperparams.maxAllowedUids !== null && input.registeredUids >= input.hyperparams.maxAllowedUids;
   const immunityBlocks = input.hyperparams.immunityPeriod ?? 0;
-  const immunityExpired =
-    input.lastUpdateAgeBlocks !== null && immunityBlocks > 0 && input.lastUpdateAgeBlocks > immunityBlocks;
+  // Authoritative clock when the registration block is exposed; otherwise
+  // fall back to the lastUpdateAge proxy (≈ age for stale neurons).
+  const hasAuthoritativeClock =
+    input.registrationBlock != null && input.blockNumber != null && immunityBlocks > 0;
+  const immunityLeft = hasAuthoritativeClock
+    ? computeRemainingBlocks({
+        registrationBlock: input.registrationBlock!,
+        windowBlocks: immunityBlocks,
+        blockNumber: input.blockNumber!,
+      })
+    : null;
+  const immunityExpired = hasAuthoritativeClock
+    ? immunityLeft! <= 0
+    : input.lastUpdateAgeBlocks !== null && immunityBlocks > 0 && input.lastUpdateAgeBlocks > immunityBlocks;
   if (atCapacity && immunityExpired && incentive <= 0.0005) {
     codes.push("EVICTABLE");
     notes.push(
       `Subnet at capacity (${input.registeredUids}/${input.hyperparams.maxAllowedUids}) and immunity expired — UID is a deregistration candidate.`
+    );
+  }
+
+  // 3b. Zero income while still immune — inform instead of alarm.
+  if (codes.includes("ZERO_INCOME") && !immunityExpired && immunityLeft !== null && immunityLeft > 0) {
+    notes.push(
+      `Still inside its immunity window: ${immunityLeft} blocks (≈${blocksToHoursApprox(immunityLeft).toFixed(1)} h) of eviction protection left${
+        atCapacity ? " — the subnet is full, so start earning before it expires." : "."
+      }`
     );
   }
 
@@ -172,6 +208,8 @@ export async function runUidDefensePass(): Promise<{
         medianRewardedIncentive: state.cohort.medianRewardedIncentive,
         previousIncentive: previous?.incentive ?? null,
         previousWarningStreak: hadDecline ? 0 : warningStreak,
+        registrationBlock: state.registrationBlock,
+        blockNumber: state.vectors?.blockNumber ?? null,
       });
 
       // Persist sample.
@@ -219,6 +257,7 @@ export async function runUidDefensePass(): Promise<{
             riskCodes: assessment.riskCodes,
             incentive: state.uid !== null ? state.vectors?.incentive[state.uid] ?? null : null,
             cohort: state.cohort,
+            immunity: buildImmunityInfo(state),
             sampledAt: new Date().toISOString(),
           },
           deploymentId: dep.id,
@@ -279,6 +318,9 @@ export interface UidDefensePayloadItem {
   riskCodes: string[];
   history: { incentive: number | null; consensus: number | null; at: string }[];
   cohort: { registeredUids: number; earningUids: number; medianRewardedIncentive: number } | null;
+  /** Remaining-eviction-protection countdown, when the chain exposes the
+   *  registration block. Null when the hotkey is invalid or chain is down. */
+  immunity: UidImmunityInfo | null;
   note?: string;
 }
 
@@ -296,11 +338,15 @@ export async function getUidDefensePayload(): Promise<UidDefensePayloadItem[]> {
       take: HISTORY_WINDOW,
     });
     const latest = history[0];
+    // Fresh chain state (vectors are 60s-cached per netuid) — gives the live
+    // uid, cohort AND the immunity clock in one call when a hotkey is set.
+    const hk = dep.hotkey;
+    const full = hk && isValidSs58(hk) ? await getUidState(dep.netuid, hk).catch(() => null) : null;
     return {
       deploymentId: dep.id,
       minerName: dep.minerName,
       netuid: dep.netuid,
-      uid: latest?.uid ?? null,
+      uid: full ? full.uid : (latest?.uid ?? null),
       hotkey: dep.hotkey,
       riskLevel: (latest?.riskLevel ?? "healthy") as "healthy" | "warning" | "critical",
       riskCodes: latest ? (JSON.parse(latest.riskCodesJson) as string[]) : [],
@@ -309,9 +355,12 @@ export async function getUidDefensePayload(): Promise<UidDefensePayloadItem[]> {
         .reverse()
         .map((h) => ({ incentive: h.incentive, consensus: h.consensus, at: h.createdAt.toISOString() })),
       cohort:
-        latest?.incentive != null && dep.hotkey
-          ? await cohortFor(dep.netuid).catch(() => null)
-          : null,
+        full?.uid != null
+          ? full.cohort
+          : latest?.incentive != null && dep.hotkey
+            ? await cohortFor(dep.netuid).catch(() => null)
+            : null,
+      immunity: full ? buildImmunityInfo(full) : null,
       note: !isValidSs58(dep.hotkey)
         ? "No valid hotkey set on this deployment — UID telemetry unavailable."
         : undefined,
@@ -327,4 +376,24 @@ export async function getUidDefensePayload(): Promise<UidDefensePayloadItem[]> {
 async function cohortFor(netuid: number) {
   const state = await getUidState(netuid);
   return state.cohort;
+}
+
+/** Project a metagraph state into the UI-facing immunity countdown. */
+function buildImmunityInfo(
+  state: Awaited<ReturnType<typeof getUidState>>
+): UidImmunityInfo {
+  const windowBlocks = state.hyperparams.immunityPeriod;
+  const registrationBlock = state.uid !== null ? state.registrationBlock : null;
+  const blockNumber = state.vectors?.blockNumber ?? null;
+  const remainingBlocks =
+    state.uid !== null && windowBlocks !== null && registrationBlock !== null && blockNumber !== null
+      ? computeRemainingBlocks({ registrationBlock, windowBlocks, blockNumber })
+      : null;
+  return {
+    windowBlocks,
+    registrationBlock,
+    remainingBlocks,
+    blockNumber,
+    sampledAt: Date.now(),
+  };
 }

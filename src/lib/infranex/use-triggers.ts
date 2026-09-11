@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { UidImmunityInfo } from "@/lib/infranex/immunity";
 
 export interface TriggerEventDTO {
   id: string;
@@ -27,6 +28,8 @@ export interface UidDefenseState {
   riskCodes: string[];
   history: { incentive: number | null; consensus: number | null; at: string }[];
   cohort: { registeredUids: number; earningUids: number; medianRewardedIncentive: number } | null;
+  /** Remaining-eviction-protection countdown (registration block + window − current). */
+  immunity: UidImmunityInfo | null;
   note?: string;
 }
 
