@@ -20,6 +20,7 @@ import { RunPodProvider } from "./providers/runpod";
 import { generateSshKeypair } from "./ssh-keys";
 import { encryptSecret } from "@/lib/devops/crypto";
 import type { ProviderAdapter } from "./providers/base";
+import type { InstallStep } from "@/lib/devops/installer";
 import type { Subnet, GPUOffer } from "../types";
 
 /**
@@ -88,8 +89,6 @@ function stepOutput(step: string, config: DeploymentConfig): string[] {
         `  Axon port: ${config.miner.axonPort}`,
         "Starting miner process...",
         `  $ ${config.docker.command.slice(0, 80)}...`,
-        "Registering miner on chain...",
-        `  Allocated UID on subnet ${config.miner.netuid}`,
         "Miner started ✓",
       ];
     case "health":
@@ -136,6 +135,9 @@ export interface DeploymentRecord {
   hotkey: string | null;
   sshPublicKey: string | null;
   sshPort: number | null;
+  sshHost: string | null;
+  installStatus: string | null;
+  installSteps: InstallStep[] | null;
   steps: DeploymentStep[];
   createdAt: string;
   updatedAt: string;
@@ -159,6 +161,9 @@ function toRecord(row: {
   hotkey: string | null;
   sshPublicKey: string | null;
   sshPort: number | null;
+  sshHost: string | null;
+  installStatus: string | null;
+  installStepsJson: string | null;
   steps: string;
   createdAt: Date;
   updatedAt: Date;
@@ -181,6 +186,9 @@ function toRecord(row: {
     hotkey: row.hotkey,
     sshPublicKey: row.sshPublicKey,
     sshPort: row.sshPort,
+    sshHost: row.sshHost,
+    installStatus: row.installStatus,
+    installSteps: row.installStepsJson ? (JSON.parse(row.installStepsJson) as InstallStep[]) : null,
     steps: deserializeSteps(row.steps),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -254,11 +262,26 @@ export async function advanceDeployment(
   let providerPodId = rec.providerPodId;
   const stepOutputs: Record<string, string[]> = {};
 
-  // Build outputs for all steps up to the current one
+  // Canned narrative ONLY for the pre-pod steps. Setup/deploy/health are
+  // owned by the real-setup runner (both modes) — its mirrored output lines
+  // must survive later advances, so no canned text is ever written for them.
   const config = rec.config;
-  const allSteps = ["request", "approve", "provision", "setup", "deploy", "health"];
-  for (const s of allSteps) {
+  for (const s of ["request", "approve", "provision"]) {
     stepOutputs[s] = stepOutput(s, config);
+  }
+
+  // Honest headers when a runner-owned phase STARTS; afterwards the runner
+  // appends real command output. Absent key = preserve mirrored lines.
+  if (next === "setup") {
+    stepOutputs.setup = [
+      rec.mode === "mock" ? "Connecting to the simulated pod…" : `Connecting to the pod over SSH (${rec.sshHost ?? "ip pending"}:${rec.sshPort ?? 22})…`,
+      "Staging the subnet's real install plan (profiler profile + docker/venv path)…",
+    ];
+  }
+  if (next === "deploying") {
+    stepOutputs.deploy = [
+      "Approval received — checking wallet files and launching the miner…",
+    ];
   }
 
   // Entering provisioning — fire the provider request.
@@ -298,7 +321,18 @@ export async function advanceDeployment(
     }
   }
 
-  return updateDeploymentState(id, next, providerPodId, stepOutputs);
+  return updateDeploymentState(id, next, providerPodId, stepOutputs).then((rec2) => {
+    // Fire the real-setup runners AFTER the state row is written.
+    if (next === "setup") {
+      import("./real-setup")
+        .then((m) => m.stageAndRunSetup(id))
+        .catch((e) => console.warn(`[engine ${id}] setup kick failed: ${e instanceof Error ? e.message : e}`));
+    }
+    if (next === "deploying") {
+      import("./real-setup").then((m) => m.kickDeploy(id));
+    }
+    return rec2;
+  });
 }
 
 function nextLogicalState(current: DeploymentState): DeploymentState {
@@ -369,6 +403,7 @@ export async function pollProvisioning(id: string): Promise<DeploymentRecord> {
         data: {
           status: "provisioned",
           progress: stateToProgress("provisioned"),
+          sshHost: status.ipAddress ?? null,
           sshPort,
           steps: serializeSteps(steps),
         },
@@ -415,9 +450,27 @@ export async function deleteDeployment(id: string): Promise<void> {
 }
 
 /**
+ * Public state transition for runner callbacks (real-setup calls this when
+ * the deploy phase's verify passes). Skips the tick logic — direct write.
+ */
+export async function transitionDeployment(
+  id: string,
+  to: DeploymentState
+): Promise<DeploymentRecord> {
+  const rec = await getDeployment(id);
+  if (!rec) throw new Error("Deployment not found");
+  assertCanTransition(rec.status as DeploymentState, to);
+  return updateDeploymentState(id, to, rec.providerPodId, {});
+}
+
+/**
  * Tick — advance a deployment that's in a non-terminal state one step
  * forward. Called by the UI poller every few seconds to drive the lifecycle.
  * For runpod deployments in provisioning, polls provider status instead.
+ *
+ * Real-setup guards: while the install runner is mid-flight the tick is a
+ * no-op; when it pauses at the wallet gate the tick completes setup → ready;
+ * when it failed, an explicit Advance press RE-RUNS the failed phase (retry).
  */
 export async function tickDeployment(id: string): Promise<DeploymentRecord> {
   const rec = await getDeployment(id);
@@ -427,6 +480,25 @@ export async function tickDeployment(id: string): Promise<DeploymentRecord> {
   }
   if (rec.status === "provisioning" && rec.mode === "runpod") {
     return pollProvisioning(id);
+  }
+  if (rec.status === "setup" || rec.status === "deploying") {
+    if (rec.installStatus === "running") return rec; // runner mid-flight
+    if (rec.installStatus === "failed") {
+      // Explicit Advance = retry the failed phase.
+      const m = await import("./real-setup");
+      if (rec.status === "setup") {
+        await m.retrySetup(id);
+      } else {
+        m.kickDeploy(id);
+      }
+      return getDeployment(id).then((r) => r!);
+    }
+    if (rec.status === "setup" && rec.installStatus === "awaiting_wallet") {
+      return advanceDeployment(id, "ready");
+    }
+    if (rec.status === "deploying" && rec.installStatus === "installed") {
+      return advanceDeployment(id, "started");
+    }
   }
   return advanceDeployment(id);
 }

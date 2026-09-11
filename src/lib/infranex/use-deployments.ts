@@ -36,6 +36,8 @@ export interface DeploymentRecord {
   config: DeploymentConfig | null;
   providerPodId: string | null;
   hotkey: string | null;
+  sshHost: string | null;
+  installStatus: string | null;
   steps: DeploymentStep[];
   createdAt: string;
   updatedAt: string;

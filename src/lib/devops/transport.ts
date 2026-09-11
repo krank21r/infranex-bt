@@ -146,6 +146,7 @@ interface MockHostState {
   venvCreated: boolean;
   repoCloned: boolean;
   depsInstalled: boolean;
+  dockerImageBuilt: boolean;
   minerEnvWritten: boolean;
   walletReady: boolean;
   minerRunning: boolean;
@@ -164,6 +165,7 @@ function getState(key: string): MockHostState {
       venvCreated: false,
       repoCloned: false,
       depsInstalled: false,
+      dockerImageBuilt: false,
       minerEnvWritten: false,
       walletReady: false,
       minerRunning: false,
@@ -292,6 +294,38 @@ export class MockTransport implements Transport {
         return out("", "docker: Error — could not select device driver \"nvidia\"", 127);
       return out(
         "Mon Sep 10 12:00:00 2026\n+-----------------------------------------------------------------------------+\n| NVIDIA-SMI 550.90.07    Driver Version: 550.90.07    CUDA Version: 12.4    |\n|   0  NVIDIA RTX 4090    ...                                                |\n+-----------------------------------------------------------------------------+\n"
+      );
+    }
+
+    // --- Requirement installer — Docker path (repo ships a Dockerfile) ---
+    if (command.includes("docker build") && command.includes("/opt/infranex/")) {
+      if (!s.repoCloned) return out("", "No such file or directory — clone the repo first", 1);
+      s.dockerImageBuilt = true;
+      return out(
+        "[+] Building 3.4s (11/11) FINALLY DONE\n => [internal] load build definition from Dockerfile\n => [4/5] RUN pip install -r requirements.txt\n => exporting layers\n => naming to docker.io/infranex/sn90:miner\n"
+      );
+    }
+    if (command.includes("docker rm -f") && command.includes("infranex-miner")) {
+      const wasRunning = s.minerRunning;
+      s.minerRunning = false;
+      return out(wasRunning ? "[mock] container removed\n" : "");
+    }
+    if (command.startsWith("docker run -d") && command.includes("infranex-miner")) {
+      if (!s.dockerImageBuilt)
+        return out("", "Unable to find image 'infranex/sn90:miner' locally — build it first", 125);
+      if (!s.dockerInstalled || !s.toolkitInstalled)
+        return out("", "docker: Error — could not select device driver \"nvidia\"", 127);
+      s.minerRunning = true;
+      return out("a1b2c3d4e5f6ac1df39c1b47c8e00b1a61916ecb1a4c10f2fbe2f7db90e6bc11\n");
+    }
+    if (command.includes("docker ps") && command.includes("infranex-miner")) {
+      if (!s.minerRunning) return out("");
+      return out("infranex-miner-sn90 | Up 12 seconds\n");
+    }
+    if (command.includes("docker logs") && command.includes("infranex-miner")) {
+      if (!s.minerRunning) return out("", "Error: no such container", 1);
+      return out(
+        "2026-09-11 12:00:01 | Loaded wallet default/miner — connecting to finney…\n2026-09-11 12:00:04 | Axon serving on 0.0.0.0:8091\n2026-09-11 12:00:06 | Syncing chain head 9,213,442\n"
       );
     }
 

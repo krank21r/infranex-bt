@@ -328,6 +328,89 @@ try {
 }
 
 // ---------------------------------------------------------------------------
+section("4b. Real install plan — docker vs venv path (pure)");
+// ---------------------------------------------------------------------------
+
+import { buildInstallPlan, timeoutForCmd, UNIT_NAME } from "../src/lib/devops/installer";
+import type { SubnetRequirementsProfile } from "../src/lib/devops/subnet-requirements";
+
+const profileBase = {
+  netuid: 90,
+  subnetName: "KubeTEE",
+  description: null,
+  category: "Compute",
+  minVramGb: 24,
+  recommendedGpu: "RTX 4090 / H100",
+  gpuSource: "repo" as const,
+  osPackages: ["git", "python3-venv", "build-essential"],
+  pythonVersion: "3.13",
+  pipPackages: ["bittensor"],
+  pipPackageCount: 1,
+  gitDeps: [],
+  cudaMinVersion: "12.4",
+  dockerImage: null as string | null,
+  dockerRequired: false,
+  bittensorStack: ["bittensor"],
+  packageManager: "pip" as const,
+  repoUrl: "https://github.com/example/kubetee",
+  repoBranch: "main",
+  entrypoint: "neurons/miner.py",
+  readmeUrl: null,
+  requirementsUrl: null,
+  dockerfileFound: false,
+  chainNetwork: "finney" as const,
+  ports: { axon: 8091, prometheus: 8092 },
+  envKeys: [],
+  minerCommandTemplate: "python neurons/miner.py --netuid 90",
+  sources: ["github" as const],
+  confidence: "high" as const,
+  notes: [],
+  fetchedAt: new Date().toISOString(),
+};
+
+const venvPlan = buildInstallPlan({
+  profile: profileBase,
+  walletName: "infranex",
+  hotkeyName: "default",
+  hostFacts: { gpuName: "RTX 4090", gpuVramMb: 24564, driverCuda: "12.4" },
+});
+check(
+  "venv path: NO docker steps, systemd launch",
+  !venvPlan.some((s) => s.title.includes("Docker") || s.title.startsWith("Build")) &&
+    venvPlan.some((s) => s.title.startsWith("Create Python virtual environment")) &&
+    venvPlan.some((s) => s.commands.some((c) => c.includes("systemctl enable --now")))
+);
+check(
+  "venv path: wallet gate is manual, launch is approval-gated",
+  venvPlan.find((s) => s.title.startsWith("Wallet"))?.gate === "manual" &&
+    venvPlan.find((s) => s.title.startsWith("Launch"))?.gate === "approval"
+);
+
+const dockerPlan = buildInstallPlan({
+  profile: { ...profileBase, dockerImage: "nvidia/cuda:12.4.1-runtime-ubuntu22.04", dockerRequired: true, dockerfileFound: true },
+  walletName: "infranex",
+  hotkeyName: "default",
+  hostFacts: { gpuName: "H100 80GB", gpuVramMb: 81920, driverCuda: "12.4" },
+});
+check(
+  "docker path: docker install + build steps present, NO venv/pip steps",
+  dockerPlan.some((s) => s.title.startsWith("Install Docker")) &&
+    dockerPlan.some((s) => s.title.startsWith("Build the subnet's Docker image")) &&
+    !dockerPlan.some((s) => s.title.startsWith("Create Python") || s.title.startsWith("Install the subnet"))
+);
+check(
+  "docker path: launch is docker run with GPU + wallet mount, verify is docker ps/logs",
+  dockerPlan
+    .find((s) => s.title.startsWith("Launch"))
+    ?.commands.some((c) => c.includes("docker run -d") && c.includes("--gpus all") && c.includes(".bittensor/wallets")) === true &&
+    dockerPlan
+      .find((s) => s.title.startsWith("Verify"))
+      ?.commands.some((c) => c.includes("docker ps") && c.includes("docker logs")) === true
+);
+check("docker path: docker build timeout is 20 min", timeoutForCmd("cd /x && docker build -t infranex/sn90:miner .") === 1_200_000);
+check("UNIT_NAME shape", UNIT_NAME(90) === "infranex-miner-sn90");
+
+// ---------------------------------------------------------------------------
 console.log(`\n========== ${passed} passed, ${failed} failed ==========`);
 if (failures.length) {
   console.log("FAILURES:");

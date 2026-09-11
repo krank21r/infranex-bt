@@ -37,6 +37,16 @@ model Deployment {
   sshPublicKey    String?
   sshPrivKeyEnc   String?
   sshPort         Int?
+  // Pod public IP — captured when the provisioning poller sees RUNNING;
+  // the real-setup runner SSHes here to install the subnet's requirements.
+  sshHost         String?
+  // Real-setup install runner state on this deployment:
+  //   "running" | "awaiting_wallet" | "installed" | "failed" | null (not started)
+  installStatus   String?
+  // InstallStep[] JSON — the real install plan + per-step progress/output.
+  installStepsJson String?
+  // Snapshot of the SubnetRequirementsProfile the plan was built from.
+  requirementsJsonSnapshot String?
   // Step log: JSON array of { name, label, status, startedAt, completedAt, output }
   steps           String   @default("[]")
   createdAt       DateTime @default(now())

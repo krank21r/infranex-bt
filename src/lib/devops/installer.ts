@@ -52,6 +52,15 @@ export interface InstallPlanInput {
 
 const APP_ROOT = (netuid: number) => `/opt/infranex/sn${netuid}`;
 const UNIT_NAME = (netuid: number) => `infranex-miner-sn${netuid}`;
+export { UNIT_NAME };
+
+/** Command timeout by shape — pip/CUDA wheels and docker builds are heavy. */
+export function timeoutForCmd(cmd: string): number {
+  if (cmd.includes("docker build")) return 1_200_000;
+  if (cmd.includes("pip install") || cmd.includes("uv sync")) return 900_000;
+  if (cmd.includes("apt-get install") || cmd.includes("get.docker.com")) return 600_000;
+  return 120_000;
+}
 
 // --- Plan builder -----------------------------------------------------------
 
@@ -72,6 +81,10 @@ export function buildInstallPlan(input: InstallPlanInput): InstallStep[] {
       remediation: null,
       durationMs: 0,
     });
+
+  // Docker path? The repo ships a Dockerfile — run the miner as a container
+  // (CUDA comes from the image's nvidia/cuda base) instead of a host venv.
+  const dockerPath = Boolean(profile.dockerfileFound && profile.dockerImage);
 
   // 1 — Compatibility (virtual check against the last inspection facts)
   push({
@@ -95,28 +108,49 @@ export function buildInstallPlan(input: InstallPlanInput): InstallStep[] {
     ],
   });
 
-  // 3 — Python venv (version-checked when the repo declares one).
-  // uv workspace repos manage their own venv via `uv sync` — skip this.
-  const pyCheck = profile.pythonVersion
-    ? `python3 --version | grep -q "Python ${profile.pythonVersion}" || { echo "python ${profile.pythonVersion} required — install via deadsnakes"; exit 1; } && `
-    : "";
-  if (profile.packageManager === "uv") {
+  // 3 — Runtime: Docker path installs Docker + NVIDIA toolkit; venv path
+  //      creates a Python virtual environment (version-checked when the repo
+  //      declares one; uv workspace repos manage their own venv).
+  if (dockerPath) {
     push({
-      title: "Python environment",
-      description: `uv workspace repo — uv creates and manages the venv (${root}/app/.venv). Python ${profile.pythonVersion ?? "3"} must still be present.`,
+      title: "Install Docker Engine + NVIDIA container runtime",
+      description: `Repo ships a Dockerfile (${profile.dockerImage}) — the miner runs as a GPU container. Installs docker-ce, nvidia-container-toolkit, configures the nvidia runtime.`,
       gate: "auto",
-      commands: [],
-      virtual: true,
+      commands: [
+        "curl -fsSL https://get.docker.com | sh",
+        // Same commands as the DevOps inspector's fix flow — the mock host
+        // recognizes these prefixes.
+        "curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg && " +
+          "curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | " +
+          "sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | " +
+          "tee /etc/apt/sources.list.d/nvidia-container-toolkit.list && " +
+          "apt-get update -qq && apt-get install -y -qq nvidia-container-toolkit",
+        "nvidia-ctk runtime configure --runtime=docker && (systemctl restart docker || service docker restart)",
+        "docker info 2>/dev/null | grep -i nvidia || { echo 'nvidia runtime NOT active — GPU containers will fail'; exit 1; }",
+      ],
     });
   } else {
-    push({
-      title: "Create Python virtual environment",
-      description: profile.pythonVersion
-        ? `Repo declares Python ${profile.pythonVersion}; venv at ${root}/venv`
-        : `Distro Python; venv at ${root}/venv`,
-      gate: "auto",
-      commands: [`${pyCheck}mkdir -p ${root} && python3 -m venv ${root}/venv && ${root}/venv/bin/pip --version`],
-    });
+    const pyCheck = profile.pythonVersion
+      ? `python3 --version | grep -q "Python ${profile.pythonVersion}" || { echo "python ${profile.pythonVersion} required — install via deadsnakes"; exit 1; } && `
+      : "";
+    if (profile.packageManager === "uv") {
+      push({
+        title: "Python environment",
+        description: `uv workspace repo — uv creates and manages the venv (${root}/app/.venv). Python ${profile.pythonVersion ?? "3"} must still be present.`,
+        gate: "auto",
+        commands: [],
+        virtual: true,
+      });
+    } else {
+      push({
+        title: "Create Python virtual environment",
+        description: profile.pythonVersion
+          ? `Repo declares Python ${profile.pythonVersion}; venv at ${root}/venv`
+          : `Distro Python; venv at ${root}/venv`,
+        gate: "auto",
+        commands: [`${pyCheck}mkdir -p ${root} && python3 -m venv ${root}/venv && ${root}/venv/bin/pip --version`],
+      });
+    }
   }
 
   // 4 — Clone the subnet repo
@@ -137,9 +171,17 @@ export function buildInstallPlan(input: InstallPlanInput): InstallStep[] {
     });
   }
 
-  // 5 — Python dependencies (pip + requirements, or uv sync for workspaces)
+  // 5 — Dependencies: Docker path builds the image (deps live in the image);
+  //      venv path pip-installs (or uv syncs) on the host.
   const pythonBin = profile.packageManager === "uv" ? `${root}/app/.venv/bin/python` : `${root}/venv/bin/python`;
-  if (profile.packageManager === "uv") {
+  if (dockerPath) {
+    push({
+      title: "Build the subnet's Docker image",
+      description: `docker build → infranex/sn${netuid}:miner (base ${profile.dockerImage}; the repo's Dockerfile pins CUDA/deps).`,
+      gate: "auto",
+      commands: [`cd ${root}/app && docker build -t infranex/sn${netuid}:miner .`],
+    });
+  } else if (profile.packageManager === "uv") {
     push({
       title: "Install the subnet's Python dependencies",
       description: "pip installs uv, then the repo's own uv workspace resolves + installs everything into app/.venv",
@@ -196,7 +238,24 @@ export function buildInstallPlan(input: InstallPlanInput): InstallStep[] {
     ],
   });
 
-  // 8 — Launch miner (systemd, approval-gated: this starts burning compute)
+  // 8 — Launch miner (approval-gated: this starts burning compute).
+  //      Docker path: a GPU container with the wallet dir bind-mounted and
+  //      the env file injected; restart policy survives pod reboots.
+  //      Venv path: a systemd unit wrapping the venv python entrypoint.
+  if (dockerPath) {
+    push({
+      title: "Launch the miner (Docker container)",
+      description: `docker run --gpus all infranex/sn${netuid}:miner — auto-restarts, axon ${profile.ports.axon} published, wallet dir mounted read-only. This starts the real workload.`,
+      gate: "approval",
+      commands: [
+        `docker rm -f ${unit} 2>/dev/null || true; docker run -d --restart unless-stopped --name ${unit} --gpus all ` +
+          `--env-file ${root}/env ` +
+          `-v $HOME/.bittensor/wallets:/root/.bittensor:ro ` +
+          `-p ${profile.ports.axon}:${profile.ports.axon} -p ${profile.ports.prometheus}:${profile.ports.prometheus} ` +
+          `infranex/sn${netuid}:miner`,
+      ],
+    });
+  } else {
   const unitLines = [
     "[Unit]",
     `Description=Infranex miner — subnet ${netuid} (${profile.subnetName})`,
@@ -227,16 +286,23 @@ export function buildInstallPlan(input: InstallPlanInput): InstallStep[] {
         .join(" ")} > /etc/systemd/system/${unit}.service`,
       `systemctl daemon-reload && systemctl enable --now ${unit}`,
     ],
-  });
+    });
+  }
 
   // 9 — Verify
   push({
     title: "Verify the miner is live",
-    description: `systemctl is-active + axon port ${profile.ports.axon} listening + first log lines`,
+    description: dockerPath
+      ? `container status + axon port ${profile.ports.axon} listening + first log lines`
+      : `systemctl is-active + axon port ${profile.ports.axon} listening + first log lines`,
     gate: "auto",
-    commands: [
-      `systemctl is-active ${unit} && ss -tlnp | grep ':${profile.ports.axon} ' ; tail -n 5 /var/log/infranex-miner-sn${netuid}.log 2>/dev/null`,
-    ],
+    commands: dockerPath
+      ? [
+          `docker ps --filter name=${unit} --format '{{.Names}} | {{.Status}}' | grep -q ${unit} && ss -tlnp | grep ':${profile.ports.axon} ' ; docker logs --tail 5 ${unit} 2>&1 | tail -5`,
+        ]
+      : [
+          `systemctl is-active ${unit} && ss -tlnp | grep ':${profile.ports.axon} ' ; tail -n 5 /var/log/infranex-miner-sn${netuid}.log 2>/dev/null`,
+        ],
   });
 
   return steps;
@@ -249,7 +315,7 @@ function okOut(s: string): boolean {
 }
 
 /** Compatibility step 1: compare host facts to the profile. */
-function runCompatibilityStep(step: InstallStep, profile: SubnetRequirementsProfile, facts: HostFacts | null): void {
+export function runCompatibilityStep(step: InstallStep, profile: SubnetRequirementsProfile, facts: HostFacts | null): void {
   const problems: string[] = [];
   const notes: string[] = [];
   if (profile.minVramGb > 0) {
@@ -342,7 +408,7 @@ export async function runInstallStep(
         await transport.connect();
         for (const cmd of step.commands) {
           step.output += `$ ${cmd}\n`;
-          const timeout = cmd.includes("pip install") ? 900_000 : cmd.includes("apt-get install") ? 600_000 : 120_000;
+          const timeout = timeoutForCmd(cmd);
           const r = await transport.exec(cmd, timeout);
           if (r.stdout.trim()) step.output += r.stdout.trim() + "\n";
           if (r.stderr.trim()) step.output += r.stderr.trim() + "\n";
@@ -373,8 +439,10 @@ export async function runInstallStep(
   return { install: { id: row.id, status: overall }, step };
 }
 
-function failRemediation(step: InstallStep, code: number): string {
+export function failRemediation(step: InstallStep, code: number): string {
   if (step.title.startsWith("Install OS")) return "apt failed — check the distro sources and network on the host, then retry.";
+  if (step.title.startsWith("Install Docker")) return code === 127 ? "curl/network unavailable on the host — install docker-ce + nvidia-container-toolkit manually, then retry." : "Docker/runtime install failed — inspect the output (repo keys, apt sources), then retry.";
+  if (step.title.startsWith("Build the subnet")) return "docker build failed — the log shows the failing Dockerfile layer (deps, base image pull). Fix and retry.";
   if (step.title.startsWith("Create Python")) return code === 1 ? "Python version mismatch — install the required python3.x (deadsnakes PPA) or edit the plan." : "python3-venv missing — the OS-packages step installs it; retry.";
   if (step.title.startsWith("Clone")) return "git clone failed — check the repo URL is public and the host has outbound network.";
   if (step.title.startsWith("Install the subnet")) return "pip failed — inspect the output; heavy CUDA wheels may need more RAM/disk, then retry.";
@@ -411,6 +479,11 @@ export async function stopInstall(
   if (!row) throw new Error("No install job staged for this host");
   const netuid = row.netuid;
   const unit = UNIT_NAME(netuid);
+  const profile = JSON.parse(row.requirementsJson) as SubnetRequirementsProfile;
+  const dockerPath = Boolean(profile.dockerfileFound && profile.dockerImage);
+  const stopCmd = dockerPath
+    ? `docker rm -f ${unit} 2>/dev/null || true`
+    : `systemctl disable --now ${unit} 2>&1 || true`;
 
   let output = "[engine] stop requested";
   if (host.transport !== "mock") {
@@ -426,7 +499,7 @@ export async function stopInstall(
     });
     try {
       await transport.connect();
-      const r = await transport.exec(`systemctl disable --now ${unit} 2>&1 || true`, 30_000);
+      const r = await transport.exec(stopCmd, 30_000);
       output = r.stdout.trim() || "service stopped";
     } finally {
       transport.close();

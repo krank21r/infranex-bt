@@ -299,7 +299,13 @@ function DeploymentCard({
               disabled={tickMut.isPending}
             >
               <Play className="h-3.5 w-3.5" />
-              {tickMut.isPending ? "Advancing…" : "Advance step"}
+              {tickMut.isPending
+                ? "Advancing…"
+                : d.installStatus === "failed"
+                  ? "Retry install"
+                  : d.installStatus === "running"
+                    ? "Installing…"
+                    : "Advance step"}
             </Button>
           )}
           {d.mode === "runpod" && !isTerminal && d.providerPodId && (
