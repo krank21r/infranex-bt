@@ -56,6 +56,11 @@ import {
 import { ProfileCard } from "./deploy-subnet-dialog";
 import { WalletRegistrationDialog } from "./wallet-registration-dialog";
 import { useWalletRegistration } from "@/lib/devops/wallet-registration";
+import {
+  useDeployments,
+  type RegistrationWizardContext,
+} from "@/lib/infranex/use-deployments";
+import { resolveJourneyProgress } from "@/lib/infranex/journey-progress";
 
 // ---------------------------------------------------------------------------
 // Journey state (localStorage-persisted)
@@ -316,18 +321,65 @@ export function MiningJourney({
 
   const reg = useWalletRegistration();
   const [walletOpen, setWalletOpen] = useState(false);
+  const [walletCtx, setWalletCtx] = useState<RegistrationWizardContext | null>(null);
 
-  const s1 = journey !== null;
-  const s2 = hosts.length > 0;
-  const s3 = hosts.some((h) => h.status === "ready");
-  const s4 = hosts.some((h) => h.latestInstall?.status === "deployed");
-  // Step 5 is done when the user verified a UID on-chain for the journey subnet.
-  const s5 =
-    reg.verifiedUid !== null &&
-    reg.netuid !== null &&
-    journey !== null &&
-    reg.netuid === journey.netuid;
-  const current = !s1 ? 1 : !s2 ? 2 : !s3 ? 3 : !s4 ? 4 : 5;
+  // Phase 3: the stepper is driven by the REAL deployment rows (rental
+  // pipeline) on top of the BYO-host signals. The deployments query is
+  // shared with the view's 3 s poll — no extra traffic.
+  const { data: deployments } = useDeployments();
+  const progress = useMemo(
+    () =>
+      resolveJourneyProgress({
+        journey,
+        hosts: hosts.map((h) => ({ status: h.status, latestInstall: h.latestInstall ?? null })),
+        deployments: (deployments ?? []).map((d) => ({
+          id: d.id,
+          minerName: d.minerName,
+          netuid: d.netuid,
+          status: d.status,
+          mode: d.mode,
+          gpuModel: d.gpuModel,
+          installStatus: d.installStatus,
+          installDone:
+            d.installSteps && d.installSteps.length > 0
+              ? d.installSteps.filter((s) => s.status === "pass" || s.status === "skipped").length
+              : null,
+          installTotal: d.installSteps && d.installSteps.length > 0 ? d.installSteps.length : null,
+          registrationState: d.registrationState,
+          registeredUid: d.registeredUid,
+          restartedAfterRegistration: d.restartedAfterRegistration,
+        })),
+        verifiedUid: reg.verifiedUid,
+        verifiedNetuid: reg.netuid,
+      }),
+    [journey, hosts, deployments, reg.verifiedUid, reg.netuid]
+  );
+  const rental = progress.rental;
+
+  // Open the wizard bound to the rental deployment when one exists.
+  const openWalletGuide = async () => {
+    if (rental) {
+      try {
+        const res = await fetch(`/api/deployments/${rental.deploymentId}/registration`, {
+          cache: "no-store",
+        });
+        const j = await res.json();
+        if (res.ok && j.wizard) setWalletCtx(j.wizard as RegistrationWizardContext);
+      } catch {
+        /* fall back to the unbound wizard */
+      }
+    } else {
+      setWalletCtx(null);
+    }
+    setWalletOpen(true);
+  };
+
+  const s1 = progress.s1;
+  const s2 = progress.s2;
+  const s3 = progress.s3;
+  const s4 = progress.s4;
+  const s5 = progress.s5;
+  const current = progress.current;
 
   const cells = [
     {
@@ -366,7 +418,14 @@ export function MiningJourney({
       title: "Get a GPU host",
       done: s2,
       active: current === 2,
-      body: journey ? (
+      body: rental ? (
+        <div className="space-y-0.5">
+          <p className="text-[11px] font-medium text-foreground/80">
+            {rental.minerName} <span className="font-normal text-muted-foreground">· {rental.gpuModel} ({rental.mode})</span>
+          </p>
+          <p className="text-[11px] text-muted-foreground">{rental.hint}</p>
+        </div>
+      ) : journey ? (
         <p className="text-[11px] text-muted-foreground">
           Rent <b className="text-foreground/80">{journey.recommendedGpu}</b> or ≥{" "}
           {journey.minVramGb} GB VRAM (RunPod / Vast / Lambda), or connect your own box.
@@ -387,11 +446,28 @@ export function MiningJourney({
       title: "Validate",
       done: s3,
       active: current === 3,
-      body: (
+      body: rental ? (
+        <div className="space-y-0.5">
+          <p className="text-[11px] font-medium text-foreground/80">
+            {rental.installStatus === "installed" || rental.status === "started"
+              ? "Environment installed — docker/venv plan completed."
+              : rental.installStatus === "running"
+                ? `Installing — ${rental.installDone ?? 0}/${rental.installTotal ?? "?"} steps…`
+                : rental.installStatus === "awaiting_wallet"
+                  ? "Environment ready — wallet files gate."
+                  : rental.status === "requested" || rental.status === "approved" || rental.status === "provisioning" || rental.status === "provisioned"
+                    ? "GPU rented — press Advance to start the install."
+                    : "Install pending."}
+          </p>
+          {primary && (
+            <p className="text-[11px] text-muted-foreground">BYO: {primary.name} · {primary.status.replace("_", " ")}</p>
+          )}
+        </div>
+      ) : (
         <p className="text-[11px] text-muted-foreground">
           {primary
             ? `Next: ${primary.name} · ${primary.status.replace("_", " ")} — 10-step environment pipeline.`
-            : "Connect a host first."}
+            : "Connect a host first — or rent a GPU above."}
         </p>
       ),
       cta: (
@@ -411,7 +487,20 @@ export function MiningJourney({
       title: "Deploy & mine",
       done: s4,
       active: current === 4,
-      body: (
+      body: rental ? (
+        <div className="space-y-0.5">
+          <p className={cn("text-[11px] font-medium", rental.status === "started" ? "text-success" : "text-foreground/80")}>
+            {rental.status === "started"
+              ? "Miner running — awaiting registration."
+              : rental.installStatus === "awaiting_wallet"
+                ? "Wallet gate — confirm keys, then Advance launches."
+                : "Launch pending the install."}
+          </p>
+          {primary && (
+            <p className="text-[11px] text-muted-foreground">BYO: {primary.latestInstall?.status ?? "not deployed"}</p>
+          )}
+        </div>
+      ) : (
         <p className="text-[11px] text-muted-foreground">
           {!journey
             ? "Pick a subnet first."
@@ -437,7 +526,18 @@ export function MiningJourney({
       title: "Connect & register",
       done: s5,
       active: current === 5,
-      body: s5 ? (
+      body: rental?.registrationState === "registered" ? (
+        <div className="space-y-0.5">
+          <p className="text-[11px] font-medium text-success">
+            UID {rental.registeredUid ?? "?"} on-chain — immunity tracked in UID Defense.
+          </p>
+          {!rental.restartedAfterRegistration && (
+            <p className="text-[11px] text-amber-600 dark:text-amber-400">
+              Restart the miner (deployment card) to re-announce its axon.
+            </p>
+          )}
+        </div>
+      ) : s5 ? (
         <p className="text-[11px] text-success">
           UID {reg.verifiedUid} verified on-chain — the UID Defense panel is
           tracking it.
@@ -446,7 +546,7 @@ export function MiningJourney({
         <p className="text-[11px] text-muted-foreground">
           {!journey
             ? "Pick a subnet first — the guide tailors every command to it."
-            : "Create the wallet on your laptop, fund it, then register the hotkey to the subnet (burn → UID)."}
+            : "Create the wallet on your laptop, fund it, then register the hotkey to the subnet (burn → UID). Registration is the LAST step — it starts the immunity clock."}
         </p>
       ),
       cta: (
@@ -454,7 +554,7 @@ export function MiningJourney({
           size="sm"
           variant={s5 ? "outline" : "default"}
           className="h-7 gap-1 px-2 text-[11px]"
-          onClick={() => setWalletOpen(true)}
+          onClick={openWalletGuide}
         >
           <KeyRound className="h-3 w-3" />
           {s5 ? "Open wallet guide" : "Start wallet setup"}
@@ -505,9 +605,13 @@ export function MiningJourney({
       </Card>
       <WalletRegistrationDialog
         open={walletOpen}
-        onOpenChange={setWalletOpen}
+        onOpenChange={(o) => {
+          setWalletOpen(o);
+          if (!o) setWalletCtx(null);
+        }}
         journey={journey}
         minerDeployed={s4}
+        deployment={walletCtx}
       />
     </>
   );

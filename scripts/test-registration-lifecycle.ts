@@ -20,6 +20,11 @@ import {
   restartAfterRegistration,
 } from "../src/lib/infranex/deployment/registration";
 import { MockTransport } from "../src/lib/devops/transport";
+import {
+  resolveJourneyProgress,
+  findJourneyDeployment,
+  type JourneyProgressDeployment,
+} from "../src/lib/infranex/journey-progress";
 
 let pass = 0;
 let fail = 0;
@@ -110,6 +115,127 @@ console.log("\nB. MockTransport post-registration restart branches");
   const ps = await t.exec("docker ps --filter name=infranex-miner-sn90 --format '{{.Names}} {{.Status}}'");
   check("container still up after restart", ps.code === 0 && ps.stdout.includes("Up"), ps.stdout.trim());
   t.close();
+}
+
+// ---------------------------------------------------------------------------
+// D. Journey progress (Phase 3 — pure)
+// ---------------------------------------------------------------------------
+console.log("\nD. resolveJourneyProgress (journey bar driven by DB state)");
+
+function mkDep(p: Partial<JourneyProgressDeployment>): JourneyProgressDeployment {
+  return {
+    id: p.id ?? "dep1",
+    minerName: p.minerName ?? "miner-1",
+    netuid: p.netuid ?? 8,
+    status: p.status ?? "requested",
+    mode: p.mode ?? "mock",
+    gpuModel: p.gpuModel ?? "H200",
+    installStatus: p.installStatus ?? null,
+    installDone: p.installDone ?? null,
+    installTotal: p.installTotal ?? null,
+    registrationState: p.registrationState ?? null,
+    registeredUid: p.registeredUid ?? null,
+    restartedAfterRegistration: p.restartedAfterRegistration ?? false,
+  };
+}
+
+{
+  const r = resolveJourneyProgress({ journey: null, hosts: [], deployments: [], verifiedUid: null, verifiedNetuid: null });
+  check("no journey → step 1 active, nothing done", !r.s1 && r.current === 1 && r.rental === null);
+}
+{
+  const r = resolveJourneyProgress({ journey: { netuid: 8 }, hosts: [], deployments: [], verifiedUid: null, verifiedNetuid: null });
+  check("subnet chosen only → current 2", r.s1 && !r.s2 && r.current === 2);
+}
+{
+  const r = resolveJourneyProgress({
+    journey: { netuid: 8 },
+    hosts: [],
+    deployments: [mkDep({ status: "requested" })],
+    verifiedUid: null,
+    verifiedNetuid: null,
+  });
+  check("rental requested → GPU acquired (s2), current 3, hint has status", r.s2 && !r.s3 && r.current === 3 && r.rental?.hint.includes("requested") === true);
+}
+{
+  const r = resolveJourneyProgress({
+    journey: { netuid: 8 },
+    hosts: [],
+    deployments: [mkDep({ status: "setup", installStatus: "running", installDone: 4, installTotal: 9 })],
+    verifiedUid: null,
+    verifiedNetuid: null,
+  });
+  check("install running → s3 pending + 4/9 hint", !r.s3 && r.current === 3 && r.rental?.hint.includes("4/9") === true);
+}
+{
+  const r = resolveJourneyProgress({
+    journey: { netuid: 8 },
+    hosts: [],
+    deployments: [mkDep({ status: "started", installStatus: "installed" })],
+    verifiedUid: null,
+    verifiedNetuid: null,
+  });
+  check("started → s4 done, current 5, unregistered branch", r.s4 && !r.s5 && r.current === 5);
+}
+{
+  const r = resolveJourneyProgress({
+    journey: { netuid: 8 },
+    hosts: [],
+    deployments: [mkDep({ status: "started", installStatus: "installed", registrationState: "registered", registeredUid: 0 })],
+    verifiedUid: null,
+    verifiedNetuid: null,
+  });
+  check("registered → all five done", r.s1 && r.s2 && r.s3 && r.s4 && r.s5 && r.rental?.hint.includes("UID 0") === true);
+}
+{
+  const r = resolveJourneyProgress({
+    journey: { netuid: 8 },
+    hosts: [],
+    deployments: [mkDep({ status: "started", registrationState: "registered", registeredUid: 3, restartedAfterRegistration: false })],
+    verifiedUid: null,
+    verifiedNetuid: null,
+  });
+  check("restart-pending shows in the hint", r.rental?.hint.includes("restart pending") === true);
+}
+{
+  // Terminal + wrong-subnet deployments are ignored; newest-first pick wins.
+  const r = resolveJourneyProgress({
+    journey: { netuid: 8 },
+    hosts: [],
+    deployments: [
+      mkDep({ id: "old", status: "started", registrationState: "registered", registeredUid: 1 }),
+      mkDep({ id: "term", status: "terminated" }),
+      mkDep({ id: "other", netuid: 62, status: "started" }),
+    ],
+    verifiedUid: null,
+    verifiedNetuid: null,
+  });
+  check("newest non-terminal row for the netuid wins", r.rental?.deploymentId === "old");
+  check("terminated rows never drive the journey", findJourneyDeployment(
+    [mkDep({ id: "a", status: "terminated" }), mkDep({ id: "b", netuid: 8, status: "provisioning" })], 8
+  )?.id === "b");
+}
+{
+  // BYO-host path still works without any rental row.
+  const r = resolveJourneyProgress({
+    journey: { netuid: 8 },
+    hosts: [{ status: "ready", latestInstall: { status: "deployed" } }],
+    deployments: [],
+    verifiedUid: 7,
+    verifiedNetuid: 8,
+  });
+  check("host path: connected+ready+deployed+verified UID → all done", r.s2 && r.s3 && r.s4 && r.s5 && r.rental === null);
+}
+{
+  // Wizard verification counts for step 5 only on the journey's subnet.
+  const r = resolveJourneyProgress({
+    journey: { netuid: 8 },
+    hosts: [],
+    deployments: [mkDep({ status: "started" })],
+    verifiedUid: 7,
+    verifiedNetuid: 62,
+  });
+  check("wizard UID verified on a DIFFERENT subnet doesn't light step 5", !r.s5);
 }
 
 // ---------------------------------------------------------------------------

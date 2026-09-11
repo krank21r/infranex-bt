@@ -38,6 +38,8 @@ export interface DeploymentRecord {
   hotkey: string | null;
   sshHost: string | null;
   installStatus: string | null;
+  /** InstallStep[] from the real-setup runner (idx/title/status used by the journey bar). */
+  installSteps?: { idx: number; title: string; status: string }[] | null;
   registrationState: "unregistered" | "registered" | null;
   registeredUid: number | null;
   registrationBlock: number | null;
