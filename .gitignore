@@ -62,3 +62,6 @@ nohup.out
 # runtime database (recreated via prisma db:push)
 db/custom.db
 .devops-secret
+
+# auth: plaintext login codes for the 5 seeded users (repo is public — never commit)
+scripts/users.local.json

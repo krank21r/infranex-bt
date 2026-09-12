@@ -7,9 +7,23 @@
  * these assertions check).
  */
 import dotenv from "dotenv";
+import fs from "node:fs";
+import path from "node:path";
 dotenv.config({ override: true });
 
 const BASE = process.env.BASE ?? "http://localhost:3000";
+
+// AUTH-1: these endpoints sit behind the login gate — sign in first and send
+// the session cookie on every call. Credentials come from users.local.json
+// (gitignored; same file the seed script uses).
+const USERS: Array<{ userId: string; code: string }> = JSON.parse(
+  fs.readFileSync(
+    path.join(path.dirname(process.argv[1] ?? ""), "users.local.json"),
+    "utf8"
+  )
+);
+const admin = USERS.find((u) => u.userId === "admin");
+
 const FAKE = {
   runpod: `fake-runpod-${Date.now().toString(36)}-x9`,
   vast: `fake-vast-${Date.now().toString(36)}-k2`,
@@ -28,10 +42,15 @@ function check(name: string, cond: boolean, detail?: string) {
   }
 }
 
+let SESSION_COOKIE = "";
+
 async function api(method: string, path: string, body?: unknown) {
   const res = await fetch(`${BASE}${path}`, {
     method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers: {
+      ...(body ? { "Content-Type": "application/json" } : {}),
+      ...(SESSION_COOKIE ? { cookie: SESSION_COOKIE } : {}),
+    },
     body: body ? JSON.stringify(body) : undefined,
     cache: "no-store",
     signal: AbortSignal.timeout(30_000),
@@ -41,6 +60,25 @@ async function api(method: string, path: string, body?: unknown) {
 }
 
 async function main() {
+  // --- 0. sign in as admin (AUTH-1 gate) ----------------------------------
+  if (!admin) {
+    console.log("FAIL — admin user missing from users.local.json");
+    process.exit(1);
+  }
+  const login = await fetch(`${BASE}/api/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ userId: admin.userId, code: admin.code }),
+  });
+  if (login.status !== 200) {
+    console.log(`FAIL — could not sign in as admin (status ${login.status}); is the gate seeded?`);
+    process.exit(1);
+  }
+  const setCookie = login.headers.getSetCookie?.() ?? [];
+  const pair = setCookie.find((c) => c.startsWith("infranex_session="));
+  SESSION_COOKIE = pair ? pair.split(";")[0] : "";
+  console.log(`signed in as ${admin.userId} — testing provider keys behind the gate\n`);
+
   // --- 1. GET lists all four providers -----------------------------------
   let r = await api("GET", "/api/providers/keys");
   check("GET keys 200", r.status === 200);

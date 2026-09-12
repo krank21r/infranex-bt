@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Bell, Moon, Sun, Wifi, Menu, Search } from "lucide-react";
+import { Bell, LogOut, Moon, Sun, Wifi, Menu, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useQuery } from "@tanstack/react-query";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -28,9 +29,45 @@ interface HeaderProps {
   eyebrow: string;
 }
 
+interface SessionUser {
+  userId: string;
+  label: string;
+  role: string;
+}
+
 export function Header({ onMenuClick, title, eyebrow }: HeaderProps) {
   const [time, setTime] = useState<Date | null>(null);
   const [isDark, setIsDark] = useState(false);
+
+  // AUTH-1 — the signed-in operator (the proxy guarantees the session exists).
+  const { data: session } = useQuery<{ user: SessionUser }>({
+    queryKey: ["auth-session"],
+    queryFn: async () => {
+      const res = await fetch("/api/auth/session", { cache: "no-store" });
+      if (!res.ok) throw new Error("not signed in");
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  const user = session?.user;
+  const initials = (user?.label || user?.userId || "OP")
+    .replace(/[^a-zA-Z0-9]/g, " ")
+    .trim()
+    .split(/\s+/)
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  const logout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // clear locally regardless — the proxy will bounce to /login
+    }
+    window.location.replace("/login");
+  };
 
   useEffect(() => {
     // Defer initial sync to a microtask to avoid setState-in-effect warning.
@@ -202,7 +239,7 @@ export function Header({ onMenuClick, title, eyebrow }: HeaderProps) {
               <Button variant="ghost" className="relative h-9 w-9 rounded-full p-0">
                 <Avatar className="h-9 w-9 border">
                   <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
-                    OP
+                    {initials}
                   </AvatarFallback>
                 </Avatar>
               </Button>
@@ -210,18 +247,25 @@ export function Header({ onMenuClick, title, eyebrow }: HeaderProps) {
             <DropdownMenuContent className="w-56" align="end" forceMount>
               <DropdownMenuLabel className="font-normal">
                 <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">Operator</p>
-                  <p className="text-xs leading-none text-muted-foreground">
-                    operator@infranex.bt
+                  <p className="text-sm font-medium leading-none">
+                    {user?.label || "Signed in"}
                   </p>
+                  <p className="mono text-xs leading-none text-muted-foreground">
+                    {user?.userId || "…"}
+                  </p>
+                  {user?.role && user.role !== "member" && (
+                    <Badge variant="outline" className="mt-1 w-fit text-[10px] uppercase tracking-wide">
+                      {user.role}
+                    </Badge>
+                  )}
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem>Profile</DropdownMenuItem>
-              <DropdownMenuItem>Settings</DropdownMenuItem>
-              <DropdownMenuItem>API keys</DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive focus:text-destructive">
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={logout}
+              >
+                <LogOut className="mr-2 h-4 w-4" />
                 Log out
               </DropdownMenuItem>
             </DropdownMenuContent>

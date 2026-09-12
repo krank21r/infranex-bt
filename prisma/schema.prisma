@@ -366,3 +366,18 @@ model ProviderKey {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
+
+// Gated-access user base (AUTH-1). Only rows here can sign in on /login with
+// userId + access code. Codes are stored ONE-WAY hashed (scrypt salt:hash) —
+// plaintext lives only in scripts/users.local.json (gitignored).
+model AppUser {
+  userId      String    @id
+  codeHash    String
+  label       String?
+  // "admin" | "member" — display hint only, no permission split yet.
+  role        String    @default("member")
+  active      Boolean   @default(true)
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
