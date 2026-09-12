@@ -35,7 +35,12 @@ import { gpuModels, gpuProviders } from "@/lib/infranex/data";
 import { useMergedGpuOffers } from "@/lib/infranex/use-gpu-offers";
 import { cn, formatCurrency } from "@/lib/utils";
 
-export function GpusView() {
+interface GpusViewProps {
+  /** "Provision" — open the guided deploy wizard with this offer preselected (FLOW-1). */
+  onProvision?: (offerId: string) => void;
+}
+
+export function GpusView({ onProvision }: GpusViewProps) {
   const [tier, setTier] = useState<string>("all");
   const [minVram, setMinVram] = useState<string>("");
   const [offerProvider, setOfferProvider] = useState<string>("all");
@@ -84,7 +89,7 @@ export function GpusView() {
             GPU Catalog
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Match the best GPU to the best subnet. {isLive ? `${liveCount} live RunPod offers` : "Live RunPod pricing"}{snap?.totalGpuTypes ? ` across ${snap.totalGpuTypes} GPU types` : ""}, plus indicative pricing from {gpuProviders.length - 1} other providers.
+            Match the best GPU to the best subnet. {isLive ? `${liveCount} live RunPod offers` : "Live RunPod pricing"}{snap?.totalGpuTypes ? ` across ${snap.totalGpuTypes} GPU types` : ""}, plus indicative pricing from {gpuProviders.length - 1} other providers. Provision opens the guided deploy wizard with the GPU preselected.
           </p>
         </div>
         <Button
@@ -138,7 +143,12 @@ export function GpusView() {
                 ${cheapestH100.monthlyPrice}
               </p>
             </div>
-            <Button className="gap-2">
+            <Button
+              className="gap-2"
+              disabled={!onProvision}
+              title="Opens the guided deploy wizard with this GPU preselected — pick the subnet, confirm requirements, rent."
+              onClick={() => onProvision?.(cheapestH100.id)}
+            >
               <Zap className="h-4 w-4" />
               Provision
             </Button>

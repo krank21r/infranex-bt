@@ -38,17 +38,28 @@ import {
   type DeploymentRecord,
   type RegistrationWizardContext,
 } from "@/lib/infranex/use-deployments";
-import { DeployWizard } from "@/components/deployments/deploy-wizard";
+import type { OpenDeployWizardOptions } from "@/components/deployments/deploy-wizard";
 import { DevOpsEngineSection } from "@/components/devops/devops-console";
 import { WalletRegistrationDialog } from "@/components/devops/wallet-registration-dialog";
 
 const SS58_RE = /^5[1-9A-HJ-NP-Za-km-z]{47}$/;
 
-export function DeploymentsView() {
+interface DeploymentsViewProps {
+  /** Open the ONE guided deploy wizard (app-root singleton) — FLOW-1. */
+  onOpenWizard: (opts?: OpenDeployWizardOptions) => void;
+  /** A deployment created by the wizard — auto-select its card. */
+  focusDeploymentId?: string | null;
+}
+
+export function DeploymentsView({ onOpenWizard, focusDeploymentId }: DeploymentsViewProps) {
   const { data: deployments, isLoading } = useDeployments();
-  const [createOpen, setCreateOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [wizardCtx, setWizardCtx] = useState<RegistrationWizardContext | null>(null);
+
+  // The wizard (app root) created a deployment — focus its card here.
+  useEffect(() => {
+    if (focusDeploymentId) setSelectedId(focusDeploymentId);
+  }, [focusDeploymentId]);
 
   const active = deployments?.filter(
     (d) => d.status !== "terminated" && d.status !== "failed"
@@ -75,14 +86,14 @@ export function DeploymentsView() {
             Engine below manages YOUR OWN GPU hosts; rental deployments appear as cards here.
           </p>
         </div>
-        <Button className="gap-2 self-start sm:self-end" onClick={() => setCreateOpen(true)}>
+        <Button className="gap-2 self-start sm:self-end" onClick={() => onOpenWizard()}>
           <Plus className="h-4 w-4" />
           Deploy a miner
         </Button>
       </header>
 
       {/* --- DevOps Engine: real GPU host onboarding + 10-step pipeline --- */}
-      <DevOpsEngineSection />
+      <DevOpsEngineSection onRent={() => onOpenWizard()} />
 
       <Separator />
 
@@ -103,7 +114,7 @@ export function DeploymentsView() {
                 Create your first deployment to provision a GPU and launch a miner.
               </p>
             </div>
-            <Button className="mt-2 gap-2" onClick={() => setCreateOpen(true)}>
+            <Button className="mt-2 gap-2" onClick={() => onOpenWizard()}>
               <Plus className="h-4 w-4" />
               Deploy a miner
             </Button>
@@ -157,12 +168,6 @@ export function DeploymentsView() {
           )}
         </>
       )}
-
-      <DeployWizard
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        onCreated={(id) => setSelectedId(id)}
-      />
 
       {/* Phase 2 hand-off: the registration wizard bound to a running deployment */}
       <WalletRegistrationDialog

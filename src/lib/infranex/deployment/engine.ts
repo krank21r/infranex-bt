@@ -19,6 +19,10 @@ import { MockProvider } from "./providers/mock";
 import { RunPodProvider } from "./providers/runpod";
 import { generateSshKeypair } from "./ssh-keys";
 import { encryptSecret } from "@/lib/devops/crypto";
+import {
+  bridgeDeploymentToDevOps,
+  appendProvisionNote,
+} from "./to-devops";
 import type { ProviderAdapter } from "./providers/base";
 import type { InstallStep } from "@/lib/devops/installer";
 import type { Subnet, GPUOffer } from "../types";
@@ -424,6 +428,25 @@ export async function pollProvisioning(id: string): Promise<DeploymentRecord> {
           steps: serializeSteps(steps),
         },
       });
+      // FLOW-1 — automatic hand-off: the rented pod is registered as a GPU
+      // host in the DevOps Engine the moment it is up, with its connect
+      // info (IP / mapped SSH port / engine-generated key) prefilled. The
+      // user never re-types anything. Best-effort: a failure is logged onto
+      // the provision step and the manual "Register to DevOps" button on
+      // the deployment card remains the retry path.
+      void bridgeDeploymentToDevOps(id)
+        .then((r) =>
+          appendProvisionNote(
+            id,
+            `DevOps hand-off: pod registered as GPU host "${r.hostName}" — connect info prefilled in the host inventory.`
+          )
+        )
+        .catch((e) =>
+          appendProvisionNote(
+            id,
+            `DevOps hand-off failed (${e instanceof Error ? e.message : String(e)}) — use "Register to DevOps" on the deployment card to retry.`
+          )
+        );
       return toRecord(row);
     }
     if (status.status === "terminated" || status.status === "failed") {

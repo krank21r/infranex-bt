@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
@@ -60,17 +60,27 @@ import { useToast } from "@/hooks/use-toast";
 
 const STEP_LABELS = ["Subnet", "Requirements", "GPU", "Install", "Hotkey & run"];
 
+/** What an entry point can preselect when opening the wizard (FLOW-1). */
+export interface OpenDeployWizardOptions {
+  /** Subnet chosen upstream (opportunity card / mining journey). */
+  netuid?: number | null;
+  /** GPU offer chosen upstream (GPU catalog "Provision"). */
+  offerId?: string | null;
+}
+
 interface DeployWizardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Preselect a subnet when opening (e.g. "Deploy" from an opportunity). */
+  /** Preselect a subnet when opening (e.g. "Start mining" from an opportunity). */
   initialNetuid?: number | null;
+  /** Preselect a GPU offer when opening (e.g. "Provision" from the catalog). */
+  initialOfferId?: string | null;
   onCreated?: (id: string) => void;
 }
 
-export function DeployWizard({ open, onOpenChange, initialNetuid, onCreated }: DeployWizardProps) {
+export function DeployWizard({ open, onOpenChange, initialNetuid, initialOfferId, onCreated }: DeployWizardProps) {
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
-  const [netuid, setNetuid] = useState<number | null>(initialNetuid ?? null);
+  const [netuid, setNetuid] = useState<number | null>(null);
   const [offerId, setOfferId] = useState<string | null>(null);
   const [mode, setMode] = useState<"mock" | "runpod">("mock");
   const [minerName, setMinerName] = useState("");
@@ -82,12 +92,32 @@ export function DeployWizard({ open, onOpenChange, initialNetuid, onCreated }: D
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  // NOTE: no preselect effect — initialNetuid seeds useState and reset() on
-  // close re-reads the prop, so reopening with a different subnet just works.
+  // Seed the preselection on every closed → open TRANSITION (not on mount,
+  // not while open): the wizard is a singleton at the app root, so each
+  // entry point (opportunity, GPU catalog, journey) re-seeds cleanly.
+  // A subnet preselect lands on step 2 — "check required GPU" — the step
+  // the user explicitly asked for after choosing the subnet.
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (open && !wasOpen.current) {
+      const hasSubnet = initialNetuid != null;
+      setNetuid(initialNetuid ?? null);
+      setOfferId(initialOfferId ?? null);
+      setStep(hasSubnet ? 2 : 1);
+      setMode("mock");
+      setMinerName("");
+      setWalletName("infranex");
+      setDepId(null);
+      setRegCtx(null);
+      setRegOpen(false);
+      setSearch("");
+    }
+    wasOpen.current = open;
+  }, [open, initialNetuid, initialOfferId]);
 
   const reset = () => {
     setStep(1);
-    setNetuid(initialNetuid ?? null);
+    setNetuid(null);
     setOfferId(null);
     setMode("mock");
     setMinerName("");
@@ -432,6 +462,12 @@ export function DeployWizard({ open, onOpenChange, initialNetuid, onCreated }: D
                 <span className="font-medium text-foreground">{requiredVram ?? "?"}GB</span>{" "}
                 requirement, cheapest first.
               </p>
+              {offer && !matchingOffers.some((o) => o.id === offer.id) && (
+                <p className="rounded-lg border border-warning/30 bg-warning/[0.04] p-2.5 text-xs text-warning">
+                  The preselected {offer.model} falls short of {requiredVram}GB for this subnet —
+                  pick one from the list below.
+                </p>
+              )}
               <div className="max-h-56 space-y-1.5 overflow-y-auto custom-scroll pr-1">
                 {matchingOffers.map((o) => {
                   const selected = offerId === o.id;

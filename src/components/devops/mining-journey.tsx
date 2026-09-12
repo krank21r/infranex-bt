@@ -304,6 +304,7 @@ export function MiningJourney({
   onAddHost,
   onValidate,
   onDeploy,
+  onRent,
 }: {
   hosts: DevopsHost[];
   journey: JourneySubnet | null;
@@ -312,6 +313,8 @@ export function MiningJourney({
   onAddHost: () => void;
   onValidate: (hostId: string) => void;
   onDeploy: (hostId: string) => void;
+  /** FLOW-1 — open the guided deploy wizard (rental path, subnet preselected). */
+  onRent?: () => void;
 }) {
   const primary =
     hosts.find((h) => h.status === "ready") ??
@@ -436,9 +439,26 @@ export function MiningJourney({
         </p>
       ),
       cta: (
-        <Button variant={s2 ? "outline" : "default"} size="sm" className="h-7 gap-1 px-2 text-[11px]" onClick={onAddHost}>
-          <Server className="h-3 w-3" /> {s2 ? `Add host (${hosts.length} connected)` : "Add GPU host"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {onRent && (
+            <Button
+              size="sm"
+              variant={s2 ? "outline" : "default"}
+              className="h-7 gap-1 px-2 text-[11px]"
+              onClick={onRent}
+            >
+              <Rocket className="h-3 w-3" /> Rent a GPU
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant={s2 || onRent ? "outline" : "default"}
+            className="h-7 gap-1 px-2 text-[11px]"
+            onClick={onAddHost}
+          >
+            <Server className="h-3 w-3" /> {s2 ? `Add host (${hosts.length} connected)` : "Add GPU host"}
+          </Button>
+        </div>
       ),
     },
     {

@@ -107,7 +107,7 @@ function StepIcon({ status }: { status: HostCheckRow["status"] }) {
   return <CircleDashed className="h-4 w-4 shrink-0 text-muted-foreground" />;
 }
 
-export function DevOpsEngineSection() {
+export function DevOpsEngineSection({ onRent }: { onRent?: () => void }) {
   const { data, isLoading } = useDevopsHosts();
   const hosts = data?.hosts ?? [];
   const [wizardHostId, setWizardHostId] = useState<string | null>(null);
@@ -150,6 +150,7 @@ export function DevOpsEngineSection() {
         onAddHost={() => setAddOpen(true)}
         onValidate={(id) => setWizardHostId(id)}
         onDeploy={(id) => setDeployHostId(id)}
+        onRent={onRent}
       />
 
       {isLoading ? (
