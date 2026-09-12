@@ -43,7 +43,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { assessSeatChance } from "@/lib/infranex/miner-score";
+import { assessSeatChance, formatBurnTao } from "@/lib/infranex/miner-score";
 import type { Subnet, MiningRequirements } from "@/lib/infranex/types";
 import type { SubnetRequirementsProfile } from "@/lib/devops/subnet-requirements";
 
@@ -239,7 +239,7 @@ function SeatAvailabilitySection({ subnet }: { subnet: Subnet }) {
             <Chip mono>{seat.slotsFree ?? "?"} / {seat.totalSlots ?? "?"} slots free</Chip>
             {seat.fillPct != null && <Chip mono>{seat.fillPct}% filled</Chip>}
             {seat.burnCostTao != null && (
-              <Chip mono>burn ~{seat.burnCostTao < 1 ? seat.burnCostTao.toFixed(3) : seat.burnCostTao.toFixed(2)} TAO</Chip>
+              <Chip mono>burn ~{formatBurnTao(seat.burnCostTao)} TAO</Chip>
             )}
             {seat.immunityHours != null && <Chip mono>immunity ~{seat.immunityHours}h</Chip>}
             {seat.replaceableShare != null && seat.replaceableShare > 0.05 && (

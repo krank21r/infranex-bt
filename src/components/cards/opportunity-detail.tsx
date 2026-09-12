@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { TrendingUp, AlertTriangle, Cpu, Wallet, Calculator } from "lucide-react";
 import { formatNumber } from "@/lib/utils";
-import { assessSeatChance } from "@/lib/infranex/miner-score";
+import { assessSeatChance, formatBurnTao } from "@/lib/infranex/miner-score";
 import type { Opportunity } from "@/lib/infranex/types";
 
 interface OpportunityDetailDialogProps {
@@ -477,7 +477,7 @@ export function OpportunityDetailDialog({
             <div>
               <p className="text-xs text-muted-foreground">Burn entry</p>
               <p className="mono tabular text-xs font-medium" title="Pay this TAO to register immediately — when the subnet is full it replaces the worst-performing non-immune UID">
-                {o.burnCostTao != null ? `~${o.burnCostTao < 1 ? o.burnCostTao.toFixed(3) : o.burnCostTao.toFixed(2)} TAO` : "—"}
+                {o.burnCostTao != null ? `~${formatBurnTao(o.burnCostTao)} TAO` : "—"}
               </p>
             </div>
             <div>
@@ -499,7 +499,7 @@ export function OpportunityDetailDialog({
             <div>
               <p className="text-xs text-muted-foreground">Registration burn</p>
               <p className="mono tabular text-xs font-medium">
-                {o.burnCostTao != null ? `${o.burnCostTao.toFixed(3)} TAO` : "—"}
+                {o.burnCostTao != null ? `${formatBurnTao(o.burnCostTao)} TAO` : "—"}
               </p>
             </div>
             <div>

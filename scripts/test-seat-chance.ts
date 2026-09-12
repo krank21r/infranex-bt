@@ -1,5 +1,5 @@
 // Quick sanity checks for assessSeatChance
-import { assessSeatChance } from "../src/lib/infranex/miner-score";
+import { assessSeatChance, formatBurnTao } from "../src/lib/infranex/miner-score";
 
 function check(name: string, cond: boolean, extra?: string) {
   console.log(`${cond ? "PASS" : "FAIL"} — ${name}${extra ? ` (${extra})` : ""}`);
@@ -45,5 +45,17 @@ const viaRatio = assessSeatChance({
   minersCount: 256, maxUids: 256, burnCostTao: 1.0, immunityBlocks: 4096, rewardedRatio: 0.4,
 });
 check("rewardedRatio path works", Math.abs((viaRatio.replaceableShare ?? 0) - 0.6) < 0.001, String(viaRatio.replaceableShare));
+
+// 7. Burn-quote display precision — floor burns must not be rounded 2x up
+//    (Chutes lived at 0.0005 TAO; toFixed(3) showed "0.001")
+const floor = assessSeatChance({
+  minersCount: 256, maxUids: 256, burnCostTao: 0.0005, immunityBlocks: 5000, rewardedMiners: 16,
+});
+check("floor burn shows 4 decimals", floor.headline.includes("0.0005 TAO"), floor.headline);
+check("floor burn not misquoted as 0.001", !floor.headline.includes("0.001 TAO"), floor.headline);
+check("floor detail quotes exact burn", floor.detail.includes("~0.0005 TAO"), "");
+check("formatBurnTao sub-0.01", formatBurnTao(0.0005) === "0.0005" && formatBurnTao(0.005) === "0.0050");
+check("formatBurnTao sub-1", formatBurnTao(0.857) === "0.857");
+check("formatBurnTao whole+large", formatBurnTao(5) === "5.00" && formatBurnTao(2.1) === "2.10");
 
 console.log("done");

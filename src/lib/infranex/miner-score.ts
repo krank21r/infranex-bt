@@ -623,6 +623,18 @@ export function computeEarnChance(inputs: {
 //     runway to start earning before becoming replaceable yourself.
 // ---------------------------------------------------------------------------
 
+/**
+ * Burn-quote display precision — the chain's burn hyperparam can sit at the
+ * floor (e.g. Chutes ~0.0005 TAO); 3 decimals would show "0.001" — a 2x
+ * misquote shown to a user deciding whether to burn. <0.01 → 4 decimals,
+ * <1 → 3, else 2.
+ */
+export function formatBurnTao(n: number): string {
+  if (n < 0.01) return n.toFixed(4);
+  if (n < 1) return n.toFixed(3);
+  return n.toFixed(2);
+}
+
 export type SeatVerdict = "open" | "burn-entry" | "waitlist" | "unknown";
 
 export interface SeatChance {
@@ -697,7 +709,7 @@ export function assessSeatChance(inputs: {
     headline: "slot data unavailable",
     detail:
       "UID capacity was not returned by the chain snapshot this pass — refresh the network data. " +
-      (burnCostTao != null ? `Burn registration quote: ~${burnCostTao.toFixed(2)} TAO.` : ""),
+      (burnCostTao != null ? `Burn registration quote: ~${formatBurnTao(burnCostTao)} TAO.` : ""),
   };
 
   if (slotsFree == null || maxUids == null || maxUids <= 0) return unknown;
@@ -716,7 +728,7 @@ export function assessSeatChance(inputs: {
       headline: `${slotsFree} of ${maxUids} slots free`,
       detail:
         `This subnet is NOT full — ${slotsFree} uid${slotsFree === 1 ? "" : "s"} open (${fillPct}% filled). ` +
-        `Register now via burn${burnCostTao != null ? ` (~${burnCostTao < 1 ? burnCostTao.toFixed(3) : burnCostTao.toFixed(2)} TAO)` : ""} or PoW. ` +
+        `Register now via burn${burnCostTao != null ? ` (~${formatBurnTao(burnCostTao)} TAO)` : ""} or PoW. ` +
         (immunityNote ? `${immunityNote}. ` : "") +
         (deadNote ? `${deadNote}.` : ""),
     };
@@ -733,9 +745,9 @@ export function assessSeatChance(inputs: {
       burnCostTao,
       immunityHours,
       replaceableShare,
-      headline: `full (${minersCount}/${maxUids}) — burn-entry ~${burnCostTao < 1 ? burnCostTao.toFixed(3) : burnCostTao.toFixed(2)} TAO`,
+      headline: `full (${minersCount}/${maxUids}) — burn-entry ~${formatBurnTao(burnCostTao)} TAO`,
       detail:
-        `Every uid is taken, but registration still works: paying the burn (~${burnCostTao < 1 ? burnCostTao.toFixed(3) : burnCostTao.toFixed(2)} TAO, floats with demand) ` +
+        `Every uid is taken, but registration still works: paying the burn (~${formatBurnTao(burnCostTao)} TAO, floats with demand) ` +
         `immediately replaces the WORST-performing non-immune uid. ` +
         (deadNote ? `${deadNote}. ` : "The bottom of this cohort is well-defended — displacement may take several attempts. ") +
         (immunityNote ? `${immunityNote}.` : ""),
