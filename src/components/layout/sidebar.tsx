@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { useNetwork } from "@/lib/infranex/use-network";
+import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   TrendingUp,
@@ -19,6 +20,7 @@ import {
   Gauge,
   Wand2,
   Gavel,
+  ShieldCheck,
 } from "lucide-react";
 import type { ViewKey } from "@/lib/infranex/types";
 
@@ -58,12 +60,39 @@ interface SidebarProps {
   onMobileOpenChange: (open: boolean) => void;
 }
 
+/** ADMINPANEL-1 — the Access Control entry exists only for role === "admin". */
+function adminNavGroups(isAdmin: boolean) {
+  if (!isAdmin) return [];
+  return [
+    {
+      label: "Administration",
+      items: [
+        { key: "admin" as ViewKey, label: "Access Control", icon: ShieldCheck, hint: "12" },
+      ],
+    },
+  ];
+}
+
 export function Sidebar({
   current,
   onNavigate,
   mobileOpen,
   onMobileOpenChange,
 }: SidebarProps) {
+  // Same queryKey the header uses — one request, shared cache.
+  const { data: session } = useQuery<{ user: { role?: string } }>({
+    queryKey: ["auth-session"],
+    queryFn: async () => {
+      const res = await fetch("/api/auth/session", { cache: "no-store" });
+      if (!res.ok) throw new Error("not signed in");
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+  const isAdmin = session?.user?.role === "admin";
+  const navGroups = [...NAV_GROUPS, ...adminNavGroups(isAdmin)];
+
   const handleNav = (v: ViewKey) => {
     onNavigate(v);
     onMobileOpenChange(false);
@@ -71,7 +100,7 @@ export function Sidebar({
 
   const NavList = (
     <nav className="flex flex-col gap-5" aria-label="Primary">
-      {NAV_GROUPS.map((group) => (
+      {navGroups.map((group) => (
         <div key={group.label}>
           <p className="text-eyebrow px-3 pb-2 text-muted-foreground/60">
             {group.label}

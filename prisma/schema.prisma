@@ -368,13 +368,16 @@ model ProviderKey {
 }
 
 // Gated-access user base (AUTH-1). Only rows here can sign in on /login with
-// userId + access code. Codes are stored ONE-WAY hashed (scrypt salt:hash) —
-// plaintext lives only in scripts/users.local.json (gitignored).
+// userId + access code. Codes are stored ONE-WAY hashed (scrypt salt:hash)
+// for verification, plus AES-256-GCM encrypted (codeEnc) so the admin panel
+// can display them. Plaintext mirror lives in scripts/users.local.json
+// (gitignored) and /tmp/my-project/infranex-users.local.json (wipe-proof).
 model AppUser {
   userId      String    @id
   codeHash    String
+  codeEnc     String?
   label       String?
-  // "admin" | "member" — display hint only, no permission split yet.
+  // "admin" | "member" — admin unlocks the Admin Panel view + APIs.
   role        String    @default("member")
   active      Boolean   @default(true)
   lastLoginAt DateTime?

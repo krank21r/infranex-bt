@@ -19,9 +19,12 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { PrismaClient } from "@prisma/client";
+import { encryptSecret } from "../src/lib/devops/crypto";
 
 const ROOT = path.resolve(path.dirname(process.argv[1] ?? process.cwd()), "..");
 const USERS_FILE = path.join(ROOT, "scripts", "users.local.json");
+// Wipe-proof mirror — /tmp/my-project survived every container reset so far.
+const BACKUP_FILE = "/tmp/my-project/infranex-users.local.json";
 const ENV_FILE = path.join(ROOT, ".env");
 
 interface UserSeed {
@@ -39,14 +42,21 @@ const group = () =>
 const makeCode = () => [group(), group(), group(), group()].join("-");
 
 function loadUsers(): UserSeed[] {
-  try {
-    const raw = fs.readFileSync(USERS_FILE, "utf8");
-    const users = JSON.parse(raw) as UserSeed[];
-    if (Array.isArray(users) && users.length > 0) return users;
-    console.error("users.local.json is empty — regenerating.");
-  } catch {
-    console.error("users.local.json missing — generating 5 fresh users.");
+  // Recovery order: repo-local mirror first, then the wipe-proof /tmp copy.
+  for (const file of [USERS_FILE, BACKUP_FILE]) {
+    try {
+      const raw = fs.readFileSync(file, "utf8");
+      const users = JSON.parse(raw) as UserSeed[];
+      if (Array.isArray(users) && users.length > 0) {
+        console.log(`Loaded ${users.length} users from ${file} (codes preserved).`);
+        return users;
+      }
+      console.error(`${file} is empty — trying next source.`);
+    } catch {
+      /* try next source */
+    }
   }
+  console.error("No credential file found — generating 5 fresh users.");
   const defaults: Array<[string, string, string]> = [
     ["admin", "Administrator", "admin"],
     ["ops01", "Operator One", "member"],
@@ -60,8 +70,7 @@ function loadUsers(): UserSeed[] {
     role,
     code: makeCode(),
   }));
-  fs.writeFileSync(USERS_FILE, JSON.stringify(users, null, 2) + "\n", { mode: 0o600 });
-  console.log(`Wrote ${USERS_FILE} — SAVE THESE CODES NOW (shown once):\n`);
+  console.log(`SAVE THESE CODES NOW (shown once):\n`);
   for (const u of users) console.log(`  ${u.userId.padEnd(10)} ${u.code}`);
   console.log();
   return users;
@@ -99,11 +108,13 @@ async function main() {
         create: {
           userId: u.userId,
           codeHash: hashCode(u.code),
+          codeEnc: encryptSecret(u.code),
           label: u.label,
           role: u.role,
         },
         update: {
           codeHash: hashCode(u.code), // refresh hash (re-run safe, code unchanged)
+          codeEnc: encryptSecret(u.code), // backfill the admin-panel view copy
           label: u.label,
           role: u.role,
         },
@@ -112,6 +123,18 @@ async function main() {
     }
     const total = await db.appUser.count();
     console.log(`\nAppUser rows: ${total}`);
+
+    // Always refresh BOTH mirrors from the seed source so files and db agree.
+    const json = JSON.stringify(users, null, 2) + "\n";
+    fs.mkdirSync(path.dirname(USERS_FILE), { recursive: true });
+    fs.writeFileSync(USERS_FILE, json, { mode: 0o600 });
+    try {
+      fs.mkdirSync(path.dirname(BACKUP_FILE), { recursive: true });
+      fs.writeFileSync(BACKUP_FILE, json, { mode: 0o600 });
+      console.log(`Credential mirrors refreshed: scripts/users.local.json + ${BACKUP_FILE}`);
+    } catch {
+      console.log("Credential mirror refreshed: scripts/users.local.json (backup copy unavailable)");
+    }
   } finally {
     await db.$disconnect();
   }

@@ -276,4 +276,5 @@ export type ViewKey =
   | "monitoring"
   | "optimization"
   | "analytics"
-  | "system";
+  | "system"
+  | "admin";
