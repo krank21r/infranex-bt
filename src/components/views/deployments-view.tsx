@@ -38,7 +38,7 @@ import {
   type DeploymentRecord,
   type RegistrationWizardContext,
 } from "@/lib/infranex/use-deployments";
-import { CreateDeploymentDialog } from "@/components/deployments/create-deployment-dialog";
+import { DeployWizard } from "@/components/deployments/deploy-wizard";
 import { DevOpsEngineSection } from "@/components/devops/devops-console";
 import { WalletRegistrationDialog } from "@/components/devops/wallet-registration-dialog";
 
@@ -70,16 +70,14 @@ export function DeploymentsView() {
             Deployments
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Journey: pick a subnet in Opportunities → rent a matching GPU in the GPU
-            Catalog → connect, validate &amp; deploy here. The DevOps Engine below walks
-            your machine through the 10-step pipeline and installs the subnet&apos;s
-            requirements; the rental pipeline (request → approve → provision → setup →
-            deploy → started) lives under New deployment.
+            One guided flow: choose a subnet → check its required GPU → rent from a provider →
+            requirements install automatically → add the hotkey &amp; register last. The DevOps
+            Engine below manages YOUR OWN GPU hosts; rental deployments appear as cards here.
           </p>
         </div>
         <Button className="gap-2 self-start sm:self-end" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" />
-          New deployment
+          Deploy a miner
         </Button>
       </header>
 
@@ -107,7 +105,7 @@ export function DeploymentsView() {
             </div>
             <Button className="mt-2 gap-2" onClick={() => setCreateOpen(true)}>
               <Plus className="h-4 w-4" />
-              Create deployment
+              Deploy a miner
             </Button>
           </CardContent>
         </Card>
@@ -160,7 +158,7 @@ export function DeploymentsView() {
         </>
       )}
 
-      <CreateDeploymentDialog
+      <DeployWizard
         open={createOpen}
         onOpenChange={setCreateOpen}
         onCreated={(id) => setSelectedId(id)}

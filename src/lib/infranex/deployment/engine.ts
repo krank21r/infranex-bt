@@ -54,7 +54,7 @@ function stepOutput(step: string, config: DeploymentConfig): string[] {
       return [
         "Approval check passed (L1 auto-approve)",
         `Mode: ${config.docker.imageName.includes("bittensor") ? "production" : "mock"}`,
-        "Hotkey registered for subnet",
+        "Hotkey & registration come LAST — after the miner runs (step 5 of the wizard)",
       ];
     case "provision":
       return [
