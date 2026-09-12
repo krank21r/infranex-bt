@@ -1,6 +1,7 @@
 import type { DeploymentConfig } from "../config";
 import type { ProviderAdapter, ProvisionResult, ProvisionContext } from "./base";
 import { assertHotkeyOnly, HOTKEY_ONLY_POLICY_TEXT } from "../ssh-keys";
+import { getProviderKey } from "@/lib/infranex/providers";
 
 
 /**
@@ -90,13 +91,15 @@ export function buildDeployMutation(input: DeployInput): string {
 }
 
 async function runpodGraphQL<T>(query: string): Promise<T> {
-  const apiKey = process.env.RUNPOD_API_KEY;
-  if (!apiKey) throw new Error("RUNPOD_API_KEY not configured");
+  const resolved = await getProviderKey("runpod");
+  if (!resolved) {
+    throw new Error("RunPod API key not configured — add it in GPU catalog → Provider API keys");
+  }
   const res = await fetch(RUNPOD_GRAPHQL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${resolved.key}`,
     },
     body: JSON.stringify({ query }),
     cache: "no-store",

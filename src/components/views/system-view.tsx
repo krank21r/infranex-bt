@@ -418,10 +418,11 @@ function ResolutionSteps({
       "If the chain is down, /api/network returns source='error' — the UI falls back to curated values.",
     ],
     gpu: [
-      "The RunPod GraphQL API may be rate-limiting or the API key may be invalid/expired.",
-      "Check that RUNPOD_API_KEY is set in /home/z/my-project/.env (server-side only, no NEXT_PUBLIC_ prefix).",
+      "The provider API may be rate-limiting or a stored key may be invalid/expired.",
+      "Add or update provider keys in GPU catalog → Provider API keys (RunPod, Vast.ai, Lambda) — encrypted server-side, validated on save.",
+      "A RunPod key set via RUNPOD_API_KEY in .env still works as a fallback, but the UI-managed key takes precedence.",
       "The 60s cache will retry automatically on the next poll.",
-      "If RunPod is down, the GPU catalog falls back to indicative static prices from other providers.",
+      "If every provider is unreachable, the GPU catalog falls back to indicative static prices from other providers.",
     ],
   };
   const list = steps[checkId] ?? ["No specific steps — retry the check."];

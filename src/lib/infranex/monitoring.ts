@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { getChainApi } from "./chain";
 import { deserializeConfig } from "./deployment/config";
 import { deserializeSteps } from "./deployment/state-machine";
+import { getProviderKey } from "@/lib/infranex/providers";
 
 /**
  * Monitoring Engine.
@@ -31,13 +32,15 @@ interface RunpodPod {
 }
 
 async function runpodQuery<T>(query: string): Promise<T> {
-  const apiKey = process.env.RUNPOD_API_KEY;
-  if (!apiKey) throw new Error("RUNPOD_API_KEY not configured");
+  const resolved = await getProviderKey("runpod");
+  if (!resolved) {
+    throw new Error("RunPod API key not configured — add it in GPU catalog → Provider API keys");
+  }
   const res = await fetch(RUNPOD_GRAPHQL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${resolved.key}`,
     },
     body: JSON.stringify({ query }),
     cache: "no-store",

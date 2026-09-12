@@ -17,7 +17,7 @@ interface RunpodPrice {
   uninterruptablePrice: number | null;
 }
 
-interface RunpodGpuType {
+export interface RunpodGpuType {
   id: string;
   displayName: string;
   memoryInGb: number;
@@ -34,12 +34,28 @@ export interface LiveGpuSnapshot {
   source: "live" | "partial" | "error";
   error?: string;
   fetchedAt: string;
-  provider: "RunPod";
+  /** Legacy single-provider field; the multi-provider snapshot uses "multi". */
+  provider: string;
   totalGpuTypes: number;
+  /** Per-provider status (configured/origin/offers/error) — added with the
+   *  Provider API Keys feature; absent in old clients' expectations, so it is
+   *  optional and additive. */
+  providers?: Array<{
+    id: string;
+    label: string;
+    configured: boolean;
+    origin?: "db" | "env";
+    status?: string | null;
+    offers: number;
+    error?: string;
+  }>;
 }
 
 // Map RunPod GPU names to our canonical model names + tiers.
-function normalizeModel(displayName: string, vramGb: number): {
+// (Also reused by the Vast.ai / Lambda adapters — their GPU labels are close
+// enough to the same vocabulary that canonical names stay consistent across
+// the wizard and the catalog.)
+export function normalizeModel(displayName: string, vramGb: number): {
   model: string;
   tierLabel: "Entry" | "Mid" | "High" | "Flagship";
 } | null {
@@ -80,9 +96,8 @@ function normalizeModel(displayName: string, vramGb: number): {
   return null;
 }
 
-async function fetchRunpodGpus(): Promise<RunpodGpuType[]> {
-  const apiKey = process.env.RUNPOD_API_KEY;
-  if (!apiKey) throw new Error("RUNPOD_API_KEY not configured");
+export async function fetchRunpodGpus(apiKey: string): Promise<RunpodGpuType[]> {
+  if (!apiKey) throw new Error("RunPod API key not configured");
 
   const query = `{
     gpuTypes {
@@ -145,7 +160,9 @@ class GpuSnapshotCache {
 
   private async fetchFromRunpod(): Promise<LiveGpuSnapshot> {
     try {
-      const gpuTypes = await fetchRunpodGpus();
+      const apiKey = process.env.RUNPOD_API_KEY;
+      if (!apiKey) throw new Error("RunPod API key not configured");
+      const gpuTypes = await fetchRunpodGpus(apiKey);
       const offers: LiveGpuOffer[] = [];
 
       for (const g of gpuTypes) {
@@ -221,11 +238,10 @@ export function mergeGpuOffers(snap: LiveGpuSnapshot | undefined): Array<
       source: o.provider === "RunPod" ? "static" : "indicative",
     }));
   }
-  const liveByModel = new Map(snap.offers.map((o) => [`${o.provider}-${o.model}`, o]));
   const result: Array<GPUOffer & { live?: boolean; source?: string }> = [];
-  // Add all live RunPod offers first
+  // Add all live offers first (RunPod live; Vast/Lambda when their keys are set)
   for (const o of snap.offers) {
-    result.push({ ...o, live: true, source: "runpod" });
+    result.push({ ...o, live: true, source: o.source });
   }
   // Then curated offers from other providers (skip curated RunPod, replaced by live)
   for (const o of curatedOffers) {

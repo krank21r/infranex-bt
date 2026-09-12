@@ -30,9 +30,11 @@ import {
   RefreshCw,
   Loader2,
   WifiOff,
+  KeyRound,
 } from "lucide-react";
 import { gpuModels, gpuProviders } from "@/lib/infranex/data";
 import { useMergedGpuOffers } from "@/lib/infranex/use-gpu-offers";
+import { ProviderKeysDialog } from "@/components/gpus/provider-keys-dialog";
 import { cn, formatCurrency } from "@/lib/utils";
 
 interface GpusViewProps {
@@ -48,6 +50,19 @@ export function GpusView({ onProvision }: GpusViewProps) {
   const [offerMaxPrice, setOfferMaxPrice] = useState<string>("");
 
   const { offers: allOffers, snap, isLive, isFetching, refetch } = useMergedGpuOffers();
+
+  // Provider API keys — dialog state + how many marketplaces are connected.
+  const [keysOpen, setKeysOpen] = useState(false);
+  const liveProviders = (snap?.providers ?? []).filter(
+    (p) => p.configured && p.offers > 0
+  );
+  const configuredProviders = (snap?.providers ?? []).filter((p) => p.configured);
+  const liveProviderLabel =
+    liveProviders.length > 1
+      ? `${liveProviders.length} providers`
+      : liveProviders.length === 1
+        ? liveProviders[0].label
+        : null;
 
   const filteredModels = useMemo(() => {
     return gpuModels.filter((g) => {
@@ -89,20 +104,48 @@ export function GpusView({ onProvision }: GpusViewProps) {
             GPU Catalog
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Match the best GPU to the best subnet. {isLive ? `${liveCount} live RunPod offers` : "Live RunPod pricing"}{snap?.totalGpuTypes ? ` across ${snap.totalGpuTypes} GPU types` : ""}, plus indicative pricing from {gpuProviders.length - 1} other providers. Provision opens the guided deploy wizard with the GPU preselected.
+            Match the best GPU to the best subnet.{" "}
+            {liveProviderLabel
+              ? `${liveCount} live offers from ${liveProviderLabel}`
+              : isLive
+                ? `${liveCount} live RunPod offers`
+                : "Live provider pricing"}
+            {snap?.totalGpuTypes ? ` across ${snap.totalGpuTypes} GPU types` : ""}
+            {configuredProviders.length > 0
+              ? `. ${configuredProviders.length} provider${configuredProviders.length > 1 ? "s" : ""} connected via your API keys.`
+              : ". Connect RunPod, Vast.ai or Lambda with your own API keys for live pricing."}{" "}
+            Provision opens the guided deploy wizard with the GPU preselected.
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2 self-start sm:self-end"
-          onClick={() => refetch()}
-          disabled={isFetching}
-        >
-          <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
-          {isFetching ? "Syncing…" : "Refresh prices"}
-        </Button>
+        <div className="flex flex-col gap-2 self-start sm:flex-row sm:self-end">
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => setKeysOpen(true)}
+          >
+            <KeyRound className="h-3.5 w-3.5 text-primary" />
+            Provider API keys
+            {configuredProviders.length > 0 && (
+              <span className="rounded-full bg-primary/10 px-1.5 text-[10px] font-semibold text-primary">
+                {configuredProviders.length}
+              </span>
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2"
+            onClick={() => refetch()}
+            disabled={isFetching}
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", isFetching && "animate-spin")} />
+            {isFetching ? "Syncing…" : "Refresh prices"}
+          </Button>
+        </div>
       </header>
+
+      <ProviderKeysDialog open={keysOpen} onOpenChange={setKeysOpen} />
 
       {/* Recommendation highlight */}
       {cheapestH100 && (

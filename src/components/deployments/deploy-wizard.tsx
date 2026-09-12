@@ -171,7 +171,12 @@ export function DeployWizard({ open, onOpenChange, initialNetuid, initialOfferId
   const requiredVram = profile?.minVramGb ?? liveSubnet?.minVramGb ?? null;
 
   // --- Step 3 data: offers --------------------------------------------------
-  const { offers } = useMergedGpuOffers();
+  const { offers, snap: offerSnap } = useMergedGpuOffers();
+  // Legacy snapshots (no providers array) default to "configured" so the hint
+  // never nags when the server can't tell us.
+  const runpodConfigured = offerSnap?.providers
+    ? Boolean(offerSnap.providers.find((p) => p.id === "runpod")?.configured)
+    : true;
   const matchingOffers = useMemo(() => {
     if (requiredVram == null) return offers;
     return offers
@@ -549,6 +554,13 @@ export function DeployWizard({ open, onOpenChange, initialNetuid, initialOfferId
                   </p>
                 </button>
               </div>
+
+              {mode === "runpod" && !runpodConfigured && (
+                <p className="-mt-1 flex items-start gap-1.5 text-xs text-warning">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  No RunPod API key yet — add it in GPU catalog → “Provider API keys”, or run the Demo pod first.
+                </p>
+              )}
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>

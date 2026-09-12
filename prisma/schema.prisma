@@ -344,3 +344,25 @@ model DaemonState {
 
   @@index([status])
 }
+
+// ---------------------------------------------------------------------------
+// Provider API Keys — user-supplied credentials for GPU marketplace APIs
+// (RunPod, Vast.ai, Lambda Labs). Managed from the GPU catalog UI. Encrypted
+// at rest with the same AES-256-GCM scheme as DevOps host secrets; the
+// plaintext key NEVER leaves the server (API responses carry a masked hint
+// only). Used to pull live offer data and to power real rentals/monitoring.
+// ---------------------------------------------------------------------------
+
+model ProviderKey {
+  id            String   @id @default(cuid())
+  // "runpod" | "vast" | "lambda" (see PROVIDER_META in src/lib/infranex/providers.ts)
+  provider      String   @unique
+  keyEnc        String
+  // "unverified" | "valid" | "invalid" | "error"
+  status        String   @default("unverified")
+  // Human-readable result of the last validation attempt.
+  statusMessage String?
+  lastCheckedAt DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
