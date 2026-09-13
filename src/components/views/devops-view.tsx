@@ -23,6 +23,9 @@ import {
   TrendingUp,
   Cpu,
   BrainCircuit,
+  Activity,
+  Timer,
+  RadioTower,
 } from "lucide-react";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { useDevopsMonitor } from "@/lib/infranex/use-devops-monitor";
@@ -51,6 +54,10 @@ const KIND_META: Record<
   // DEVOPS-3 — Miner Mindset strategy events.
   ARBITRAGE: { label: "ARBITRAGE", icon: TrendingUp, chip: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" },
   RUNTIME_OPT: { label: "RUNTIME OPT", icon: Cpu, chip: "border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-300" },
+  // DEVOPS-4 — Service Health & Validator Traffic events.
+  PROBE_FAIL: { label: "PROBE FAIL", icon: Activity, chip: "border-red-500/40 bg-red-500/10 text-red-300" },
+  SERVICE_LATENCY: { label: "SERVICE LATENCY", icon: Timer, chip: "border-yellow-500/40 bg-yellow-500/10 text-yellow-300" },
+  QUERY_DROUGHT: { label: "QUERY DROUGHT", icon: RadioTower, chip: "border-rose-500/40 bg-rose-500/10 text-rose-300" },
 };
 
 export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void }) {
@@ -88,6 +95,10 @@ export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void })
     }
     if (ev.kind === "DEREG_RISK") {
       if (a === "failover") return { action: a, label: "Fail over to the fallback profile on the GPU" };
+      return null;
+    }
+    if (ev.kind === "PROBE_FAIL") {
+      if (a === "restart") return { action: a, label: "Restart the miner — re-announce a fresh axon endpoint" };
       return null;
     }
     return null;

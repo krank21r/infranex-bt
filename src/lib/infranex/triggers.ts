@@ -348,6 +348,32 @@ export async function actOnTrigger(id: string): Promise<{ event: TriggerEventDTO
         e instanceof Error ? e.message : "unknown error"
       } — deployment config untouched or partially updated; check the DevOps board and retry after fixing the cause.`;
     }
+  } else if (kind === "PROBE_FAIL" && row.deploymentId) {
+    // DEVOPS-4 — the synthetic probe found the axon dead: restart the miner
+    // so the fresh process re-announces its endpoint on-chain.
+    const evidence = safeParse(row.evidenceJson);
+    if (evidence.suggestedAction === "restart") {
+      const { restartViaDaemon } = await import("./daemon-bridge");
+      try {
+        actionNote = `Applied to GPU — ${await restartViaDaemon(row.deploymentId)}`;
+      } catch {
+        actionNote =
+          "Applied to GPU — no daemon reachable, deployment ticked for re-sync; check the provider console.";
+        const { tickDeployment } = await import("./deployment/engine");
+        await tickDeployment(row.deploymentId).catch(() => null);
+      }
+    } else {
+      actionNote = "Acknowledged — endpoint condition logged; keep monitoring for recurrence.";
+    }
+  } else if (kind === "SERVICE_LATENCY") {
+    // DEVOPS-4 — slow axon: advisory; the fix path is the Runtime Optimizer's
+    // accelerated serving profiles (vLLM/TensorRT-LLM/quantization).
+    actionNote =
+      "Acknowledged — latency logged against the rolling baseline. The Runtime Optimizer's accelerated profiles (vLLM batching, TensorRT-LLM, AWQ/EXL2) are the fix path if it persists.";
+  } else if (kind === "QUERY_DROUGHT") {
+    // DEVOPS-4 — validators stopped querying: advisory; endpoint probed alive.
+    actionNote =
+      "Acknowledged — query volume logged. The endpoint answered the probe, so check scoring/selection: validator set changes (Subnet Drift events), serving quality vs cohort, axon re-announce via restart.";
   } else if (kind === "GPU_HEALTH" && row.deploymentId) {
     // DEVOPS-1 — the event's evidence carries the suggested action:
     // "restart" (process down) → daemon restart like RE_SYNC;

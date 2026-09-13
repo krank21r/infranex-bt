@@ -13,7 +13,10 @@ export interface TriggerEventDTO {
     | "GPU_HEALTH"
     | "SUBNET_DRIFT"
     | "ARBITRAGE"
-    | "RUNTIME_OPT";
+    | "RUNTIME_OPT"
+    | "PROBE_FAIL"
+    | "SERVICE_LATENCY"
+    | "QUERY_DROUGHT";
   severity: string;
   status: "open" | "approved" | "acted" | "dismissed" | "resolved";
   title: string;

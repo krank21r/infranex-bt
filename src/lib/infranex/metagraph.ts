@@ -333,3 +333,46 @@ export async function getUidState(
     fetchedAt: entry.fetchedAt,
   };
 }
+
+/**
+ * DEVOPS-4 — resolve the axon endpoint a miner's UID announces on-chain
+ * (the address validators actually query). Returns null on ANY trouble —
+ * callers must treat null as "cannot probe right now", never as an alarm.
+ *
+ * Storage location drifted across specs: neuronsModule.axons (current) vs
+ * subtensorModule.axons (legacy). The on-chain IPv4 is a little-endian u32
+ * that decodes exactly like bittensor's int_to_ip().
+ */
+export async function getAxonInfo(
+  netuid: number,
+  uid: number
+): Promise<{ endpoint: string; port: number } | null> {
+  try {
+    const api = await getChainApi();
+    const modules = [api.query.neuronsModule, api.query.subtensorModule];
+    for (const mod of modules) {
+      const axons = (mod as unknown as Record<string, unknown>)?.axons;
+      if (typeof axons === "undefined" || axons === null) continue;
+      const raw = await (axons as (a: number, b: number) => Promise<any>)(netuid, uid);
+      if (!raw || raw.isEmpty) continue;
+      const entry = raw.unwrap ? raw.unwrap() : raw;
+      const ipType = entry?.ipType?.toNumber?.() ?? 4;
+      const portRaw = entry?.port;
+      const port = portRaw?.toNumber?.() ?? Number(portRaw);
+      const ipRaw = entry?.ip;
+      if (!Number.isFinite(port) || port <= 0) continue;
+      if (ipType !== 4) continue; // IPv6 axons are out of probe scope
+      const n =
+        typeof ipRaw?.toNumber === "function"
+          ? ipRaw.toNumber()
+          : Number(ipRaw);
+      if (!Number.isFinite(n) || n === 0) continue;
+      const ip = [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join(".");
+      if (ip === "0.0.0.0") continue;
+      return { endpoint: ip, port };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}

@@ -9,6 +9,7 @@ import {
 import { runUidDefensePass, getUidDefensePayload } from "@/lib/infranex/uid-defense";
 import { runDevopsPass } from "@/lib/infranex/devops-monitor";
 import { runMinerMindsetPass } from "@/lib/infranex/miner-mindset";
+import { runServiceHealthPass } from "@/lib/infranex/service-health";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 180;
@@ -61,6 +62,13 @@ export async function POST(req: NextRequest) {
         } catch (e) {
           console.warn(`[triggers] mindset pass skipped: ${e instanceof Error ? e.message : e}`);
         }
+        // DEVOPS-4 — Service Health & Validator Traffic pass rides too.
+        let servicePass: Awaited<ReturnType<typeof runServiceHealthPass>> | null = null;
+        try {
+          servicePass = await runServiceHealthPass();
+        } catch (e) {
+          console.warn(`[triggers] service pass skipped: ${e instanceof Error ? e.message : e}`);
+        }
         const events = await listTriggerEvents();
         const uid = await getUidDefensePayload().catch(() => []);
         return NextResponse.json({
@@ -72,6 +80,8 @@ export async function POST(req: NextRequest) {
             devopsEvaluated: devopsPass?.deploymentsEvaluated ?? 0,
             devopsSamples: devopsPass?.samplesTaken ?? 0,
             mindsetEvaluated: mindsetPass?.deploymentsEvaluated ?? 0,
+            serviceEvaluated: servicePass?.deploymentsEvaluated ?? 0,
+            serviceProbes: servicePass?.probesTaken ?? 0,
           },
           ...events,
           uid,

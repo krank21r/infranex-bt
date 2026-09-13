@@ -12,6 +12,8 @@ import {
   Radar,
   Wallet,
   Hexagon,
+  Activity,
+  RadioTower,
 } from "lucide-react";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import type { DevopsMinerDTO, DevopsThresholds } from "@/lib/infranex/use-devops-monitor";
@@ -168,6 +170,67 @@ export function MinerOpsCard({
               </span>
             )}
           </span>
+        </div>
+
+        {/* DEVOPS-4 — Service & validator traffic: what validators experience */}
+        <div className="rounded-lg border border-border/50 bg-background/40 px-2.5 py-2">
+          <div className="flex items-center justify-between">
+            <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground/70">
+              <Activity className="h-3 w-3" aria-hidden />
+              service
+            </span>
+            <ProbeChip probe={miner.service?.probe ?? null} isMock={isMock} />
+          </div>
+          <div className="mt-1.5 grid grid-cols-3 gap-2 text-center">
+            <MiniFact
+              label="Latency"
+              value={
+                miner.service?.probe?.ok
+                  ? `${Math.round(miner.service.probe.totalMs ?? 0)}ms`
+                  : miner.service?.probe && !miner.service.probe.ok
+                    ? "FAIL"
+                    : "—"
+              }
+              tone={miner.service?.probe && !miner.service.probe.ok ? "critical" : undefined}
+            />
+            <MiniFact
+              label="p50 / p95"
+              value={
+                miner.service?.latencyP50Ms != null
+                  ? `${Math.round(miner.service.latencyP50Ms)}/${miner.service.latencyP95Ms != null ? Math.round(miner.service.latencyP95Ms) : "—"}`
+                  : "—"
+              }
+            />
+            <MiniFact
+              label="Probe OK"
+              value={
+                miner.service?.successRatePct != null
+                  ? `${miner.service.successRatePct}%`
+                  : "—"
+              }
+              tone={
+                miner.service?.successRatePct != null && miner.service.successRatePct < 100
+                  ? "warning"
+                  : undefined
+              }
+            />
+          </div>
+          {miner.service?.probe && miner.service.probeHistory.length > 1 && (
+            <div className="mt-1.5">
+              <Sparkline
+                label="axon latency · ms"
+                points={miner.service.probeHistory.map((p) => p.totalMs)}
+                stroke="stroke-violet-400/80"
+              />
+            </div>
+          )}
+          <div className="mt-1.5 flex items-center justify-between gap-2 border-t border-border/40 pt-1.5 text-[11px]">
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              <RadioTower className="h-3 w-3" aria-hidden />
+              validator queries
+            </span>
+            <TrafficSummary traffic={miner.service?.traffic ?? null} isMock={isMock} />
+          </div>
         </div>
 
         {/* Chain + UID facts */}
@@ -336,11 +399,27 @@ function Vital({
   );
 }
 
-function MiniFact({ label, value, tone }: { label: string; value: string; tone?: "critical" }) {
+function MiniFact({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "ok" | "warning" | "critical";
+}) {
   return (
     <div className="rounded-lg border border-border/50 bg-background/40 px-1.5 py-1">
       <p className="text-[9px] uppercase tracking-wider text-muted-foreground/60">{label}</p>
-      <p className={cn("mono text-xs font-semibold tabular", tone === "critical" ? "text-destructive" : "text-foreground/85")}>
+      <p
+        className={cn(
+          "mono text-xs font-semibold tabular",
+          tone === "ok" && "text-success",
+          tone === "warning" && "text-amber-300",
+          tone === "critical" && "text-destructive",
+          !tone && "text-foreground/85"
+        )}
+      >
         {value}
       </p>
     </div>
@@ -359,6 +438,66 @@ function DaemonChip({ status }: { status: string }) {
     <Badge variant="outline" className={cn("h-4 px-1.5 text-[10px]", map[status] ?? map.missing)}>
       {status}
     </Badge>
+  );
+}
+
+/** DEVOPS-4 — probe verdict chip: alive + latency, dead, or simulated. */
+function ProbeChip({
+  probe,
+  isMock,
+}: {
+  probe: { ok: boolean; totalMs: number | null; httpStatus: number | null; mode: string } | null;
+  isMock: boolean;
+}) {
+  if (!probe) {
+    return (
+      <Badge variant="outline" className="h-4 px-1.5 text-[10px] border-border text-muted-foreground">
+        no probe
+      </Badge>
+    );
+  }
+  if (!probe.ok) {
+    return (
+      <Badge variant="outline" className="h-4 px-1.5 text-[10px] border-destructive/40 bg-destructive/10 text-destructive">
+        dead
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="h-4 px-1.5 text-[10px] border-success/40 bg-success/10 text-success">
+      {isMock ? "simulated" : `HTTP ${probe.httpStatus ?? "?"}`}
+    </Badge>
+  );
+}
+
+/** DEVOPS-4 — validator traffic summary: queries/hour + distinct validators. */
+function TrafficSummary({
+  traffic,
+  isMock,
+}: {
+  traffic: {
+    requests: number | null;
+    distinctValidators: number | null;
+    topValidatorHotkey: string | null;
+  } | null;
+  isMock: boolean;
+}) {
+  if (!traffic) {
+    return <span className="mono tabular text-muted-foreground/60">no data</span>;
+  }
+  if (traffic.requests === null) {
+    return <span className="mono tabular text-muted-foreground/60">unknown — no parsable query log</span>;
+  }
+  return (
+    <span className="flex items-center gap-1.5 text-[11px]">
+      <span className="mono tabular text-foreground/90">{traffic.requests}/hr</span>
+      {traffic.distinctValidators != null && (
+        <span className="mono tabular text-muted-foreground/70">
+          · {traffic.distinctValidators} validator{traffic.distinctValidators === 1 ? "" : "s"}
+        </span>
+      )}
+      {isMock && <span className="text-[10px] text-muted-foreground/50">simulated</span>}
+    </span>
   );
 }
 

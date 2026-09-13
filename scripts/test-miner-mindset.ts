@@ -532,17 +532,28 @@ async function main() {
       run.status === 200 && typeof run.json?.pass?.mindsetEvaluated === "number" && run.json.pass.mindsetEvaluated >= 2,
       JSON.stringify(run.json?.pass ?? run.json?.error)
     );
-    const mon = await api("GET", "/api/devops/monitor", undefined, adminCookie);
-    const miners = mon.json?.miners ?? [];
-    const monDaemon = miners.find((m: { deploymentId: string }) => m.deploymentId === DEP_DAEMON);
+    // Monitor payload — poll past the overview 30s + payload 10s caches so
+    // cache phase can never flake the assertion.
+    let monDaemon: Record<string, any> | undefined;
+    let monStatus = 0;
+    let thresholdsOk = false;
+    for (let attempt = 0; attempt < 5 && !monDaemon; attempt++) {
+      if (attempt > 0) await new Promise((res) => setTimeout(res, 11_000));
+      const mon = await api("GET", "/api/devops/monitor", undefined, adminCookie);
+      monStatus = mon.status;
+      thresholdsOk =
+        mon.json?.mindsetThresholds?.yieldCollapsePct === MINDSET_THRESHOLDS.yieldCollapsePct;
+      const miners = mon.json?.miners ?? [];
+      monDaemon = miners.find((m: { deploymentId: string }) => m.deploymentId === DEP_DAEMON);
+    }
     check(
       "monitor payload: mindsetThresholds + strategy posture shape",
-      mon.status === 200 &&
-        mon.json?.mindsetThresholds?.yieldCollapsePct === MINDSET_THRESHOLDS.yieldCollapsePct &&
+      monStatus === 200 &&
+        thresholdsOk &&
         monDaemon?.strategy?.mindset &&
         ["earn_more", "defend", "optimize", "steady"].includes(monDaemon.strategy.mindset) &&
         typeof monDaemon.strategy.top10IncentiveShare !== "undefined",
-      JSON.stringify(monDaemon?.strategy ?? mon.json?.error)
+      JSON.stringify({ monStatus, thresholdsOk, strategy: monDaemon?.strategy ?? null })
     );
 
     // --- cleanup is also verified by the finally below ----------------------

@@ -7,6 +7,7 @@ import { runTriggerPass } from "./triggers";
 import { runUidDefensePass } from "./uid-defense";
 import { runDevopsPass } from "./devops-monitor";
 import { runMinerMindsetPass } from "./miner-mindset";
+import { runServiceHealthPass } from "./service-health";
 
 /**
  * Background worker system.
@@ -112,7 +113,8 @@ export async function getLatestChainSnapshot(): Promise<LiveNetworkSnapshot | nu
 /**
  * DEVOPS-1 — the continuous monitor. One pass = trigger evaluators
  * (pod-down, loss) + UID defense (deregistration risk) + DevOps evaluators
- * (GPU health, subnet drift) + the DEVOPS-3 Miner Mindset strategy pass
+ * (GPU health, subnet drift) + the DEVOPS-4 service-health pass (synthetic
+ * axon probe + validator traffic) + the DEVOPS-3 Miner Mindset strategy pass
  * (subnet arbitrage / compute recycling, runtime optimization). Sequential,
  * not parallel: they share the one chain connection and the 60s metagraph
  * vector cache.
@@ -125,6 +127,12 @@ async function runDevopsWorker(): Promise<WorkerRunResult> {
     const devops = await runDevopsPass();
     await runTriggerPass();
     await runUidDefensePass();
+    try {
+      await runServiceHealthPass();
+    } catch (e) {
+      // Service layer must never take the whole worker down.
+      console.warn(`[devops-worker] service-health pass skipped: ${e instanceof Error ? e.message : e}`);
+    }
     try {
       await runMinerMindsetPass();
     } catch (e) {

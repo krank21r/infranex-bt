@@ -4,6 +4,7 @@ import { fetchMonitoringOverview } from "@/lib/infranex/monitoring";
 import { getDaemonView } from "@/lib/infranex/daemon-bridge";
 import { listTriggerEvents } from "@/lib/infranex/triggers";
 import { DEVOPS_THRESHOLDS } from "@/lib/infranex/devops-monitor";
+import { SERVICE_THRESHOLDS } from "@/lib/infranex/service-health";
 import {
   buildMinerStrategyPosture,
   MINDSET_THRESHOLDS,
@@ -84,6 +85,32 @@ export interface DevopsMiner {
   };
   alerts: { level: string; code: string; message: string }[];
   strategy: MinerStrategyPosture;
+  service: {
+    probe: {
+      endpoint: string | null;
+      mode: string;
+      ok: boolean;
+      httpStatus: number | null;
+      ttfbMs: number | null;
+      totalMs: number | null;
+      errorKind: string | null;
+      at: string;
+    } | null;
+    probeHistory: { at: string; ok: boolean; totalMs: number | null }[];
+    latencyP50Ms: number | null;
+    latencyP95Ms: number | null;
+    successRatePct: number | null;
+    probedCount: number;
+    traffic: {
+      windowMinutes: number | null;
+      requests: number | null;
+      distinctValidators: number | null;
+      topValidatorHotkey: string | null;
+      topValidatorCount: number | null;
+      logFound: boolean;
+      at: string;
+    } | null;
+  };
 }
 
 export interface DevopsMonitorPayload {
@@ -103,6 +130,7 @@ export interface DevopsMonitorPayload {
   lastPass: { at: string; status: string; durationMs: number; evaluated: number } | null;
   thresholds: typeof DEVOPS_THRESHOLDS;
   mindsetThresholds: typeof MINDSET_THRESHOLDS;
+  serviceThresholds: typeof SERVICE_THRESHOLDS;
 }
 
 // ---------------------------------------------------------------------------
@@ -157,6 +185,31 @@ export async function GET() {
       else gpuByDep.set(r.deploymentId, [r]);
     }
 
+    // DEVOPS-4 — probe history + validator traffic per deployment (newest
+    // first; history sliced/reversed for the latency sparkline).
+    const probeRows = startedIds.length
+      ? await db.probeSample.findMany({
+          where: { deploymentId: { in: startedIds } },
+          orderBy: { createdAt: "desc" },
+        })
+      : [];
+    const probeByDep = new Map<string, typeof probeRows>();
+    for (const r of probeRows) {
+      const list = probeByDep.get(r.deploymentId);
+      if (list) list.push(r);
+      else probeByDep.set(r.deploymentId, [r]);
+    }
+    const trafficRows = startedIds.length
+      ? await db.trafficSample.findMany({
+          where: { deploymentId: { in: startedIds } },
+          orderBy: { createdAt: "desc" },
+        })
+      : [];
+    const trafficByDep = new Map<string, typeof trafficRows[number]>();
+    for (const r of trafficRows) {
+      if (!trafficByDep.has(r.deploymentId)) trafficByDep.set(r.deploymentId, r);
+    }
+
     const miners: DevopsMiner[] = [];
     let healthy = 0;
     let warning = 0;
@@ -174,15 +227,25 @@ export async function GET() {
 
       const alerts = dep.monitoring.alerts;
       const gpuTemp = latestGpu?.tempC ?? null;
+      const probes = (probeByDep.get(dep.id) ?? []).slice(0, 40);
+      const latestProbe = probes[0] ?? null;
+      const trafficLatest = trafficByDep.get(dep.id) ?? null;
+      const openServiceKinds = new Set(
+        events.open.filter((e) => e.deploymentId === dep.id).map((e) => e.kind)
+      );
       const hasCritical =
         alerts.some((a) => a.level === "critical") ||
         uid?.riskLevel === "critical" ||
         (gpuTemp !== null && gpuTemp >= DEVOPS_THRESHOLDS.tempCriticalC) ||
-        latestGpu?.processAlive === false;
+        latestGpu?.processAlive === false ||
+        (latestProbe !== null && latestProbe.ok === false) ||
+        openServiceKinds.has("PROBE_FAIL");
       const hasWarning =
         alerts.some((a) => a.level === "warning") ||
         uid?.riskLevel === "warning" ||
-        (gpuTemp !== null && gpuTemp >= DEVOPS_THRESHOLDS.tempWarnC);
+        (gpuTemp !== null && gpuTemp >= DEVOPS_THRESHOLDS.tempWarnC) ||
+        openServiceKinds.has("SERVICE_LATENCY") ||
+        openServiceKinds.has("QUERY_DROUGHT");
 
       if (hasCritical) critical++;
       else if (hasWarning) warning++;
@@ -273,6 +336,49 @@ export async function GET() {
             .map((e) => e.kind),
           snapshot,
         }),
+        service: (() => {
+          const okMs = probes.filter((p) => p.ok).map((p) => p.totalMs).filter((v): v is number => v !== null);
+          const sorted = [...okMs].sort((a, b) => a - b);
+          const pct = (p: number) =>
+            sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))] : null;
+          const successRatePct = probes.length
+            ? Math.round((probes.filter((p) => p.ok).length / probes.length) * 100)
+            : null;
+          return {
+            probe: latestProbe
+              ? {
+                  endpoint: latestProbe.endpoint,
+                  mode: latestProbe.mode,
+                  ok: latestProbe.ok,
+                  httpStatus: latestProbe.httpStatus,
+                  ttfbMs: latestProbe.ttfbMs,
+                  totalMs: latestProbe.totalMs,
+                  errorKind: latestProbe.errorKind,
+                  at: latestProbe.createdAt.toISOString(),
+                }
+              : null,
+            probeHistory: probes
+              .slice(0, 30)
+              .slice()
+              .reverse()
+              .map((p) => ({ at: p.createdAt.toISOString(), ok: p.ok, totalMs: p.totalMs })),
+            latencyP50Ms: pct(50),
+            latencyP95Ms: pct(95),
+            successRatePct,
+            probedCount: probes.length,
+            traffic: trafficLatest
+              ? {
+                  windowMinutes: trafficLatest.windowMinutes,
+                  requests: trafficLatest.requests,
+                  distinctValidators: trafficLatest.distinctValidators,
+                  topValidatorHotkey: trafficLatest.topValidatorHotkey,
+                  topValidatorCount: trafficLatest.topValidatorCount,
+                  logFound: trafficLatest.logFound,
+                  at: trafficLatest.createdAt.toISOString(),
+                }
+              : null,
+          };
+        })(),
       });
     }
 
@@ -306,6 +412,7 @@ export async function GET() {
         : null,
       thresholds: DEVOPS_THRESHOLDS,
       mindsetThresholds: MINDSET_THRESHOLDS,
+      serviceThresholds: SERVICE_THRESHOLDS,
     };
 
     globalForCache.__devopsMonitorCache = { at: Date.now(), payload };

@@ -77,6 +77,33 @@ export interface DevopsMinerDTO {
   };
   alerts: { level: string; code: string; message: string }[];
   strategy: MinerStrategyPostureDTO;
+  /** DEVOPS-4 — synthetic probe + validator traffic for this miner. */
+  service: {
+    probe: {
+      endpoint: string | null;
+      mode: string;
+      ok: boolean;
+      httpStatus: number | null;
+      ttfbMs: number | null;
+      totalMs: number | null;
+      errorKind: string | null;
+      at: string;
+    } | null;
+    probeHistory: { at: string; ok: boolean; totalMs: number | null }[];
+    latencyP50Ms: number | null;
+    latencyP95Ms: number | null;
+    successRatePct: number | null;
+    probedCount: number;
+    traffic: {
+      windowMinutes: number | null;
+      requests: number | null;
+      distinctValidators: number | null;
+      topValidatorHotkey: string | null;
+      topValidatorCount: number | null;
+      logFound: boolean;
+      at: string;
+    } | null;
+  };
 }
 
 export interface DevopsThresholds {
@@ -105,6 +132,20 @@ export interface DevopsMindsetThresholds {
   incentiveGapPasses: number;
 }
 
+/** DEVOPS-4 — Service Health thresholds (mirrors SERVICE_THRESHOLDS). */
+export interface DevopsServiceThresholds {
+  probeTimeoutMs: number;
+  slowTotalMs: number;
+  slowRatioVsMedian: number;
+  failPasses: number;
+  slowPasses: number;
+  trafficHistoryWindows: number;
+  minRequestsForDrought: number;
+  minWindowsForDrought: number;
+  droughtFloorRatio: number;
+  droughtPasses: number;
+}
+
 export interface DevopsMonitorPayload {
   ok: boolean;
   fetchedAt: string;
@@ -122,6 +163,7 @@ export interface DevopsMonitorPayload {
   lastPass: { at: string; status: string; durationMs: number; evaluated: number } | null;
   thresholds: DevopsThresholds;
   mindsetThresholds: DevopsMindsetThresholds;
+  serviceThresholds: DevopsServiceThresholds;
 }
 
 async function fetchDevopsMonitor(): Promise<DevopsMonitorPayload> {

@@ -390,6 +390,55 @@ model GpuSample {
   @@index([deploymentId, createdAt])
 }
 
+// ---------------------------------------------------------------------------
+// DEVOPS-4 — Service Health & Validator Traffic.
+//
+// ProbeSample: one synthetic probe per devops pass against the miner's axon
+// endpoint (HTTP POST with timing). ok=false means the endpoint refused,
+// timed out or answered 5xx — the endpoint validators would fail against.
+// TrafficSample: validator-side query stats parsed from the host's miner log
+// by the Node Daemon (requests per window, distinct validator hotkeys).
+// ~240 rows per deployment each (≈6h at 90s cadence).
+// ---------------------------------------------------------------------------
+
+model ProbeSample {
+  id           String   @id @default(cuid())
+  deploymentId String
+  // host:port that was probed (null when no endpoint could be resolved)
+  endpoint     String?
+  // "mock" | "real"
+  mode         String
+  ok           Boolean
+  httpStatus   Int?
+  // ms to first byte (headers) / ms full round trip
+  ttfbMs       Float?
+  totalMs      Float?
+  // "timeout" | "connect" | "dns" | "http-5xx" | null (ok probes)
+  errorKind    String?
+  errorDetail  String?
+  createdAt    DateTime @default(now())
+
+  @@index([deploymentId, createdAt])
+}
+
+model TrafficSample {
+  id                 String  @id @default(cuid())
+  deploymentId       String
+  // Daemon reporting window in minutes (usually ~60)
+  windowMinutes      Int?
+  // Requests seen in the window; null = unknown (logs not parsable)
+  requests           Int?
+  distinctValidators Int?
+  // Most frequent validator hotkey in the window (SS58)
+  topValidatorHotkey String?
+  topValidatorCount  Int?
+  // Whether the daemon actually found a parsable miner log
+  logFound           Boolean @default(false)
+  createdAt          DateTime @default(now())
+
+  @@index([deploymentId, createdAt])
+}
+
 // Gated-access user base (AUTH-1). Only rows here can sign in on /login with
 // userId + access code. Codes are stored ONE-WAY hashed (scrypt salt:hash)
 // for verification, plus AES-256-GCM encrypted (codeEnc) so the admin panel

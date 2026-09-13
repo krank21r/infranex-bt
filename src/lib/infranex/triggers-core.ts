@@ -14,7 +14,10 @@ export type TriggerKind =
   | "GPU_HEALTH"
   | "SUBNET_DRIFT"
   | "ARBITRAGE"
-  | "RUNTIME_OPT";
+  | "RUNTIME_OPT"
+  | "PROBE_FAIL"
+  | "SERVICE_LATENCY"
+  | "QUERY_DROUGHT";
 
 export const TRIGGER_KIND_META: Record<
   TriggerKind,
@@ -32,6 +35,12 @@ export const TRIGGER_KIND_META: Record<
   // runtimes are tunable, and validators decide the income.
   ARBITRAGE: { label: "Arbitrage", severity: "warning", color: "emerald" },
   RUNTIME_OPT: { label: "Runtime Opt", severity: "warning", color: "fuchsia" },
+  // DEVOPS-4 — Service Health & Validator Traffic (service-health.ts):
+  // the engine measures what validators measure — endpoint latency and
+  // whether queries are actually arriving.
+  PROBE_FAIL: { label: "Probe Fail", severity: "critical", color: "red" },
+  SERVICE_LATENCY: { label: "Service Latency", severity: "warning", color: "yellow" },
+  QUERY_DROUGHT: { label: "Query Drought", severity: "warning", color: "rose" },
 };
 
 export interface TriggerEventDTO {

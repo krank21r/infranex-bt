@@ -213,12 +213,12 @@ export function buildDaemonScript(opts: {
 }): string {
   const { deploymentId, secret, platformUrl, minerCommand } = opts;
   return `#!/usr/bin/env python3
-"""Infranex Node Daemon v1 — telemetry + command pull agent.
+"""Infranex Node Daemon v2 — telemetry + validator traffic + command pull.
 
 Zero dependencies (Python 3.8+ stdlib only). HMAC-SHA256 signed.
 Every command was approved by a human through the Trigger Engine.
 """
-import hashlib, hmac, json, os, shlex, subprocess, sys, time, urllib.request
+import hashlib, hmac, json, os, re, shlex, subprocess, sys, time, urllib.request
 
 DEPLOYMENT_ID = "${deploymentId}"
 SECRET = "${secret}"
@@ -297,6 +297,69 @@ def process_alive():
             continue
     return None
 
+SS58_RE = re.compile(r"5[1-9A-HJ-NP-Za-km-z]{47}")
+TRAFFIC_LOG = "/var/log/infranex-miner.log"
+TRAFFIC_BOOTSTRAP_BYTES = 2 * 1024 * 1024   # first-run: read at most the last 2 MB
+TRAFFIC_WINDOW_S = 60 * 60                  # rolling 1h aggregate window
+
+# DEVOPS-4 — validator traffic monitor. The daemon reads the miner log
+# INCREMENTALLY (only new bytes since the previous poll) and keeps a rolling
+# 60-minute window of (timestamp, validator hotkey) hits. Every telemetry
+# POST reports the true "requests in the last hour" aggregate. Conservative
+# by design: when the log can't be read or carries no request lines we set
+# requests=None so the platform never mistakes "no log" for "no queries".
+class _Traffic:
+    def __init__(self):
+        self.pos = None          # byte offset we already consumed
+        self.events = []         # [(ts_epoch, hotkey)]
+
+    def _read_new_lines(self):
+        try:
+            size = os.path.getsize(TRAFFIC_LOG)
+            if self.pos is None:
+                with open(TRAFFIC_LOG, "rb") as f:
+                    f.seek(max(0, size - TRAFFIC_BOOTSTRAP_BYTES))
+                    blob = f.read().decode("utf-8", "ignore")
+                self.pos = size
+                return blob.splitlines()
+            if size < self.pos:      # rotated/truncated — start over
+                self.pos = 0
+            with open(TRAFFIC_LOG, "rb") as f:
+                f.seek(self.pos)
+                blob = f.read().decode("utf-8", "ignore")
+            self.pos = size
+            return blob.splitlines()
+        except Exception:
+            self.pos = None
+            return []
+
+    def stats(self):
+        now = time.time()
+        for line in self._read_new_lines():
+            m = SS58_RE.search(line)
+            if m:
+                self.events.append((now, m.group(0)))
+        cutoff = now - TRAFFIC_WINDOW_S
+        while self.events and self.events[0][0] < cutoff:
+            self.events.pop(0)
+        log_found = os.path.exists(TRAFFIC_LOG)
+        if not log_found or not self.events:
+            return {"windowMinutes": 60, "requests": None, "distinctValidators": None,
+                    "topValidatorHotkey": None, "topValidatorCount": None,
+                    "logFound": log_found}
+        counts = {}
+        for _, hk in self.events:
+            counts[hk] = counts.get(hk, 0) + 1
+        top = max(counts.items(), key=lambda kv: kv[1])
+        return {"windowMinutes": 60, "requests": len(self.events),
+                "distinctValidators": len(counts), "topValidatorHotkey": top[0],
+                "topValidatorCount": top[1], "logFound": True}
+
+_TRAFFIC_STATE = _Traffic()
+
+def traffic_stats():
+    return _TRAFFIC_STATE.stats()
+
 def telemetry():
     return {
         "ts": int(time.time()),
@@ -305,6 +368,7 @@ def telemetry():
         "gpus": gpu_stats(),
         "minerProcessAlive": process_alive(),
         "loadavg": [round(x, 2) for x in os.getloadavg()],
+        "traffic": traffic_stats(),
     }
 
 def restart_miner():
