@@ -16,6 +16,7 @@ import {
   buildEmissionShares,
 } from "@/lib/infranex/use-network";
 import { useWorkerStatus } from "@/lib/infranex/use-worker-status";
+import { useEconomics } from "@/lib/infranex/use-platform";
 import { cn, formatNumber, formatCurrency, formatTao, formatRelativeTime } from "@/lib/utils";
 import { useProfitabilityConfig } from "@/lib/infranex/use-profitability";
 import type { Opportunity, ViewKey } from "@/lib/infranex/types";
@@ -36,6 +37,9 @@ export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }
   // MOCK-PURGE-2 — emission distribution derives from the LIVE chain snapshot
   // and the Workers card reads real engine runs from /api/workers/status.
   const emissionSharesLive = buildEmissionShares(mergeSubnets(snap));
+  // WALLET-ECON-1 — the Portfolio revenue card reads the REAL spend/earnings
+  // rollups (estimate-accrued cost + chain emission deltas), never a stub.
+  const { data: econ } = useEconomics(30);
   const {
     data: workerData,
     isFetching: workersFetching,
@@ -168,28 +172,90 @@ export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }
           <Card className="glass">
             <CardHeader className="pb-2">
               <p className="text-eyebrow text-muted-foreground">
-                Realized earnings · daemon telemetry
+                Real P&amp;L · ledger rollups (30d)
               </p>
               <CardTitle className="text-display text-xl font-bold">
                 Portfolio revenue
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="mb-2 flex items-baseline gap-2">
-                <span className="tabular text-display text-3xl font-bold tracking-tight">
-                  {formatCurrency(m.portfolioEarnings * 412)}
-                </span>
-                <span className="text-sm text-muted-foreground">
-                  · {formatTao(m.portfolioEarnings)}
-                </span>
-              </div>
-              <div className="flex h-[200px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/50 text-center">
-                <TrendingUp className="h-5 w-5 text-muted-foreground/50" />
-                <p className="max-w-[260px] text-xs text-muted-foreground">
-                  No realized revenue yet — the earnings series appears once a
-                  miner is running and its daemon reports telemetry.
-                </p>
-              </div>
+              {econ?.hasData ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    <div className="rounded-lg border border-border/40 bg-background/60 py-2.5">
+                      <p className="text-[10px] text-muted-foreground">Infra spend</p>
+                      <p className="mono tabular text-lg font-bold">
+                        {formatCurrency(econ.totals.spendUsd)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border/40 bg-background/60 py-2.5">
+                      <p className="text-[10px] text-muted-foreground">Earned</p>
+                      <p className="mono tabular text-lg font-bold text-success">
+                        {formatCurrency(econ.totals.earnedUsd)}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {formatTao(econ.totals.earnedTao)}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-border/40 bg-background/60 py-2.5">
+                      <p className="text-[10px] text-muted-foreground">Net</p>
+                      <p
+                        className={cn(
+                          "mono tabular text-lg font-bold",
+                          econ.totals.netUsd >= 0 ? "text-success" : "text-destructive"
+                        )}
+                      >
+                        {formatCurrency(econ.totals.netUsd)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex h-[128px] items-end gap-1 rounded-lg border border-border/40 bg-background/60 p-2">
+                    {econ.days.slice(-14).map((d) => {
+                      const max = Math.max(
+                        ...econ.days.slice(-14).map((x) => Math.max(x.spendUsd, x.earnedUsd)),
+                        0.01
+                      );
+                      return (
+                        <div key={d.day} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-0.5" title={`${d.day} · spend ${formatCurrency(d.spendUsd)} · earned ${formatCurrency(d.earnedUsd)}`}>
+                          {d.earnedUsd > 0 && (
+                            <div
+                              className="w-full rounded-t bg-success/70"
+                              style={{ height: `${Math.max(3, (d.earnedUsd / max) * 56)}px` }}
+                            />
+                          )}
+                          <div
+                            className="w-full rounded-t bg-primary/50"
+                            style={{ height: `${Math.max(3, (d.spendUsd / max) * 56)}px` }}
+                          />
+                          <span className="text-[8px] text-muted-foreground">{d.day.slice(8)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    Spend accrues from live provider cost while miners run; earnings accumulate real
+                    chain emission deltas (rollups survive the telemetry retention window). Green =
+                    earned, blue = spend. Last {Math.min(14, econ.days.length)} active days shown.
+                  </p>
+                </div>
+              ) : (
+                <div className="mb-2 flex items-baseline gap-2">
+                  <span className="tabular text-display text-3xl font-bold tracking-tight">
+                    {formatCurrency(0)}
+                  </span>
+                  <span className="text-sm text-muted-foreground">· {formatTao(0)}</span>
+                </div>
+              )}
+              {!econ?.hasData && (
+                <div className="flex h-[200px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/50 text-center">
+                  <TrendingUp className="h-5 w-5 text-muted-foreground/50" />
+                  <p className="max-w-[260px] text-xs text-muted-foreground">
+                    No realized P&amp;L yet — spend and earnings rollups appear
+                    once a miner is running (spend) and registered on-chain
+                    (earnings).
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 

@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { getUidState } from "./metagraph";
 import { getDaemonView } from "./daemon-bridge";
 import { commitFinding, autoResolve } from "./triggers-core";
+import { accrueSpend } from "./economics";
 
 /**
  * DEVOPS-1 — the always-on DevOps monitor pass.
@@ -180,7 +181,9 @@ function aggregateGpus(gpus: GpuReading[]): {
 // The pass
 // ---------------------------------------------------------------------------
 
-export async function runDevopsPass(): Promise<DevopsPassResult> {
+export async function runDevopsPass(
+  opts: { accrueSpend?: boolean } = {}
+): Promise<DevopsPassResult> {
   const deps = await db.deployment.findMany({ where: { status: "started" } });
   const result: DevopsPassResult = {
     evaluatedAt: new Date().toISOString(),
@@ -194,6 +197,15 @@ export async function runDevopsPass(): Promise<DevopsPassResult> {
 
   for (const dep of deps) {
     result.deploymentsEvaluated++;
+
+    // WALLET-ECON-1 — accrue one 90s interval of provider cost for this
+    // started deployment. ONLY worker-scheduled passes accrue (the cadence
+    // is the clock); manual trigger runs must not inflate the ledger.
+    // Mock deployments never accrue — they are test-harness artifacts, not
+    // real rented GPUs.
+    if (opts.accrueSpend && dep.mode !== "mock") {
+      await accrueSpend(dep);
+    }
 
     // ---- Phase 2: sample + Phase 1: GPU health --------------------------
     const gpu = await evaluateGpuHealth(dep);

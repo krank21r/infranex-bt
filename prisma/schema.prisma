@@ -52,6 +52,12 @@ model Deployment {
   installStepsJson String?
   // Snapshot of the SubnetRequirementsProfile the plan was built from.
   requirementsJsonSnapshot String?
+  // WALLET-ECON-1 — optional reference to the wallet profile this deployment
+  // mines with (public metadata only; no wallet secrets live in the platform).
+  walletProfileId String?
+  // Registration burn (TAO) recorded when the hotkey's registration confirmed
+  // — the subnet burnCostTao at that block.
+  registrationBurnTao Float?
   // Registration lifecycle (Phase 2) — the miner runs BEFORE its hotkey is
   // registered; the platform tracks the on-chain transition.
   //   "unregistered" | "registered"   (null = nothing to check yet: not
@@ -621,4 +627,105 @@ model AgentNote {
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// WALLET-ECON-1 — live-mining persistence layer. Public wallet metadata,
+// platform settings, real spend/earnings rollups, and the security audit
+// trail. By design NO wallet secrets are stored anywhere: the coldkey
+// mnemonic stays offline (paper/laptop) and the hotkey private file lives
+// only on the mining host (hotkey-only policy).
+// ---------------------------------------------------------------------------
+
+// Named registry of PUBLIC bittensor wallet metadata — reusable across
+// deployments and displayed as "which wallet mines where".
+model WalletProfile {
+  id          String   @id @default(cuid())
+  label       String
+  walletName  String   // btcli wallet name (dir under ~/.bittensor/wallets/)
+  hotkeyName  String   // btcli hotkey name (dir under .../hotkeys/)
+  coldAddress String?  // SS58 public coldkey address (public info)
+  hotAddress  String?  // SS58 public hotkey address (public info)
+  notes       String   @default("")
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([walletName, hotkeyName])
+}
+
+// Singleton row (id = 1) — platform-level live-mining settings.
+model PlatformSettings {
+  id                     Int      @id @default(1)
+  // Bittensor network the platform targets: "finney" (mainnet) | "test".
+  chainNetwork           String   @default("finney")
+  defaultWalletProfileId String?
+  // Funding buffer the wallet-registration dialog recommends keeping on the
+  // coldkey (covers the registration burn + a safety margin).
+  registrationBufferTao  Float    @default(1)
+  // Master-key backup acknowledgment — every stored secret (provider keys,
+  // host credentials, webhook URLs) is encrypted under .devops-secret; if
+  // that file is lost the ciphertext is unreadable rubble. Operators mark
+  // the moment they've backed it up.
+  masterKeyBackedUpAt    DateTime?
+  updatedAt              DateTime @updatedAt
+}
+
+// Daily provider-spend accrual per deployment (UTC day). Written by the 90s
+// DevOps worker pass (worker-scheduled runs only — manual trigger runs do
+// not accrue). source: "estimate" (hourlyCost × uptime); a provider-billing
+// integration can upgrade rows later without touching consumers.
+model SpendLedger {
+  id           String   @id @default(cuid())
+  deploymentId String
+  day          String   // "2026-09-14" (UTC)
+  provider     String
+  gpuModel     String
+  hoursRun     Float    @default(0)
+  costUsd      Float    @default(0)
+  source       String   @default("estimate")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([deploymentId, day])
+  @@index([day])
+}
+
+// Daily earnings rollup per deployment (UTC day), fed by the UID-defense
+// chain samples (raw per-UID emission in rAO → TAO). Deltas accumulate into
+// this durable table so P&L history survives the ~6h UidSnapshot retention
+// window — this is what makes multi-day revenue charts real.
+model EarningsDaily {
+  id              String   @id @default(cuid())
+  deploymentId    String
+  hotkey          String
+  netuid          Int
+  day             String   // "2026-09-14" (UTC)
+  earnedTao       Float    @default(0)
+  earnedUsd       Float    @default(0)
+  taoPriceUsd     Float?
+  lastEmissionTao Float?
+  samples         Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([deploymentId, day])
+  @@index([day])
+}
+
+// Append-only audit trail: credential lifecycle, human approvals, sign-ins.
+// Never stores secrets — detail strings are hand-built sentences.
+model AuditLog {
+  id        String   @id @default(cuid())
+  // "provider-key.saved" | "provider-key.removed" | "host.saved" |
+  // "trigger.approved" | "trigger.acted" | "login.success" | "login.failed" | ...
+  action    String
+  actor     String   @default("system") // userId or "system"
+  target    String?
+  detail    String   @default("")
+  metaJson  String   @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([action])
 }

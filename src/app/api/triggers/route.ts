@@ -10,9 +10,17 @@ import { runUidDefensePass, getUidDefensePayload } from "@/lib/infranex/uid-defe
 import { runDevopsPass } from "@/lib/infranex/devops-monitor";
 import { runMinerMindsetPass } from "@/lib/infranex/miner-mindset";
 import { runServiceHealthPass } from "@/lib/infranex/service-health";
+import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
+import { logAudit } from "@/lib/infranex/audit";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 180;
+
+/** Actor attribution — the proxy already gates this route to sessions. */
+async function actorOf(req: NextRequest): Promise<string> {
+  const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value);
+  return session?.uid ?? "unknown";
+}
 
 // GET /api/triggers — open + recent events, plus UID-defense telemetry
 // (latest + 40-sample history per started deployment).
@@ -90,16 +98,34 @@ export async function POST(req: NextRequest) {
       case "approve": {
         if (!body.id) return NextResponse.json({ error: "id required" }, { status: 400 });
         const event = await approveTrigger(body.id);
+        await logAudit({
+          action: "trigger.approved",
+          actor: await actorOf(req),
+          target: body.id,
+          detail: `Trigger "${event?.kind ?? body.id}" approved — ${event?.title ?? ""}`,
+        });
         return NextResponse.json({ ok: true, event });
       }
       case "dismiss": {
         if (!body.id) return NextResponse.json({ error: "id required" }, { status: 400 });
         const event = await dismissTrigger(body.id);
+        await logAudit({
+          action: "trigger.dismissed",
+          actor: await actorOf(req),
+          target: body.id,
+          detail: `Trigger "${event?.kind ?? body.id}" dismissed — ${event?.title ?? ""}`,
+        });
         return NextResponse.json({ ok: true, event });
       }
       case "act": {
         if (!body.id) return NextResponse.json({ error: "id required" }, { status: 400 });
         const { event, action } = await actOnTrigger(body.id);
+        await logAudit({
+          action: "trigger.acted",
+          actor: await actorOf(req),
+          target: body.id,
+          detail: `Trigger "${event?.kind ?? body.id}" executed → ${action} — ${event?.title ?? ""}`,
+        });
         return NextResponse.json({ ok: true, event, action });
       }
       default:

@@ -32,6 +32,7 @@ import {
 import { cn, formatCurrency } from "@/lib/utils";
 import { useNetwork, mergeSubnets } from "@/lib/infranex/use-network";
 import { useMergedGpuOffers, type MergedGpuOffer } from "@/lib/infranex/use-gpu-offers";
+import { useWallets } from "@/lib/infranex/use-platform";
 import {
   useCreateDeployment,
   useDeploymentDetail,
@@ -84,6 +85,16 @@ export function DeployWizard({ open, onOpenChange, initialNetuid, initialOfferId
   const [offerId, setOfferId] = useState<string | null>(null);
   const [minerName, setMinerName] = useState("");
   const [walletName, setWalletName] = useState("infranex");
+  // WALLET-ECON-1 — saved wallet profiles prefill the wallet name (default
+  // profile wins) until the operator types their own.
+  const { data: walletProfiles } = useWallets();
+  const [walletTouched, setWalletTouched] = useState(false);
+  useEffect(() => {
+    if (!walletTouched && walletProfiles && walletProfiles.length > 0) {
+      const def = walletProfiles.find((w) => w.isDefault) ?? walletProfiles[0];
+      setWalletName(def.walletName);
+    }
+  }, [walletProfiles, walletTouched]);
   const [depId, setDepId] = useState<string | null>(null);
   const [regCtx, setRegCtx] = useState<RegistrationWizardContext | null>(null);
   const [regOpen, setRegOpen] = useState(false);
@@ -580,10 +591,35 @@ export function DeployWizard({ open, onOpenChange, initialNetuid, initialOfferId
                   <Input
                     id="wiz-wallet"
                     value={walletName}
-                    onChange={(e) => setWalletName(e.target.value)}
+                    onChange={(e) => {
+                      setWalletName(e.target.value);
+                      setWalletTouched(true);
+                    }}
                     placeholder="infranex"
                     className="mt-1"
                   />
+                  {walletProfiles && walletProfiles.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5">
+                      {walletProfiles.map((w) => (
+                        <button
+                          key={w.id}
+                          type="button"
+                          onClick={() => {
+                            setWalletName(w.walletName);
+                            setWalletTouched(true);
+                          }}
+                          className={cn(
+                            "rounded-full border px-2 py-0.5 text-[11px] transition-colors",
+                            walletName === w.walletName
+                              ? "border-primary/50 bg-primary/10 text-primary"
+                              : "border-border/60 text-muted-foreground hover:border-primary/40"
+                          )}
+                        >
+                          {w.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 

@@ -135,7 +135,7 @@ async function runDevopsWorker(): Promise<WorkerRunResult> {
   const workerName = "devops-monitor";
   let tasksProcessed = 0;
   try {
-    const devops = await runDevopsPass();
+    const devops = await runDevopsPass({ accrueSpend: true });
     await runTriggerPass();
     await runUidDefensePass();
     try {

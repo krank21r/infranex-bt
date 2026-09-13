@@ -63,6 +63,35 @@ export function isDecodableSs58(hotkey: string | null | undefined): boolean {
   }
 }
 
+/**
+ * WALLET-ECON-1 — record the subnet's current registration burn cost (TAO)
+ * on the deployment when a registration confirms. Reads the latest chain
+ * snapshot (no extra chain call). Best-effort: an economics detail must
+ * never fail the registration flow.
+ */
+async function recordRegistrationBurn(id: string, netuid: number): Promise<void> {
+  try {
+    const snap = await db.chainSnapshot.findFirst({
+      orderBy: { createdAt: "desc" },
+      select: { subnetsJson: true },
+    });
+    if (!snap) return;
+    const subnets = JSON.parse(snap.subnetsJson) as {
+      netuid?: number;
+      burnCostTao?: number | null;
+    }[];
+    const burn = subnets.find((s) => s.netuid === netuid)?.burnCostTao;
+    if (typeof burn === "number" && burn > 0) {
+      await db.deployment.update({
+        where: { id },
+        data: { registrationBurnTao: burn },
+      });
+    }
+  } catch {
+    // best effort
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Pure transition decision — unit-tested, no I/O.
 // ---------------------------------------------------------------------------
@@ -213,6 +242,9 @@ export async function checkRegistration(
       },
     });
     await mirrorTransition(id, next, state.uid, state.registrationBlock, state.cohort.registeredUids);
+    if (next === "registered" && state.uid !== null) {
+      await recordRegistrationBurn(id, row.netuid);
+    }
   } else {
     // No transition — still refresh the registration block when the chain
     // exposes a different one (e.g. re-registration recycled the UID).
@@ -382,7 +414,7 @@ export async function restartAfterRegistration(id: string): Promise<{ ok: boolea
  * downgrade path needs a deliberate, forced check).
  */
 export async function syncRegistrationFromUidState(
-  dep: { id: string; registrationState: string | null; registeredUid: number | null; registrationBlock: number | null },
+  dep: { id: string; netuid: number; registrationState: string | null; registeredUid: number | null; registrationBlock: number | null },
   state: { uid: number | null; registrationBlock: number | null }
 ): Promise<void> {
   if (state.uid === null) return;
@@ -406,4 +438,5 @@ export async function syncRegistrationFromUidState(
     },
   });
   await mirrorTransition(dep.id, "registered", state.uid, state.registrationBlock, 0);
+  await recordRegistrationBurn(dep.id, dep.netuid);
 }

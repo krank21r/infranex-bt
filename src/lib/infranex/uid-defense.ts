@@ -3,6 +3,7 @@ import { getUidState } from "./metagraph";
 import { commitFinding } from "./triggers-core";
 import { failoverFor } from "./miner-mindset";
 import { syncRegistrationFromUidState } from "./deployment/registration";
+import { rollupEarnings } from "./economics";
 import {
   blocksToHoursApprox,
   computeRemainingBlocks,
@@ -231,6 +232,18 @@ export async function runUidDefensePass(): Promise<{
           riskCodesJson: JSON.stringify(assessment.riskCodes),
         },
       });
+
+      // WALLET-ECON-1 — accumulate the RAW per-UID emission (rAO → TAO) into
+      // the durable daily rollup. UidSnapshot is a ~120-row rolling window;
+      // EarningsDaily is what makes multi-day P&L real.
+      const emissionTao =
+        state.uid !== null && state.vectors
+          ? (state.vectors.emissionRaw[state.uid] ?? 0) / 1e9
+          : null;
+      await rollupEarnings(
+        { id: dep.id, hotkey: dep.hotkey!, netuid: dep.netuid },
+        emissionTao
+      );
       // Retention: prune beyond 120 rows.
       if (history.length >= HISTORY_RETENTION) {
         const pruneIds = history.slice(HISTORY_RETENTION - 1).map((h) => h.id);

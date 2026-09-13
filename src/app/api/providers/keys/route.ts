@@ -10,6 +10,7 @@ import {
   invalidateProvidersCache,
   type ProviderId,
 } from "@/lib/infranex/providers";
+import { logAudit } from "@/lib/infranex/audit";
 
 // Provider API keys — manage from the GPU catalog. The plaintext key NEVER
 // leaves the server: GET returns a masked hint only, PUT encrypts at rest and
@@ -94,6 +95,7 @@ export async function PUT(req: NextRequest) {
   }
 
   const check = await validateProviderKey(provider, key);
+  const rowsBefore = await db.providerKey.findUnique({ where: { provider } });
   const now = new Date();
   const row = await db.providerKey.upsert({
     where: { provider },
@@ -113,6 +115,15 @@ export async function PUT(req: NextRequest) {
   });
   invalidateProvidersCache();
 
+  // WALLET-ECON-1 — credential lifecycle audit (never the key itself).
+  await logAudit({
+    action: "provider-key.saved",
+    actor: gate.session.uid,
+    target: provider,
+    detail: `${labelOf(provider)} API key saved — validation: ${check.status}.`,
+    meta: { status: check.status, replaced: Boolean(rowsBefore) },
+  });
+
   return NextResponse.json({ key: serialize(row), check });
 }
 
@@ -127,7 +138,13 @@ export async function DELETE(req: NextRequest) {
   if (!isProviderId(provider)) {
     return NextResponse.json({ error: "Unknown provider." }, { status: 400 });
   }
-  await db.providerKey.deleteMany({ where: { provider } });
+  const removed = await db.providerKey.deleteMany({ where: { provider } });
   invalidateProvidersCache();
+  await logAudit({
+    action: "provider-key.removed",
+    actor: gate.session.uid,
+    target: provider,
+    detail: `${labelOf(provider)} API key removed (${removed.count} row(s)).`,
+  });
   return NextResponse.json({ ok: true });
 }

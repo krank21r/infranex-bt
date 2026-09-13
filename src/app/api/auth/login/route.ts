@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { verifyLogin } from "@/lib/auth-users";
 import { createSessionToken, sessionCookieOptions, SESSION_COOKIE } from "@/lib/auth";
+import { logAudit } from "@/lib/infranex/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +74,13 @@ export async function POST(req: NextRequest) {
   const user = await verifyLogin(userId, code);
   if (!user) {
     recordFailure(ip);
+    // WALLET-ECON-1 — failed sign-ins are audited (userId attempt + IP
+    // class; never the code itself).
+    await logAudit({
+      action: "login.failed",
+      actor: userId || "unknown",
+      detail: `Failed sign-in attempt for "${userId}" from ${ip}.`,
+    });
     // Uniform message — do not reveal whether the ID exists.
     return NextResponse.json(
       { error: "Invalid user ID or access code." },
@@ -85,6 +93,11 @@ export async function POST(req: NextRequest) {
     where: { userId: user.userId },
     data: { lastLoginAt: new Date() },
   }).catch(() => undefined); // never block a valid login on bookkeeping
+  await logAudit({
+    action: "login.success",
+    actor: user.userId,
+    detail: `${user.userId} (${user.role}) signed in from ${ip}.`,
+  });
 
   const token = await createSessionToken(user);
   const res = NextResponse.json({

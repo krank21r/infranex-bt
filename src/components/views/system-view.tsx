@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,12 +19,29 @@ import {
   ArrowRight,
   Terminal,
   Clock,
+  Wallet,
+  History,
+  ShieldCheck,
+  KeyRound,
+  Star,
 } from "lucide-react";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { useNetwork } from "@/lib/infranex/use-network";
 import { useHealthChecks } from "@/lib/infranex/use-health-checks";
 import { useErrorLog } from "@/lib/infranex/use-error-log";
 import { useWorkerStatus, useTriggerWorkers } from "@/lib/infranex/use-worker-status";
+import {
+  useWallets,
+  useCreateWallet,
+  useUpdateWallet,
+  useDeleteWallet,
+  usePlatformSettings,
+  useSavePlatformSettings,
+  useAckMasterKeyBackup,
+  useAudit,
+  type WalletProfile,
+} from "@/lib/infranex/use-platform";
+import { useQuery } from "@tanstack/react-query";
 import type { ViewKey } from "@/lib/infranex/types";
 
 interface SystemViewProps {
@@ -256,6 +274,9 @@ export function SystemView({ onNavigate }: SystemViewProps) {
 
       {/* Background Workers */}
       <BackgroundWorkersSection />
+
+      {/* WALLET-ECON-1 — live-mining persistence: settings, wallets, audit */}
+      <LiveMiningSections />
 
       {/* Quick links */}
       <Card className="border-border/60 bg-card/40 backdrop-blur-sm">
@@ -591,6 +612,390 @@ function BackgroundWorkersSection() {
             })
           )}
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// WALLET-ECON-1 — live-mining persistence sections.
+// ---------------------------------------------------------------------------
+
+function useIsAdmin(): boolean {
+  const { data: session } = useQuery<{ user: { role: string } }>({
+    queryKey: ["auth-session"],
+    queryFn: async () => {
+      const res = await fetch("/api/auth/session", { cache: "no-store" });
+      if (!res.ok) throw new Error("no session");
+      return res.json();
+    },
+    staleTime: 60_000,
+  });
+  return session?.user?.role === "admin";
+}
+
+function LiveMiningSections() {
+  return (
+    <div className="space-y-6">
+      <WalletProfilesSection />
+      <PlatformSettingsSection />
+      <AuditLogSection />
+    </div>
+  );
+}
+
+// --- Wallet profiles -------------------------------------------------------
+
+const EMPTY_WALLET_FORM = {
+  label: "",
+  walletName: "",
+  hotkeyName: "",
+  coldAddress: "",
+  hotAddress: "",
+  notes: "",
+};
+
+function WalletProfilesSection() {
+  const { data: wallets, isLoading } = useWallets();
+  const createMut = useCreateWallet();
+  const updateMut = useUpdateWallet();
+  const deleteMut = useDeleteWallet();
+  const [form, setForm] = useState(EMPTY_WALLET_FORM);
+  const [adding, setAdding] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const submit = () => {
+    setFormError(null);
+    createMut.mutate(
+      {
+        label: form.label,
+        walletName: form.walletName,
+        hotkeyName: form.hotkeyName,
+        ...(form.coldAddress ? { coldAddress: form.coldAddress } : {}),
+        ...(form.hotAddress ? { hotAddress: form.hotAddress } : {}),
+        ...(form.notes ? { notes: form.notes } : {}),
+      },
+      {
+        onSuccess: () => {
+          setForm(EMPTY_WALLET_FORM);
+          setAdding(false);
+        },
+        onError: (e) => setFormError(e.message),
+      }
+    );
+  };
+
+  return (
+    <Card className="border-border/60 bg-card/40 backdrop-blur-sm">
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
+        <div>
+          <p className="text-eyebrow text-muted-foreground">
+            Public metadata only · secrets stay offline
+          </p>
+          <CardTitle className="text-display flex items-center gap-2 text-xl">
+            <Wallet className="h-4 w-4 text-primary" />
+            Wallet profiles
+          </CardTitle>
+          <p className="mt-1 max-w-2xl text-xs text-muted-foreground">
+            Named references for the bittensor wallets your miners use — btcli
+            wallet/hotkey names and their PUBLIC SS58 addresses. The platform
+            never stores mnemonics or private keys: the coldkey stays on your
+            laptop, the hotkey file lives only on the mining host.
+          </p>
+        </div>
+        {!adding && (
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setAdding(true)}>
+            <KeyRound className="h-3.5 w-3.5" /> Add profile
+          </Button>
+        )}
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {isLoading ? (
+          <p className="py-4 text-center text-sm text-muted-foreground">Loading wallets…</p>
+        ) : !wallets || wallets.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border/50 p-4 text-center text-sm text-muted-foreground">
+            No wallet profiles yet. Add one before your first live deployment so
+            the hotkey step of the wizard can prefill the names.
+          </div>
+        ) : (
+          wallets.map((w) => (
+            <div
+              key={w.id}
+              className="flex flex-col gap-2 rounded-lg border border-border/40 bg-background/60 px-3 py-2.5 sm:flex-row sm:items-center"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="truncate text-sm font-medium">{w.label}</p>
+                  {w.isDefault && (
+                    <Badge variant="outline" className="gap-1 border-primary/40 text-[10px] text-primary">
+                      <Star className="h-2.5 w-2.5" /> default
+                    </Badge>
+                  )}
+                </div>
+                <p className="mono truncate text-xs text-muted-foreground">
+                  {w.walletName} / {w.hotkeyName}
+                  {w.hotAddress ? ` · ${w.hotAddress.slice(0, 10)}…${w.hotAddress.slice(-6)}` : ""}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {!w.isDefault && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1 px-2 text-xs"
+                    disabled={updateMut.isPending}
+                    onClick={() => updateMut.mutate({ id: w.id, isDefault: true })}
+                  >
+                    <Star className="h-3 w-3" /> Make default
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1 px-2 text-xs text-destructive hover:text-destructive"
+                  disabled={deleteMut.isPending}
+                  onClick={() => {
+                    if (confirm(`Remove wallet profile "${w.label}"? Deployments using it are detached, not deleted.`)) {
+                      deleteMut.mutate(w.id);
+                    }
+                  }}
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+          ))
+        )}
+
+        {adding && (
+          <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/[0.03] p-4">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <Field label="Label" value={form.label} onChange={(v) => setForm({ ...form, label: v })} placeholder="Main miner wallet" />
+              <Field label="Wallet name (btcli)" value={form.walletName} onChange={(v) => setForm({ ...form, walletName: v })} placeholder="default" />
+              <Field label="Hotkey name (btcli)" value={form.hotkeyName} onChange={(v) => setForm({ ...form, hotkeyName: v })} placeholder="miner" />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Coldkey SS58 (public, optional)" value={form.coldAddress} onChange={(v) => setForm({ ...form, coldAddress: v })} placeholder="5Abc…" />
+              <Field label="Hotkey SS58 (public, optional)" value={form.hotAddress} onChange={(v) => setForm({ ...form, hotAddress: v })} placeholder="5Def…" />
+            </div>
+            {formError && <p className="text-xs text-destructive">{formError}</p>}
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={submit} disabled={createMut.isPending}>
+                {createMut.isPending ? "Saving…" : "Save profile"}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => { setAdding(false); setFormError(null); }}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="text-[10px] text-muted-foreground">{label}</span>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="mono mt-1 w-full rounded-md border border-border/60 bg-background/60 px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+      />
+    </label>
+  );
+}
+
+// --- Platform settings + master-key backup --------------------------------
+
+function PlatformSettingsSection() {
+  const { data: settings } = usePlatformSettings();
+  const saveMut = useSavePlatformSettings();
+  const ackMut = useAckMasterKeyBackup();
+  const isAdmin = useIsAdmin();
+  const [network, setNetwork] = useState<string>("");
+  const [buffer, setBuffer] = useState<string>("");
+
+  const effectiveNetwork = network || settings?.chainNetwork || "finney";
+  const effectiveBuffer = buffer || String(settings?.registrationBufferTao ?? 1);
+
+  return (
+    <Card className="border-border/60 bg-card/40 backdrop-blur-sm">
+      <CardHeader>
+        <p className="text-eyebrow text-muted-foreground">Live mining · platform</p>
+        <CardTitle className="text-display flex items-center gap-2 text-xl">
+          <ShieldCheck className="h-4 w-4 text-primary" />
+          Platform settings
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="grid gap-4 lg:grid-cols-2">
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="text-[10px] text-muted-foreground">Chain network</span>
+              <select
+                value={effectiveNetwork}
+                disabled={!isAdmin}
+                onChange={(e) => setNetwork(e.target.value)}
+                className="mono mt-1 w-full rounded-md border border-border/60 bg-background/60 px-2 py-1.5 text-sm outline-none focus:border-primary/50"
+              >
+                <option value="finney">finney (mainnet)</option>
+                <option value="test">test</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-[10px] text-muted-foreground">Registration buffer (TAO)</span>
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                value={effectiveBuffer}
+                disabled={!isAdmin}
+                onChange={(e) => setBuffer(e.target.value)}
+                className="mono mt-1 w-full rounded-md border border-border/60 bg-background/60 px-2.5 py-1.5 text-sm outline-none focus:border-primary/50"
+              />
+            </label>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            The buffer is what the wallet-registration dialog asks you to keep on
+            the coldkey — it covers the subnet&apos;s registration burn plus a
+            safety margin. {isAdmin ? "Changes are audited." : "Admin role required to change."}
+          </p>
+          {isAdmin && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={saveMut.isPending || (!network && !buffer)}
+              onClick={() =>
+                saveMut.mutate({
+                  chainNetwork: effectiveNetwork,
+                  registrationBufferTao: Number(effectiveBuffer),
+                })
+              }
+            >
+              {saveMut.isPending ? "Saving…" : "Save settings"}
+            </Button>
+          )}
+        </div>
+
+        <div className="rounded-lg border border-border/40 bg-background/60 p-4">
+          <div className="flex items-center gap-2">
+            <KeyRound className="h-4 w-4 text-warning" />
+            <p className="text-sm font-medium">Master encryption key backup</p>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Every stored secret — provider API keys, host credentials, webhook
+            URLs — is encrypted under <span className="mono">.devops-secret</span> in the
+            app directory. If that file is lost, the stored ciphertext becomes
+            unreadable. Back up a copy somewhere safe (password manager, offline
+            vault) and record it here.
+          </p>
+          <div className="mt-3 flex items-center justify-between gap-2">
+            {settings?.masterKeyBackedUpAt ? (
+              <Badge variant="outline" className="gap-1 border-success/40 text-success">
+                <CheckCircle2 className="h-3 w-3" />
+                Backed up {formatRelativeTime(new Date(settings.masterKeyBackedUpAt))}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="gap-1 border-warning/40 text-warning">
+                <AlertTriangle className="h-3 w-3" /> Not acknowledged yet
+              </Badge>
+            )}
+            {isAdmin && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={ackMut.isPending}
+                onClick={() => {
+                  if (confirm("Confirm you have backed up a copy of .devops-secret somewhere safe.")) {
+                    ackMut.mutate();
+                  }
+                }}
+              >
+                I&apos;ve backed it up
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// --- Audit log -------------------------------------------------------------
+
+const ACTION_STYLES: Record<string, string> = {
+  "provider-key.saved": "border-primary/40 text-primary",
+  "provider-key.removed": "border-warning/40 text-warning",
+  "wallet.saved": "border-primary/40 text-primary",
+  "wallet.removed": "border-warning/40 text-warning",
+  "trigger.approved": "border-success/40 text-success",
+  "trigger.acted": "border-success/40 text-success",
+  "trigger.dismissed": "border-muted-foreground/40 text-muted-foreground",
+  "login.success": "border-success/40 text-success",
+  "login.failed": "border-destructive/40 text-destructive",
+  "settings.updated": "border-primary/40 text-primary",
+  "settings.master-key-acked": "border-success/40 text-success",
+};
+
+function AuditLogSection() {
+  const isAdmin = useIsAdmin();
+  const { data: entries, isLoading } = useAudit(50);
+  if (!isAdmin) return null;
+
+  return (
+    <Card className="border-border/60 bg-card/40 backdrop-blur-sm">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <div>
+          <p className="text-eyebrow text-muted-foreground">Append-only · no delete API</p>
+          <CardTitle className="text-display flex items-center gap-2 text-xl">
+            <History className="h-4 w-4 text-primary" />
+            Audit trail
+          </CardTitle>
+        </div>
+        <Badge variant="outline" className="mono text-[10px]">
+          {entries?.length ?? 0} recent
+        </Badge>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <p className="py-4 text-center text-sm text-muted-foreground">Loading audit trail…</p>
+        ) : !entries || entries.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-border/50 p-4 text-center text-sm text-muted-foreground">
+            No audited events yet — credential changes, approvals and sign-ins will appear here.
+          </p>
+        ) : (
+          <div className="max-h-80 space-y-1.5 overflow-y-auto custom-scroll">
+            {entries.map((e) => (
+              <div
+                key={e.id}
+                className="flex items-start gap-2.5 rounded-lg border border-border/30 bg-background/60 px-3 py-2"
+              >
+                <Badge variant="outline" className={cn("mono shrink-0 text-[10px]", ACTION_STYLES[e.action] ?? "")}>
+                  {e.action}
+                </Badge>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs text-foreground/90">{e.detail}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {e.actor} · {formatRelativeTime(new Date(e.createdAt))}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
