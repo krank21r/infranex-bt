@@ -173,7 +173,7 @@ td b { color: var(--c-primary); }
     <span class="chip">HOTKEY-ONLY SECURITY</span>
   </div>
   <div class="cover-meta">
-    <div>Edition <b>v1.2</b> · September 14, 2026</div>
+    <div>Edition <b>v1.3</b> · September 14, 2026</div>
     <div>Network <b>Bittensor Finney (mainnet)</b></div>
   </div>
 </div>
@@ -385,6 +385,7 @@ It is the ONLY way to recover your funds if you lose access:</span>
     <div class="rule"></div>
   </div>
   <p class="lead">Your miner is installed and healthy&nbsp;— <b>now</b> you pay the registration fee. The burn is not a transfer you make by hand: it happens automatically inside the register command, taken from your coldkey the moment you confirm. In exchange your hotkey gets a <b>UID</b> on SN64, and both the immunity clock and your earning window start.</p>
+  <div class="note"><b>The gate before you burn:</b> the registration fee is the same on every subnet, so fail <i>cheap</i> first&nbsp;— run the free <b>Judge Lab</b> pre-flight (Part H, 10 minutes, $0) and confirm your spec scores <b>competitive or better</b> against SN64's judge. If it does, come straight back here and register. If it doesn't, Part H also shows you the highest-leverage fixes&nbsp;— much cheaper to apply them now than to discover a weak score after the burn.</div>
 
   <div class="step">
     <div class="step-head"><span class="no">E1</span><span class="step-title">Register the hotkey (wizard step 6, on your laptop)</span></div>
@@ -518,6 +519,45 @@ emission: 0 rAO  block: #9,061,842</span></pre></div>
 <span class="out">infranex    miner    finney    0.0831      $19.44   ← growing weekly ✓</span></pre></div>
   <div class="note"><b>What you never have to do manually:</b> spend accrual, GPU utilisation and temperature sampling, incentive sampling, UID Defense scoring, daily earnings rollups, and the append-only audit log all run on the platform's 90-second worker passes&nbsp;— and alerts dispatch to your webhook the moment a trigger fires. <b>The whole daily routine in one line:</b> deployment card green → UID Defense healthy → GPU% and incentive nonzero → P&amp;L not bleeding → RunPod balance funded → done.</div>
 
+  <!-- ========== PART H : JUDGE LAB ========== -->
+  <div class="chapter-header" style="margin-top:26px">
+    <div class="kicker">Part H · pre-flight &amp; ongoing · $0 · ~10 min</div>
+    <h1 class="chapter">Judge Lab&nbsp;— Test Before You Burn</h1>
+    <div class="rule"></div>
+  </div>
+  <p class="lead">Every subnet has a <b>judge</b>&nbsp;— the validator that scores miners and decides your incentive. Judges are not alike: one pays for raw speed, another for output quality, another for the cheapest price. Judge Lab (nav <b>04</b>) reads the subnet's <i>actual validator code</i>, extracts what it rewards and how brutally it pays, then <b>simulates your miner spec against it</b>&nbsp;— all before you spend a rupee. It is the only place in this guide where failing is free.</p>
+  <div class="step">
+    <div class="step-head"><span class="no">H-1</span><span class="step-title">Mine the judge profile&nbsp;— SN64</span></div>
+    <p class="clickpath"><span class="click">Judge Lab 04</span><span class="sep">→</span>pick <b>α64 · Chutes</b><span class="sep">→</span><b>Re-mine profile</b></p>
+    <p>The lab resolves the subnet's repo from on-chain identity, scans the validator source for scoring evidence (<i>24 evidence hits</i> for Chutes), and classifies the judge into an archetype. Chutes comes back as <b>Market Clearing</b> at <b>66% profile confidence</b>&nbsp;— the lab tells you how much code evidence it found, so you know how much to trust the model.</p>
+  </div>
+  <div class="step">
+    <div class="step-head"><span class="no">H-2</span><span class="step-title">Read the profile&nbsp;— what the judge pays for, and how brutally</span></div>
+    <p>Two things matter. <b>Composite weights</b>&nbsp;— for SN64: Price Competitiveness 58%, Throughput 17%, Response Speed 12%, Uptime 7%, Quality 5%, Resource Fit 2%. Translation: on Chutes, a cheap, fast miner beats a brilliant-but-pricey one. <b>Cohort brutality</b>&nbsp;— <i>Brutal 62/100</i>: 256 miners registered, only 17 earning (6.6% earn ratio), and the top 10% of earners take 30% of the incentive. This is the same "reward concentration" risk the Opportunities verdict prices in&nbsp;— here you see it raw.</p>
+  </div>
+  <div class="step">
+    <div class="step-head"><span class="no">H-3</span><span class="step-title">Set your real spec and run the simulation</span></div>
+    <p>In the <b>Mock-validator simulator</b>, dial the sliders to what your 4090 will actually run: <b>2.00s</b> response latency, <b>99.50%</b> uptime, <b>80%</b> quality, <b>25 units/s</b> throughput, <b>$0.50</b>/1M tokens. Then <b>Run simulation</b>. The scoring curves are deterministic&nbsp;— same spec, same result&nbsp;— so you can iterate freely.</p>
+  </div>
+  <div class="step">
+    <div class="step-head"><span class="no">H-4</span><span class="step-title">Read the verdict and the levers</span></div>
+    <p>The example run scores <b>62.1</b>&nbsp;— verdict <b>competitive</b>, estimated cohort percentile <b>~p82</b>, <b>1.36×</b> the cohort median. Below the numbers: a per-dimension breakdown (speed 0.98, uptime 0.90, quality 0.77&nbsp;— price only 0.50, the weak axis on a Market Clearing judge) and the <b>highest-leverage fixes</b> ranked by composite points gained: <i>+14.5 cut asking price</i>, <i>+3.6 increase throughput</i>, <i>+0.7 resource fit</i>. Fix what is cheap to fix, re-run, and watch the composite move.</p>
+  </div>
+  <figure>
+    <img src="images/s18-judge-lab.png" alt="Judge Lab with SN64 profile and simulation verdict">
+    <figcaption><b>Fig H-1.</b> Judge Lab on SN64&nbsp;— left: the mined judge profile (Market Clearing, 66% confidence, brutality 62/100, composite weights with Price at 58%); right: the mock-validator simulator at the 4090 default spec and its verdict&nbsp;— composite 62.1, <i>competitive</i>, ~p82 percentile, 1.36× vs median&nbsp;— with the ranked highest-leverage fixes.</figcaption>
+  </figure>
+  <table>
+    <thead><tr><th style="width:22%">Verdict</th><th style="width:20%">Composite</th><th>What it means for your burn</th></tr></thead>
+    <tbody>
+      <tr><td><b>strong</b></td><td>≥ 75</td><td>Green light&nbsp;— top of the cohort; register with confidence.</td></tr>
+      <tr><td><b>competitive</b></td><td>60–74</td><td><b>The pass bar</b>&nbsp;— viable mid-pack seat, above-median earnings. Register.</td></tr>
+      <tr><td><b>marginal</b></td><td>45–59</td><td>Apply the listed fixes first&nbsp;— burning now locks in a weak seat.</td></tr>
+      <tr><td><b>weak</b></td><td>&lt; 45</td><td>Do not burn on this subnet with this spec&nbsp;— re-spec or change subnet.</td></tr>
+    </tbody>
+  </table>
+  <div class="note"><b>The pre-burn rule:</b> register only when the simulation says <b>competitive (≥ 60) <i>and</i> above 1.00× vs median</b>&nbsp;— that is the cheapest insurance this guide can buy, because the alternative way to learn your score costs the burn plus weeks of rent. <b>Honest caveat</b> (the lab prints it too): this is a deterministic model of the judge built from its code&nbsp;— not the validator itself. Confidence % tells you how strong the evidence was; calibrate with small stakes. <b>When to re-run:</b> before your first registration (the gate note in Part E), after any spec/config change, whenever Monitoring shows incentive drifting down, and as part of the Part G.2 weekly cadence&nbsp;— the judge's weights shift when the subnet updates its validator.</div>
+
   <!-- ========== CHAPTER 7 : BINANCE ========== -->
   <div class="chapter-header">
     <div class="kicker">Chapter 7 · ~10 minutes · exchange-side</div>
@@ -587,7 +627,7 @@ emission: 0 rAO  block: #9,061,842</span></pre></div>
   <p style="font-size:13.5px">Next moves when ready: scale to a second miner (same wallet, new hotkey&nbsp;— Part B again), or wire a real Slack/Discord webhook so alerts follow you. And when you terminate any pod&nbsp;— Terminate, never Stop.</p>
   <div class="end-meta">
     <div>INFRANEX BT · Operator Handbook</div>
-    <div>gpu-miner-setup-guide · v1.2</div>
+    <div>gpu-miner-setup-guide · v1.3</div>
   </div>
 </div>
 
