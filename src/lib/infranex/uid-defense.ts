@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { getUidState } from "./metagraph";
 import { commitFinding } from "./triggers-core";
+import { failoverFor } from "./miner-mindset";
 import { syncRegistrationFromUidState } from "./deployment/registration";
 import {
   blocksToHoursApprox,
@@ -245,6 +246,10 @@ export async function runUidDefensePass(): Promise<{
           assessment.riskCodes.includes("NOT_REGISTERED")
             ? `Registration LOST on α${dep.netuid} ${dep.subnetName}`
             : `Deregistration risk on α${dep.netuid} — ${assessment.riskCodes.join(", ")}`;
+        // DEVOPS-3 — experienced-miner failover reflex: a critical incentive
+        // collapse/decline gets an automatic fallback plan (fallback serving
+        // profile + restart) instead of a bare restart.
+        const failover = failoverFor(assessment.riskCodes, severity);
         await commitFinding({
           kind: "DEREG_RISK",
           severity,
@@ -259,12 +264,25 @@ export async function runUidDefensePass(): Promise<{
             incentive: state.uid !== null ? state.vectors?.incentive[state.uid] ?? null : null,
             cohort: state.cohort,
             immunity: buildImmunityInfo(state),
+            suggestedAction: failover ? "failover" : undefined,
+            failoverPlan: failover
+              ? {
+                  strategy: "fallback serving profile + restart",
+                  env: { INFANEX_FAILOVER: "1" },
+                  note: "On approval the engine pushes the failover env via the daemon (apply_config) and the miner restarts in the fallback profile — the same reflex pros run when incentive drops.",
+                }
+              : undefined,
             sampledAt: new Date().toISOString(),
           },
           deploymentId: dep.id,
           netuid: dep.netuid,
-          runbook:
-            assessment.riskCodes.includes("NOT_REGISTERED")
+          runbook: failover
+            ? [
+                "Check validator rejections in the miner logs (version, latency, quality).",
+                "Approve to fail over: fallback serving profile is pushed on the GPU and the miner restarts.",
+                "If underperformance persists after failover, switch subnets from the DevOps board.",
+              ]
+            : assessment.riskCodes.includes("NOT_REGISTERED")
               ? [
                   "The hotkey is no longer registered — income is zero until re-registered.",
                   "Re-register on this subnet (burn or recycle), then update the deployment hotkey if changed.",

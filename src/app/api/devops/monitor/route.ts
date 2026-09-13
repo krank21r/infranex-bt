@@ -4,6 +4,12 @@ import { fetchMonitoringOverview } from "@/lib/infranex/monitoring";
 import { getDaemonView } from "@/lib/infranex/daemon-bridge";
 import { listTriggerEvents } from "@/lib/infranex/triggers";
 import { DEVOPS_THRESHOLDS } from "@/lib/infranex/devops-monitor";
+import {
+  buildMinerStrategyPosture,
+  MINDSET_THRESHOLDS,
+  type MinerStrategyPosture,
+} from "@/lib/infranex/miner-mindset";
+import { fetchLiveSnapshot, type LiveNetworkSnapshot } from "@/lib/infranex/chain";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -77,6 +83,7 @@ export interface DevopsMiner {
     roiPercent: number | null;
   };
   alerts: { level: string; code: string; message: string }[];
+  strategy: MinerStrategyPosture;
 }
 
 export interface DevopsMonitorPayload {
@@ -95,6 +102,7 @@ export interface DevopsMonitorPayload {
   recentEvents: unknown[];
   lastPass: { at: string; status: string; durationMs: number; evaluated: number } | null;
   thresholds: typeof DEVOPS_THRESHOLDS;
+  mindsetThresholds: typeof MINDSET_THRESHOLDS;
 }
 
 // ---------------------------------------------------------------------------
@@ -106,9 +114,10 @@ export async function GET() {
       return NextResponse.json(cached.payload);
     }
 
-    const [overview, events] = await Promise.all([
+    const [overview, events, snapshot] = await Promise.all([
       fetchMonitoringOverview(),
       listTriggerEvents().catch(() => ({ open: [], recent: [] })),
+      fetchLiveSnapshot().catch(() => null) as Promise<LiveNetworkSnapshot | null>,
     ]);
 
     const started = overview.deployments.filter((d) => d.status === "started");
@@ -242,6 +251,28 @@ export async function GET() {
           roiPercent: dep.monitoring.rewards.roiPercent,
         },
         alerts,
+        strategy: buildMinerStrategyPosture({
+          netuid: dep.netuid,
+          mode: dep.mode,
+          uid: uid
+            ? {
+                riskLevel: uid.riskLevel,
+                validatorTrust: uid.validatorTrust,
+                consensus: uid.consensus,
+              }
+            : null,
+          recentSamples: history.slice(0, 3).map((h) => ({
+            utilPct: h.gpuUtilPct,
+            memRatio:
+              h.memTotalMb && h.memTotalMb > 0
+                ? (h.memUsedMb ?? 0) / h.memTotalMb
+                : null,
+          })),
+          openKinds: events.open
+            .filter((e) => e.deploymentId === dep.id)
+            .map((e) => e.kind),
+          snapshot,
+        }),
       });
     }
 
@@ -274,6 +305,7 @@ export async function GET() {
           }
         : null,
       thresholds: DEVOPS_THRESHOLDS,
+      mindsetThresholds: MINDSET_THRESHOLDS,
     };
 
     globalForCache.__devopsMonitorCache = { at: Date.now(), payload };

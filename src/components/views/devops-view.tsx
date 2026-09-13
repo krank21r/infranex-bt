@@ -20,12 +20,16 @@ import {
   ShieldAlert,
   ServerCog,
   HeartPulse,
+  TrendingUp,
+  Cpu,
+  BrainCircuit,
 } from "lucide-react";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { useDevopsMonitor } from "@/lib/infranex/use-devops-monitor";
 import { useTriggerActions, type TriggerEventDTO } from "@/lib/infranex/use-triggers";
 import type { ViewKey } from "@/lib/infranex/types";
 import { MinerOpsCard } from "@/components/cards/devops/miner-ops-card";
+import { StrategyBoard } from "@/components/cards/devops/strategy-board";
 
 /**
  * DEVOPS-1 — the DevOps Engine view. One live cockpit for every running
@@ -44,6 +48,9 @@ const KIND_META: Record<
   DEREG_RISK: { label: "DEREG-RISK", icon: ShieldAlert, chip: "border-violet-500/40 bg-violet-500/10 text-violet-300" },
   GPU_HEALTH: { label: "GPU HEALTH", icon: Thermometer, chip: "border-orange-500/40 bg-orange-500/10 text-orange-300" },
   SUBNET_DRIFT: { label: "SUBNET DRIFT", icon: Network, chip: "border-cyan-500/40 bg-cyan-500/10 text-cyan-300" },
+  // DEVOPS-3 — Miner Mindset strategy events.
+  ARBITRAGE: { label: "ARBITRAGE", icon: TrendingUp, chip: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300" },
+  RUNTIME_OPT: { label: "RUNTIME OPT", icon: Cpu, chip: "border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-300" },
 };
 
 export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void }) {
@@ -58,13 +65,31 @@ export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void })
   const recent = data?.recentEvents ?? [];
   const summary = data?.summary;
 
-  // DEVOPS-2 — drift events with an executable GPU action get the
-  // "Apply to GPU" label; everything else keeps the generic Execute.
+  // DEVOPS-2/3 — events with an executable GPU action get the cyan
+  // "GPU action on approval" chip and the "Apply to GPU" button label.
   const gpuActionOf = (ev: TriggerEventDTO): { action: string; label: string } | null => {
-    if (ev.kind !== "SUBNET_DRIFT") return null;
     const a = typeof ev.evidence?.suggestedAction === "string" ? ev.evidence.suggestedAction : null;
-    if (a === "resync_config") return { action: a, label: "Re-sync miner config on the GPU" };
-    if (a === "restart") return { action: a, label: "Restart miner to re-sync metagraph" };
+    if (ev.kind === "SUBNET_DRIFT") {
+      if (a === "resync_config") return { action: a, label: "Re-sync miner config on the GPU" };
+      if (a === "restart") return { action: a, label: "Restart miner to re-sync metagraph" };
+      return null;
+    }
+    if (ev.kind === "ARBITRAGE") {
+      if (a === "recycle") return { action: a, label: "Recycle compute — spin down this miner & free the GPU" };
+      return null;
+    }
+    if (ev.kind === "RUNTIME_OPT") {
+      if (a === "apply_runtime") {
+        const recipes = Array.isArray(ev.evidence?.recipes) ? (ev.evidence.recipes as { label?: string }[]) : [];
+        const label = recipes.map((r) => r?.label).filter(Boolean).join(" + ") || "accelerated serving profile";
+        return { action: a, label: `Apply ${label} on the GPU` };
+      }
+      return null;
+    }
+    if (ev.kind === "DEREG_RISK") {
+      if (a === "failover") return { action: a, label: "Fail over to the fallback profile on the GPU" };
+      return null;
+    }
     return null;
   };
 
@@ -166,6 +191,24 @@ export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void })
           {note}
         </p>
       )}
+
+      {/* DEVOPS-3 — Miner Mindset strategy board */}
+      <Card className="border-border/60 bg-card/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+            <span className="flex items-center gap-2">
+              <BrainCircuit className="h-4 w-4 text-primary" aria-hidden />
+              Miner Mindset strategy board
+            </span>
+            <span className="mono text-[10px] font-normal text-muted-foreground/60">
+              validators decide income · compute is liquid · runtimes are tunable
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <StrategyBoard miners={miners} />
+        </CardContent>
+      </Card>
 
       {/* Recommendations inbox */}
       <Card className="border-border/60 bg-card/50">

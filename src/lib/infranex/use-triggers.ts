@@ -5,7 +5,15 @@ import type { UidImmunityInfo } from "@/lib/infranex/immunity";
 
 export interface TriggerEventDTO {
   id: string;
-  kind: "RE_SYNC" | "SCALE" | "KILL" | "DEREG_RISK" | "GPU_HEALTH" | "SUBNET_DRIFT";
+  kind:
+    | "RE_SYNC"
+    | "SCALE"
+    | "KILL"
+    | "DEREG_RISK"
+    | "GPU_HEALTH"
+    | "SUBNET_DRIFT"
+    | "ARBITRAGE"
+    | "RUNTIME_OPT";
   severity: string;
   status: "open" | "approved" | "acted" | "dismissed" | "resolved";
   title: string;

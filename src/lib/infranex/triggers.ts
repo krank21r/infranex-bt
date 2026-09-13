@@ -24,7 +24,11 @@ export { TRIGGER_KIND_META, type TriggerEventDTO } from "./triggers-core";
  *   RE_SYNC  — pod is down / not running for consecutive passes.
  *   SCALE    — mining at a clear loss (cost >> revenue), consider switching.
  *   KILL     — escalation: re-sync already acted, pod STILL down → terminate.
- *   DEREG_RISK — added by the UID Defense layer (uid-defense.ts).
+ *   DEREG_RISK — added by the UID Defense layer (uid-defense.ts); critical
+ *                incentive collapses carry a failover plan (DEVOPS-3).
+ *   GPU_HEALTH / SUBNET_DRIFT — added by the DevOps monitor (devops-monitor.ts).
+ *   ARBITRAGE / RUNTIME_OPT — added by the Miner Mindset strategy pass
+ *                (miner-mindset.ts): compute recycling + runtime upgrades.
  */
 
 // ---------------------------------------------------------------------------
@@ -267,8 +271,83 @@ export async function actOnTrigger(id: string): Promise<{ event: TriggerEventDTO
   } else if (kind === "SCALE") {
     actionNote = "Acknowledged — routed to the Optimization Engine for cheaper configs.";
   } else if (kind === "DEREG_RISK" && row.deploymentId) {
-    const { restartViaDaemon } = await import("./daemon-bridge");
-    actionNote = await restartViaDaemon(row.deploymentId);
+    // DEVOPS-3 — evidence.suggestedAction === "failover" (critical incentive
+    // collapse/decline) triggers the experienced-miner reflex: push the
+    // fallback serving profile on the GPU + restart, not a bare restart.
+    const evidence = safeParse(row.evidenceJson);
+    if (evidence.suggestedAction === "failover") {
+      const { applyFailoverToGpu } = await import("./miner-mindset");
+      try {
+        const r = await applyFailoverToGpu(row.deploymentId);
+        actionNote = `Applied to GPU — ${r.note}.`;
+        if (r.transport === "platform-only") {
+          // Still attempt the classic restart so the miner re-syncs.
+          const { restartViaDaemon } = await import("./daemon-bridge");
+          try {
+            actionNote += ` Restart queued: ${await restartViaDaemon(row.deploymentId)}`;
+          } catch {
+            actionNote += " No daemon to queue a restart on — install the Node Daemon for remote failover.";
+          }
+        }
+      } catch (e) {
+        actionNote = `Failover apply FAILED: ${
+          e instanceof Error ? e.message : "unknown error"
+        } — no GPU change was made; check the DevOps board and retry.`;
+      }
+    } else {
+      const { restartViaDaemon } = await import("./daemon-bridge");
+      try {
+        actionNote = await restartViaDaemon(row.deploymentId);
+      } catch {
+        actionNote = "No daemon reachable — deployment ticked for re-sync; check the provider console.";
+        const { tickDeployment } = await import("./deployment/engine");
+        await tickDeployment(row.deploymentId).catch(() => null);
+      }
+    }
+  } else if (kind === "ARBITRAGE" && row.deploymentId) {
+    // DEVOPS-3 — compute recycling: the engine treats compute as a liquid
+    // asset. "recycle" spins the miner down (approval-gated terminate —
+    // billing stops, GPU capacity freed for the higher-yield subnet);
+    // "evaluate" is advisory and routes to the Optimization Engine.
+    const evidence = safeParse(row.evidenceJson);
+    const suggested =
+      typeof evidence.suggestedAction === "string" ? evidence.suggestedAction : "evaluate";
+    if (suggested === "recycle") {
+      const target =
+        evidence.target && typeof evidence.target === "object"
+          ? (evidence.target as Record<string, unknown>)
+          : null;
+      const targetLabel =
+        target && typeof target.netuid === "number" ? ` α${target.netuid}${typeof target.name === "string" ? ` ${target.name}` : ""}` : "";
+      const { terminateDeployment } = await import("./deployment/engine");
+      await terminateDeployment(row.deploymentId);
+      actionNote =
+        `Applied to GPU — compute recycled: miner spun down, billing stopped, GPU capacity freed` +
+        `${targetLabel ? ` for redeployment on${targetLabel}` : ""}. Re-deploy from the Deployment wizard when ready.`;
+    } else {
+      actionNote =
+        "Acknowledged — no better subnet clears the uplift bar right now; the Optimization Engine keeps ranking alternatives each pass.";
+    }
+  } else if (kind === "RUNTIME_OPT" && row.deploymentId) {
+    // DEVOPS-3 — accelerated serving profile: vLLM/TensorRT-LLM batching,
+    // AWQ/EXL2 quantized weights, LoRA fine-tune intent. Implemented on the
+    // GPU like drift remediation: env profile merged into the deployment
+    // config + apply_config pushed via the daemon (or simulated on mock).
+    const evidence = safeParse(row.evidenceJson);
+    const recipeIds = Array.isArray(evidence.recipes)
+      ? (evidence.recipes as Record<string, unknown>[])
+          .map((x) => (typeof x?.id === "string" ? x.id : ""))
+          .filter(Boolean)
+      : [];
+    const { applyRuntimeOptimization } = await import("./miner-mindset");
+    try {
+      const r = await applyRuntimeOptimization(row.deploymentId, { recipeIds });
+      actionNote = `Applied to GPU — ${r.applied.length ? r.applied.join("; ") : "no recipe deltas"}. ${r.note}`;
+    } catch (e) {
+      actionNote = `GPU runtime apply FAILED: ${
+        e instanceof Error ? e.message : "unknown error"
+      } — deployment config untouched or partially updated; check the DevOps board and retry after fixing the cause.`;
+    }
   } else if (kind === "GPU_HEALTH" && row.deploymentId) {
     // DEVOPS-1 — the event's evidence carries the suggested action:
     // "restart" (process down) → daemon restart like RE_SYNC;

@@ -12,7 +12,9 @@ export type TriggerKind =
   | "KILL"
   | "DEREG_RISK"
   | "GPU_HEALTH"
-  | "SUBNET_DRIFT";
+  | "SUBNET_DRIFT"
+  | "ARBITRAGE"
+  | "RUNTIME_OPT";
 
 export const TRIGGER_KIND_META: Record<
   TriggerKind,
@@ -25,6 +27,11 @@ export const TRIGGER_KIND_META: Record<
   // DEVOPS-1 — emitted by the scheduled DevOps monitor (devops-monitor.ts).
   GPU_HEALTH: { label: "GPU Health", severity: "warning", color: "orange" },
   SUBNET_DRIFT: { label: "Subnet Drift", severity: "info", color: "cyan" },
+  // DEVOPS-3 — emitted by the Miner Mindset strategy pass (miner-mindset.ts):
+  // the engine reasons like an experienced mining firm — compute is liquid,
+  // runtimes are tunable, and validators decide the income.
+  ARBITRAGE: { label: "Arbitrage", severity: "warning", color: "emerald" },
+  RUNTIME_OPT: { label: "Runtime Opt", severity: "warning", color: "fuchsia" },
 };
 
 export interface TriggerEventDTO {

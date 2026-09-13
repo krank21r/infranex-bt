@@ -8,6 +8,30 @@ import type { TriggerEventDTO } from "@/lib/infranex/use-triggers";
  * the server micro-caches 10s so multiple tabs stay cheap.
  */
 
+/**
+ * DEVOPS-3 — per-miner Miner Mindset posture (server type mirrored from
+ * miner-mindset.ts MinerStrategyPosture).
+ */
+export interface MinerStrategyPostureDTO {
+  mindset: "earn_more" | "defend" | "optimize" | "steady";
+  headline: string;
+  perMinerYieldTaoPerDay: number | null;
+  alphaChange24h: number | null;
+  top10IncentiveShare: number | null;
+  incentiveMedianShare: number | null;
+  validatorTrust: number | null;
+  consensus: number | null;
+  bestAlternative: {
+    netuid: number;
+    name: string;
+    upliftPct: number;
+    perMinerYieldTaoPerDay: number;
+    burnCostTao: number | null;
+  } | null;
+  recommendedRecipes: { id: string; label: string; reason: string }[];
+  openMindsetEvent: boolean;
+}
+
 export interface DevopsMinerDTO {
   deploymentId: string;
   minerName: string;
@@ -52,6 +76,7 @@ export interface DevopsMinerDTO {
     roiPercent: number | null;
   };
   alerts: { level: string; code: string; message: string }[];
+  strategy: MinerStrategyPostureDTO;
 }
 
 export interface DevopsThresholds {
@@ -64,6 +89,20 @@ export interface DevopsThresholds {
   daemonSilenceMs: number;
   sampleRetention: number;
   economicsShiftPct: number;
+}
+
+/** DEVOPS-3 — Miner Mindset strategy thresholds (mirrors MINDSET_THRESHOLDS). */
+export interface DevopsMindsetThresholds {
+  yieldCollapsePct: number;
+  yieldCollapsePasses: number;
+  alphaDropPct24h: number;
+  arbitrageUpliftPct: number;
+  maxAlternatives: number;
+  hotUtilPct: number;
+  hotUtilSamples: number;
+  memPressureRatio: number;
+  incentiveGapRatio: number;
+  incentiveGapPasses: number;
 }
 
 export interface DevopsMonitorPayload {
@@ -82,6 +121,7 @@ export interface DevopsMonitorPayload {
   recentEvents: TriggerEventDTO[];
   lastPass: { at: string; status: string; durationMs: number; evaluated: number } | null;
   thresholds: DevopsThresholds;
+  mindsetThresholds: DevopsMindsetThresholds;
 }
 
 async function fetchDevopsMonitor(): Promise<DevopsMonitorPayload> {
