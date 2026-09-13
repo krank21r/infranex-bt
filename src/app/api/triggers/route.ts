@@ -7,6 +7,7 @@ import {
   actOnTrigger,
 } from "@/lib/infranex/triggers";
 import { runUidDefensePass, getUidDefensePayload } from "@/lib/infranex/uid-defense";
+import { runDevopsPass } from "@/lib/infranex/devops-monitor";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 180;
@@ -45,6 +46,13 @@ export async function POST(req: NextRequest) {
         } catch (e) {
           console.warn(`[triggers] uid pass skipped: ${e instanceof Error ? e.message : e}`);
         }
+        // DEVOPS-1 — GPU health + subnet drift ride on the same pass.
+        let devopsPass: Awaited<ReturnType<typeof runDevopsPass>> | null = null;
+        try {
+          devopsPass = await runDevopsPass();
+        } catch (e) {
+          console.warn(`[triggers] devops pass skipped: ${e instanceof Error ? e.message : e}`);
+        }
         const events = await listTriggerEvents();
         const uid = await getUidDefensePayload().catch(() => []);
         return NextResponse.json({
@@ -53,6 +61,8 @@ export async function POST(req: NextRequest) {
             ...pass,
             uidEvaluated: uidPass?.evaluated ?? 0,
             uidSkipped: uidPass?.skipped ?? 0,
+            devopsEvaluated: devopsPass?.deploymentsEvaluated ?? 0,
+            devopsSamples: devopsPass?.samplesTaken ?? 0,
           },
           ...events,
           uid,

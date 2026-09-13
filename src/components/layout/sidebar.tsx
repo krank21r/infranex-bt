@@ -20,6 +20,7 @@ import {
   Gauge,
   Wand2,
   Gavel,
+  Radar,
   ShieldCheck,
 } from "lucide-react";
 import type { ViewKey } from "@/lib/infranex/types";
@@ -37,6 +38,7 @@ const NAV_GROUPS: { label: string; items: { key: ViewKey; label: string; icon: t
   {
     label: "Operations",
     items: [
+      { key: "devops", label: "DevOps Engine", icon: Radar, hint: "13" },
       { key: "gpus", label: "GPU Catalog", icon: Cpu, hint: "04" },
       { key: "miners", label: "My Miners", icon: Coins, hint: "05" },
       { key: "deployments", label: "Deployments", icon: Rocket, hint: "06" },

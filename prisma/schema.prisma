@@ -367,6 +367,29 @@ model ProviderKey {
   updatedAt     DateTime @updatedAt
 }
 
+// ---------------------------------------------------------------------------
+// DevOps Monitor (DEVOPS-1) — GPU telemetry history. The scheduled DevOps
+// pass snapshots each started deployment's latest daemon telemetry into this
+// table every pass, enabling sparklines + trend detection (rising temp,
+// decaying util) instead of single-alarm snapshots. ~240 rows per deployment.
+// ---------------------------------------------------------------------------
+
+model GpuSample {
+  id           String   @id @default(cuid())
+  deploymentId String
+  // "online" | "unreachable" | "missing" | "mock" — daemon state at sample time
+  daemonStatus String
+  gpuUtilPct   Float?
+  memUsedMb    Float?
+  memTotalMb   Float?
+  tempC        Float?
+  // Miner process alive per daemon (null = unknown / no telemetry)
+  processAlive Boolean?
+  createdAt    DateTime @default(now())
+
+  @@index([deploymentId, createdAt])
+}
+
 // Gated-access user base (AUTH-1). Only rows here can sign in on /login with
 // userId + access code. Codes are stored ONE-WAY hashed (scrypt salt:hash)
 // for verification, plus AES-256-GCM encrypted (codeEnc) so the admin panel

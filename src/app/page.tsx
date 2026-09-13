@@ -9,6 +9,7 @@ import { JudgeView } from "@/components/views/judge-view";
 import { GpusView } from "@/components/views/gpus-view";
 import { MinersView } from "@/components/views/miners-view";
 import { DeploymentsView } from "@/components/views/deployments-view";
+import { DevopsView } from "@/components/views/devops-view";
 import { MonitoringView } from "@/components/views/monitoring-view";
 import { OptimizationView } from "@/components/views/optimization-view";
 import { AnalyticsView } from "@/components/views/analytics-view";
@@ -33,6 +34,7 @@ const VIEW_META: Record<
   gpus: { title: "GPU Catalog", eyebrow: "Section · 04 · Infrastructure" },
   miners: { title: "My Miners", eyebrow: "Section · 05 · Portfolio" },
   deployments: { title: "Deployments", eyebrow: "Section · 06 · Deployment engine" },
+  devops: { title: "DevOps Engine", eyebrow: "Section · 13 · Live operations" },
   monitoring: { title: "Monitoring", eyebrow: "Section · 07 · Monitoring engine" },
   optimization: { title: "Optimization", eyebrow: "Section · 08 · Optimization engine" },
   analytics: { title: "Analytics", eyebrow: "Section · 09 · Trends" },
@@ -114,6 +116,7 @@ export default function Home() {
           focusDeploymentId={createdDepId}
         />
       )}
+      {view === "devops" && <DevopsView onNavigate={setView} />}
       {view === "monitoring" && <MonitoringView onNavigate={setView} />}
       {view === "optimization" && <OptimizationView onNavigate={setView} />}
       {view === "analytics" && <AnalyticsView />}

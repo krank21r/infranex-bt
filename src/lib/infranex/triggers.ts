@@ -269,6 +269,25 @@ export async function actOnTrigger(id: string): Promise<{ event: TriggerEventDTO
   } else if (kind === "DEREG_RISK" && row.deploymentId) {
     const { restartViaDaemon } = await import("./daemon-bridge");
     actionNote = await restartViaDaemon(row.deploymentId);
+  } else if (kind === "GPU_HEALTH" && row.deploymentId) {
+    // DEVOPS-1 — the event's evidence carries the suggested action:
+    // "restart" (process down) → daemon restart like RE_SYNC;
+    // anything else (thermal, idle GPU, silent daemon) → acknowledge only.
+    const evidence = safeParse(row.evidenceJson);
+    if (evidence.suggestedAction === "restart") {
+      const { restartViaDaemon } = await import("./daemon-bridge");
+      try {
+        actionNote = await restartViaDaemon(row.deploymentId);
+      } catch {
+        actionNote = "No daemon reachable — miner restart could not be queued; check the provider console.";
+      }
+    } else {
+      actionNote = "Acknowledged — GPU condition logged; keep monitoring for recurrence.";
+    }
+  } else if (kind === "SUBNET_DRIFT") {
+    // DEVOPS-1 — informational: the subnet changed on-chain; no mutation.
+    actionNote =
+      "Acknowledged — review the listed subnet changes; the Optimization Engine can rank alternatives if the economics no longer fit.";
   } else {
     actionNote = "No action bound to this event.";
   }

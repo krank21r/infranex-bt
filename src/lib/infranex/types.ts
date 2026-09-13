@@ -273,6 +273,7 @@ export type ViewKey =
   | "gpus"
   | "miners"
   | "deployments"
+  | "devops"
   | "monitoring"
   | "optimization"
   | "analytics"

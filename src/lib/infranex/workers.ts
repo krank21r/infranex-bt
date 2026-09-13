@@ -3,19 +3,27 @@ import { fetchLiveSnapshot } from "./chain";
 import type { LiveNetworkSnapshot } from "./chain";
 import { scrapeGithubMetadata } from "./github-scraper";
 import { subnets } from "./data";
+import { runTriggerPass } from "./triggers";
+import { runUidDefensePass } from "./uid-defense";
+import { runDevopsPass } from "./devops-monitor";
 
 /**
  * Background worker system.
  *
- * Three workers run on intervals to keep data fresh independently of
+ * Four workers run on intervals to keep data fresh independently of
  * user requests:
  *
  *   1. Chain scanner worker  — polls the Finney chain every 2 min
  *   2. Market data worker    — fetches TAO price every 1 min
  *   3. GitHub analyzer worker — re-scrapes subnet repos every 60 min
+ *   4. DevOps monitor worker — DEVOPS-1: runs the full trigger pass
+ *      (RE_SYNC/SCALE/KILL + UID defense) + the DevOps pass (GPU health
+ *      + subnet drift) every 90s, so deployed miners are watched
+ *      continuously — no UI needs to be open.
  *
- * Each worker persists its results to the DB (ChainSnapshot, WorkerStatus)
- * so the frontend can read historical data and show worker status.
+ * Each worker persists its results to the DB (ChainSnapshot, WorkerStatus,
+ * TriggerEvent, GpuSample) so the frontend can read historical data and
+ * show worker status.
  */
 
 export interface WorkerRunResult {
@@ -30,6 +38,7 @@ const INTERVALS = {
   chain: 2 * 60 * 1000,    // 2 minutes
   market: 60 * 1000,        // 1 minute
   github: 60 * 60 * 1000,  // 60 minutes
+  devops: 90 * 1000,        // 90 seconds — DEVOPS-1 continuous monitor
 };
 
 // Track whether workers are running (singleton)
@@ -45,10 +54,12 @@ export function startWorkers() {
   void runChainWorker();
   void runMarketWorker();
   void runGithubWorker();
+  void runDevopsWorker();
 
   workerTimers.push(setInterval(() => void runChainWorker(), INTERVALS.chain));
   workerTimers.push(setInterval(() => void runMarketWorker(), INTERVALS.market));
   workerTimers.push(setInterval(() => void runGithubWorker(), INTERVALS.github));
+  workerTimers.push(setInterval(() => void runDevopsWorker(), INTERVALS.devops));
 }
 
 /** Stop all workers (for testing). */
@@ -95,6 +106,42 @@ export async function getLatestChainSnapshot(): Promise<LiveNetworkSnapshot | nu
 }
 
 // --- Individual workers ---
+
+/**
+ * DEVOPS-1 — the continuous monitor. One pass = trigger evaluators
+ * (pod-down, loss) + UID defense (deregistration risk) + DevOps evaluators
+ * (GPU health, subnet drift). Sequential, not parallel: they share the one
+ * chain connection and the 60s metagraph vector cache.
+ */
+async function runDevopsWorker(): Promise<WorkerRunResult> {
+  const start = Date.now();
+  const workerName = "devops-monitor";
+  let tasksProcessed = 0;
+  try {
+    const devops = await runDevopsPass();
+    await runTriggerPass();
+    await runUidDefensePass();
+    tasksProcessed = devops.deploymentsEvaluated;
+    const result: WorkerRunResult = {
+      workerName,
+      status: "completed",
+      durationMs: Date.now() - start,
+      tasksProcessed,
+    };
+    await logWorkerRun(result);
+    return result;
+  } catch (e) {
+    const result: WorkerRunResult = {
+      workerName,
+      status: "failed",
+      durationMs: Date.now() - start,
+      tasksProcessed,
+      error: e instanceof Error ? e.message : String(e),
+    };
+    await logWorkerRun(result);
+    return result;
+  }
+}
 
 async function runChainWorker(): Promise<WorkerRunResult> {
   const start = Date.now();

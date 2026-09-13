@@ -6,7 +6,13 @@ import { db } from "@/lib/db";
  * dedupe-aware commit, and auto-resolution.
  */
 
-export type TriggerKind = "RE_SYNC" | "SCALE" | "KILL" | "DEREG_RISK";
+export type TriggerKind =
+  | "RE_SYNC"
+  | "SCALE"
+  | "KILL"
+  | "DEREG_RISK"
+  | "GPU_HEALTH"
+  | "SUBNET_DRIFT";
 
 export const TRIGGER_KIND_META: Record<
   TriggerKind,
@@ -16,6 +22,9 @@ export const TRIGGER_KIND_META: Record<
   SCALE: { label: "Scale", severity: "info", color: "sky" },
   KILL: { label: "Kill", severity: "critical", color: "red" },
   DEREG_RISK: { label: "Dereg Risk", severity: "critical", color: "violet" },
+  // DEVOPS-1 — emitted by the scheduled DevOps monitor (devops-monitor.ts).
+  GPU_HEALTH: { label: "GPU Health", severity: "warning", color: "orange" },
+  SUBNET_DRIFT: { label: "Subnet Drift", severity: "info", color: "cyan" },
 };
 
 export interface TriggerEventDTO {
@@ -129,10 +138,11 @@ export async function commitFinding(input: {
   return "created";
 }
 
-/** Close open events because the condition recovered. */
-export async function autoResolve(kind: TriggerKind, dedupeKey: string): Promise<void> {
-  await db.triggerEvent.updateMany({
+/** Close open events because the condition recovered. Returns the count. */
+export async function autoResolve(kind: TriggerKind, dedupeKey: string): Promise<number> {
+  const r = await db.triggerEvent.updateMany({
     where: { kind, dedupeKey, status: "open" },
     data: { status: "resolved", resolvedAt: new Date() },
   });
+  return r.count;
 }
