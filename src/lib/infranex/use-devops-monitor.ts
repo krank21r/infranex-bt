@@ -32,6 +32,23 @@ export interface MinerStrategyPostureDTO {
   openMindsetEvent: boolean;
 }
 
+/** TIER1-1 — health score factor (mirrors health-score.ts HealthFactor). */
+export interface MinerHealthFactorDTO {
+  key: string;
+  label: string;
+  score: number;
+  max: number;
+  detail: string;
+}
+
+/** TIER1-1 — composite health (mirrors health-score.ts MinerHealth). */
+export interface MinerHealthDTO {
+  score: number;
+  status: "healthy" | "warning" | "critical";
+  factors: MinerHealthFactorDTO[];
+  simulated: boolean;
+}
+
 export interface DevopsMinerDTO {
   deploymentId: string;
   minerName: string;
@@ -77,6 +94,21 @@ export interface DevopsMinerDTO {
   };
   alerts: { level: string; code: string; message: string }[];
   strategy: MinerStrategyPostureDTO;
+  /** TIER1-1 — composite 0-100 health score with per-factor breakdown. */
+  health: MinerHealthDTO;
+  /** TIER1-1 — last 40 miner log lines, newest first. */
+  logs: { at: string; severity: string; source: string; message: string }[];
+  /** TIER1-1 — latest Doctor (10-step inspector) facts for the host machine. */
+  machine: {
+    hostId: string;
+    name: string;
+    transport: string;
+    status: string;
+    os: string | null;
+    gpuName: string | null;
+    driverCuda: string | null;
+    dockerVersion: string | null;
+  } | null;
   /** DEVOPS-4 — synthetic probe + validator traffic for this miner. */
   service: {
     probe: {
@@ -156,6 +188,11 @@ export interface DevopsMonitorPayload {
     critical: number;
     daemonsOnline: number;
     openRecommendations: number;
+    /** TIER1-1 — fleet economics per day (spec §41). */
+    infraCostUsdPerDay: number;
+    revenueUsdPerDay: number;
+    netUsdPerDay: number;
+    avgHealthScore: number | null;
   };
   miners: DevopsMinerDTO[];
   openEvents: TriggerEventDTO[];

@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { getUidState } from "./metagraph";
 import { getDaemonView } from "./daemon-bridge";
 import { commitFinding, autoResolve } from "./triggers-core";
+import { simulateMockLogs } from "./miner-logs";
 
 /**
  * DEVOPS-1 — the always-on DevOps monitor pass.
@@ -236,6 +237,8 @@ async function evaluateGpuHealth(dep: {
   // Mock pods: heartbeat sample only — no real GPU can be hot or dead.
   if (isMock) {
     await writeSample(dep.id, "mock", null, null, null, null, null);
+    // TIER1-1 — keep the mock fleet's live-log panel populated too.
+    await simulateMockLogs(dep.id).catch(() => 0);
     // Clear anything stale from before a switch to mock.
     resolved += await clearGpuAlarms(dep.id, ["no-daemon", "silent", "proc", "temp", "util"]);
     return { sampled: true, resolved, findings };

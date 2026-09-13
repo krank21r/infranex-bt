@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDaemonForRequest, recordTelemetry } from "@/lib/infranex/daemon-bridge";
+import { ingestMinerLogs } from "@/lib/infranex/miner-logs";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,10 @@ export async function POST(req: NextRequest) {
   try {
     const telemetry = JSON.parse(raw) as Record<string, unknown>;
     await recordTelemetry(deploymentId, telemetry);
+    // TIER1-1 — daemon v3 tails the miner log; store new lines (deduped).
+    if (Array.isArray(telemetry.logs) && telemetry.logs.length > 0) {
+      await ingestMinerLogs(deploymentId, telemetry.logs as Record<string, unknown>[]).catch(() => 0);
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json(

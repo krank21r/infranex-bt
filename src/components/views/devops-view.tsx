@@ -26,6 +26,7 @@ import {
   Activity,
   Timer,
   RadioTower,
+  Wallet,
 } from "lucide-react";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { useDevopsMonitor } from "@/lib/infranex/use-devops-monitor";
@@ -66,6 +67,7 @@ export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void })
   const [busyId, setBusyId] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [doctorHostId, setDoctorHostId] = useState<string | null>(null);
 
   const miners = data?.miners ?? [];
   const open = data?.openEvents ?? [];
@@ -123,14 +125,44 @@ export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void })
     }
   };
 
+  // TIER1-1 — one-click Infranex Doctor: re-runs the 10-step inspector on the
+  // host (real hosts can take up to ~3 min; mock < 2s) and reports the verdict.
+  const runDoctor = async (hostId: string) => {
+    setDoctorHostId(hostId);
+    setNote(null);
+    try {
+      const res = await fetch(`/api/devops/hosts/${hostId}/validate`, { method: "POST" });
+      const j = (await res.json().catch(() => null)) as {
+        summary?: { overall?: string; results?: { status: string }[] };
+        error?: string;
+      } | null;
+      if (!res.ok || !j?.summary) throw new Error(j?.error ?? `doctor failed (${res.status})`);
+      const results = j.summary.results ?? [];
+      const passed = results.filter((r) => r.status === "pass" || r.status === "fixed").length;
+      setNote(
+        `Doctor complete — ${passed}/${results.length} checks passed · overall: ${j.summary.overall ?? "unknown"}. Facts refreshed on the cards below.`
+      );
+      void refetch();
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Doctor failed");
+    } finally {
+      setDoctorHostId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      {/* Summary strip */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      {/* Summary strip — TIER1-1 adds fleet economics (spec §41) */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         <SummaryTile
           icon={<Radar className="h-4 w-4 text-primary" aria-hidden />}
           label="Miners monitored"
           value={summary ? String(summary.monitored) : "—"}
+          sub={
+            summary?.avgHealthScore != null
+              ? `fleet health ${summary.avgHealthScore}/100`
+              : undefined
+          }
         />
         <SummaryTile
           icon={<HeartPulse className="h-4 w-4 text-success" aria-hidden />}
@@ -151,6 +183,22 @@ export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void })
           icon={<ServerCog className="h-4 w-4 text-sky-400" aria-hidden />}
           label="Daemons online"
           value={summary ? String(summary.daemonsOnline) : "—"}
+        />
+        <SummaryTile
+          icon={<Wallet className="h-4 w-4 text-orange-400" aria-hidden />}
+          label="Infra cost / day"
+          value={summary ? `$${summary.infraCostUsdPerDay.toFixed(2)}` : "—"}
+        />
+        <SummaryTile
+          icon={<TrendingUp className="h-4 w-4 text-emerald-400" aria-hidden />}
+          label="Revenue / day"
+          value={summary ? `$${summary.revenueUsdPerDay.toFixed(2)}` : "—"}
+        />
+        <SummaryTile
+          icon={<Scale className="h-4 w-4 text-primary" aria-hidden />}
+          label="Net / day"
+          value={summary ? `$${summary.netUsdPerDay.toFixed(2)}` : "—"}
+          tone={summary && summary.netUsdPerDay < 0 ? "critical" : summary ? "ok" : "muted"}
         />
       </div>
 
@@ -397,7 +445,13 @@ export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void })
         ) : (
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {miners.map((m) => (
-              <MinerOpsCard key={m.deploymentId} miner={m} thresholds={data!.thresholds} />
+              <MinerOpsCard
+                key={m.deploymentId}
+                miner={m}
+                thresholds={data!.thresholds}
+                onRunDoctor={runDoctor}
+                doctorBusyHostId={doctorHostId}
+              />
             ))}
           </div>
         )}
@@ -442,14 +496,35 @@ export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void })
   );
 }
 
-function SummaryTile({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function SummaryTile({
+  icon,
+  label,
+  value,
+  sub,
+  tone = "muted",
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  sub?: string;
+  tone?: "ok" | "critical" | "muted";
+}) {
   return (
     <div className="rounded-xl border border-border/60 bg-card/50 p-3.5">
       <p className="flex items-center gap-1.5 text-eyebrow text-muted-foreground/70">
         {icon}
         {label}
       </p>
-      <p className="text-display mt-1.5 text-2xl font-bold tabular">{value}</p>
+      <p
+        className={cn(
+          "text-display mt-1.5 text-2xl font-bold tabular",
+          tone === "ok" && "text-success",
+          tone === "critical" && "text-destructive"
+        )}
+      >
+        {value}
+      </p>
+      {sub && <p className="mono mt-0.5 text-[10px] text-muted-foreground/60">{sub}</p>}
     </div>
   );
 }

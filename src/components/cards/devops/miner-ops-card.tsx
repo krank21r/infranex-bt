@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -14,9 +15,15 @@ import {
   Hexagon,
   Activity,
   RadioTower,
+  HeartPulse,
+  ServerCog,
+  Terminal,
+  ChevronDown,
+  ChevronRight,
+  Stethoscope,
 } from "lucide-react";
 import { cn, formatRelativeTime } from "@/lib/utils";
-import type { DevopsMinerDTO, DevopsThresholds } from "@/lib/infranex/use-devops-monitor";
+import type { DevopsMinerDTO, DevopsThresholds, MinerHealthDTO } from "@/lib/infranex/use-devops-monitor";
 
 /**
  * DEVOPS-1 — one live operations card per running miner: GPU vitals +
@@ -29,9 +36,14 @@ type Health = "healthy" | "warning" | "critical";
 export function MinerOpsCard({
   miner,
   thresholds,
+  onRunDoctor,
+  doctorBusyHostId,
 }: {
   miner: DevopsMinerDTO;
   thresholds: DevopsThresholds;
+  /** TIER1-1 — fires the 10-step Doctor pipeline for the linked GPU host. */
+  onRunDoctor?: (hostId: string) => void;
+  doctorBusyHostId?: string | null;
 }) {
   const health = computeHealth(miner, thresholds);
   const isMock = miner.mode === "mock";
@@ -57,7 +69,7 @@ export function MinerOpsCard({
         {/* Header: miner + subnet + state */}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <HealthDot health={health} />
               <p className="truncate text-display text-sm font-semibold">{miner.minerName}</p>
               {isMock && (
@@ -65,6 +77,7 @@ export function MinerOpsCard({
                   mock
                 </Badge>
               )}
+              {miner.health && <HealthScoreChip health={miner.health} />}
             </div>
             <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
               <Hexagon className="h-3 w-3 shrink-0 text-primary/70" aria-hidden />
@@ -171,6 +184,42 @@ export function MinerOpsCard({
             )}
           </span>
         </div>
+
+        {/* TIER1-1 — machine facts from the Doctor pipeline + one-click re-run */}
+        {miner.machine && (
+          <div className="flex items-center justify-between gap-2 rounded-lg border border-border/50 bg-background/40 px-2.5 py-1.5">
+            <span
+              className="flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground"
+              title={`Host "${miner.machine.name}" · doctor status: ${miner.machine.status}${miner.machine.gpuName ? ` · ${miner.machine.gpuName}` : ""}`}
+            >
+              <ServerCog className="h-3 w-3 shrink-0" aria-hidden />
+              <span className="mono truncate text-[10px]">
+                {[
+                  miner.machine.os,
+                  miner.machine.driverCuda ? `CUDA ${miner.machine.driverCuda}` : null,
+                  miner.machine.dockerVersion ? `Docker ${miner.machine.dockerVersion}` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "no doctor facts yet"}
+              </span>
+            </span>
+            {onRunDoctor && (
+              <button
+                type="button"
+                disabled={doctorBusyHostId === miner.machine.hostId}
+                onClick={() => onRunDoctor(miner.machine!.hostId)}
+                className={cn(
+                  "flex shrink-0 items-center gap-1 rounded-md border border-border/70 px-1.5 py-0.5 text-[10px] text-muted-foreground transition-colors",
+                  "hover:border-primary/40 hover:bg-primary/10 hover:text-primary",
+                  doctorBusyHostId === miner.machine.hostId && "animate-pulse opacity-60"
+                )}
+              >
+                <Stethoscope className="h-3 w-3" aria-hidden />
+                {doctorBusyHostId === miner.machine.hostId ? "checking…" : "Doctor"}
+              </button>
+            )}
+          </div>
+        )}
 
         {/* DEVOPS-4 — Service & validator traffic: what validators experience */}
         <div className="rounded-lg border border-border/50 bg-background/40 px-2.5 py-2">
@@ -325,6 +374,9 @@ export function MinerOpsCard({
             ))}
           </ul>
         )}
+
+        {/* TIER1-1 — live miner logs (spec §45): what the miner is saying */}
+        <LiveLogs logs={miner.logs ?? []} />
       </CardContent>
     </Card>
   );
@@ -498,6 +550,98 @@ function TrafficSummary({
       )}
       {isMock && <span className="text-[10px] text-muted-foreground/50">simulated</span>}
     </span>
+  );
+}
+
+/** TIER1-1 — composite health score chip; tooltip lists the factor breakdown. */
+function HealthScoreChip({ health }: { health: MinerHealthDTO }) {
+  const tone =
+    health.status === "healthy"
+      ? "border-success/40 bg-success/10 text-success"
+      : health.status === "warning"
+        ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
+        : "border-destructive/40 bg-destructive/10 text-destructive";
+  const title = health.factors
+    .map((f) => `${f.label}: ${f.score}/${f.max} — ${f.detail}`)
+    .join("\n");
+  return (
+    <Badge
+      variant="outline"
+      className={cn("mono h-4 gap-0.5 px-1.5 text-[10px] tabular", tone)}
+      title={title}
+    >
+      <HeartPulse className="h-2.5 w-2.5" aria-hidden />
+      {health.score}
+      {health.simulated ? "·sim" : ""}
+    </Badge>
+  );
+}
+
+/** TIER1-1 — collapsible live log tail (spec §45): timestamp/severity/message. */
+function LiveLogs({
+  logs,
+}: {
+  logs: { at: string; severity: string; source: string; message: string }[];
+}) {
+  const [open, setOpen] = useState(false);
+  const shown = open ? logs.slice(0, 40) : logs.slice(0, 2);
+  const sevTone = (s: string) =>
+    s === "error"
+      ? "text-destructive"
+      : s === "warning"
+        ? "text-amber-300"
+        : s === "success"
+          ? "text-success"
+          : "text-sky-300/80";
+  const sevTag = (s: string) =>
+    s === "error" ? "ERR" : s === "warning" ? "WRN" : s === "success" ? "OK " : "INF";
+
+  return (
+    <div className="rounded-lg border border-border/50 bg-background/40 px-2.5 py-2">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between text-left"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground/70">
+          <Terminal className="h-3 w-3" aria-hidden />
+          live logs
+          {logs.length > 0 && (
+            <span className="mono normal-case tracking-normal text-[9px] text-muted-foreground/50">
+              {logs.length} lines
+            </span>
+          )}
+        </span>
+        {open ? (
+          <ChevronDown className="h-3 w-3 text-muted-foreground" aria-hidden />
+        ) : (
+          <ChevronRight className="h-3 w-3 text-muted-foreground" aria-hidden />
+        )}
+      </button>
+      {shown.length > 0 ? (
+        <ul
+          className={cn(
+            "mono mt-1.5 space-y-0.5 text-[10px] leading-relaxed",
+            open && "max-h-44 overflow-auto custom-scroll"
+          )}
+        >
+          {shown.map((l, i) => (
+            <li key={`${l.at}-${i}`} className="flex gap-1.5">
+              <span className="shrink-0 tabular text-muted-foreground/50">
+                {new Date(l.at).toLocaleTimeString("en-GB", { hour12: false })}
+              </span>
+              <span className={cn("shrink-0 font-semibold", sevTone(l.severity))}>{sevTag(l.severity)}</span>
+              <span className="min-w-0 break-all text-foreground/80">{l.message}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-1 text-[10px] text-muted-foreground/60">
+          no lines yet — the daemon tails the miner log every 60s
+        </p>
+      )}
+    </div>
   );
 }
 

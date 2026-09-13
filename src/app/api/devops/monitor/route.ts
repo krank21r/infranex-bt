@@ -5,6 +5,7 @@ import { getDaemonView } from "@/lib/infranex/daemon-bridge";
 import { listTriggerEvents } from "@/lib/infranex/triggers";
 import { DEVOPS_THRESHOLDS } from "@/lib/infranex/devops-monitor";
 import { SERVICE_THRESHOLDS } from "@/lib/infranex/service-health";
+import { computeMinerHealth, type MinerHealth } from "@/lib/infranex/health-score";
 import {
   buildMinerStrategyPosture,
   MINDSET_THRESHOLDS,
@@ -85,6 +86,21 @@ export interface DevopsMiner {
   };
   alerts: { level: string; code: string; message: string }[];
   strategy: MinerStrategyPosture;
+  /** TIER1-1 — composite 0-100 health score with per-factor breakdown. */
+  health: MinerHealth;
+  /** TIER1-1 — last 40 miner log lines, newest first. */
+  logs: { at: string; severity: string; source: string; message: string }[];
+  /** TIER1-1 — latest Doctor (10-step inspector) facts for the host machine. */
+  machine: {
+    hostId: string;
+    name: string;
+    transport: string;
+    status: string;
+    os: string | null;
+    gpuName: string | null;
+    driverCuda: string | null;
+    dockerVersion: string | null;
+  } | null;
   service: {
     probe: {
       endpoint: string | null;
@@ -123,6 +139,11 @@ export interface DevopsMonitorPayload {
     critical: number;
     daemonsOnline: number;
     openRecommendations: number;
+    /** TIER1-1 — fleet economics per day (spec §41). */
+    infraCostUsdPerDay: number;
+    revenueUsdPerDay: number;
+    netUsdPerDay: number;
+    avgHealthScore: number | null;
   };
   miners: DevopsMiner[];
   openEvents: unknown[];
@@ -151,10 +172,17 @@ export async function GET() {
     const started = overview.deployments.filter((d) => d.status === "started");
     const startedIds = started.map((d) => d.id);
 
-    // Registration lifecycle lives on the deployment row itself.
+    // Registration lifecycle lives on the deployment row itself. TIER1-1:
+    // also pull ssh/pod ids so machine facts can be linked to GpuHost rows.
     const regRows = await db.deployment.findMany({
       where: { id: { in: startedIds } },
-      select: { id: true, registrationState: true, registeredUid: true },
+      select: {
+        id: true,
+        registrationState: true,
+        registeredUid: true,
+        providerPodId: true,
+        sshHost: true,
+      },
     });
     const regById = new Map(regRows.map((r) => [r.id, r]));
 
@@ -210,6 +238,32 @@ export async function GET() {
       if (!trafficByDep.has(r.deploymentId)) trafficByDep.set(r.deploymentId, r);
     }
 
+    // TIER1-1 — live miner logs (newest first, sliced to 40 per miner below).
+    const logRows = startedIds.length
+      ? await db.minerLog.findMany({
+          where: { deploymentId: { in: startedIds } },
+          orderBy: { at: "desc" },
+          take: startedIds.length * 40,
+        })
+      : [];
+    const logsByDep = new Map<string, typeof logRows>();
+    for (const r of logRows) {
+      const list = logsByDep.get(r.deploymentId);
+      if (list) list.push(r);
+      else logsByDep.set(r.deploymentId, [r]);
+    }
+
+    // TIER1-1 — GPU host inventory for machine facts (Doctor results).
+    // Link by provider pod id first, then by ssh host address.
+    const hostRows = await db.gpuHost.findMany();
+    const hostByDep = new Map<string, (typeof hostRows)[number]>();
+    for (const reg of regRows) {
+      const match =
+        (reg.providerPodId && hostRows.find((h) => h.providerPodId === reg.providerPodId)) ||
+        (reg.sshHost && hostRows.find((h) => h.host === reg.sshHost));
+      if (match) hostByDep.set(reg.id, match);
+    }
+
     const miners: DevopsMiner[] = [];
     let healthy = 0;
     let warning = 0;
@@ -250,6 +304,104 @@ export async function GET() {
       if (hasCritical) critical++;
       else if (hasWarning) warning++;
       else healthy++;
+
+      const service = (() => {
+        const okMs = probes.filter((p) => p.ok).map((p) => p.totalMs).filter((v): v is number => v !== null);
+        const sorted = [...okMs].sort((a, b) => a - b);
+        const pct = (p: number) =>
+          sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))] : null;
+        const successRatePct = probes.length
+          ? Math.round((probes.filter((p) => p.ok).length / probes.length) * 100)
+          : null;
+        return {
+          probe: latestProbe
+            ? {
+                endpoint: latestProbe.endpoint,
+                mode: latestProbe.mode,
+                ok: latestProbe.ok,
+                httpStatus: latestProbe.httpStatus,
+                ttfbMs: latestProbe.ttfbMs,
+                totalMs: latestProbe.totalMs,
+                errorKind: latestProbe.errorKind,
+                at: latestProbe.createdAt.toISOString(),
+              }
+            : null,
+          probeHistory: probes
+            .slice(0, 30)
+            .slice()
+            .reverse()
+            .map((p) => ({ at: p.createdAt.toISOString(), ok: p.ok, totalMs: p.totalMs })),
+          latencyP50Ms: pct(50),
+          latencyP95Ms: pct(95),
+          successRatePct,
+          probedCount: probes.length,
+          traffic: trafficLatest
+            ? {
+                windowMinutes: trafficLatest.windowMinutes,
+                requests: trafficLatest.requests,
+                distinctValidators: trafficLatest.distinctValidators,
+                topValidatorHotkey: trafficLatest.topValidatorHotkey,
+                topValidatorCount: trafficLatest.topValidatorCount,
+                logFound: trafficLatest.logFound,
+                at: trafficLatest.createdAt.toISOString(),
+              }
+            : null,
+        };
+      })();
+
+      // TIER1-1 — composite health score (pure scorer, same inputs the UI has).
+      const silenceMs =
+        daemon?.lastSeenAt != null ? Date.now() - new Date(daemon.lastSeenAt).getTime() : null;
+      const health = computeMinerHealth({
+        isMock: dep.mode === "mock",
+        processAlive: latestGpu?.processAlive ?? null,
+        hasDaemon: daemon !== null,
+        daemonSilent:
+          daemon != null &&
+          (daemon.status === "unreachable" ||
+            (silenceMs !== null && silenceMs > DEVOPS_THRESHOLDS.daemonSilenceMs)),
+        tempC: latestGpu?.tempC ?? null,
+        tempWarnC: DEVOPS_THRESHOLDS.tempWarnC,
+        tempCriticalC: DEVOPS_THRESHOLDS.tempCriticalC,
+        utilPct: latestGpu?.gpuUtilPct ?? null,
+        utilFloorPct: DEVOPS_THRESHOLDS.utilFloorPct,
+        probeOk: latestProbe?.ok ?? null,
+        probeTotalMs: latestProbe?.totalMs ?? null,
+        probeSuccessRatePct: service.successRatePct,
+        trafficRequests: trafficLatest?.requests ?? null,
+        queryDrought: openServiceKinds.has("QUERY_DROUGHT"),
+        uidRisk: (uid?.riskLevel as "healthy" | "warning" | "critical" | null) ?? null,
+      });
+
+      // TIER1-1 — live logs (newest first) + machine facts from the Doctor.
+      const logs = (logsByDep.get(dep.id) ?? []).slice(0, 40).map((l) => ({
+        at: l.at.toISOString(),
+        severity: l.severity,
+        source: l.source,
+        message: l.message,
+      }));
+      const hostRow = hostByDep.get(dep.id);
+      const machine = hostRow
+        ? (() => {
+            let facts: Record<string, unknown> = {};
+            try {
+              facts = hostRow.hostInfo ? (JSON.parse(hostRow.hostInfo) as Record<string, unknown>) : {};
+            } catch {
+              facts = {};
+            }
+            const str = (k: string) => (typeof facts[k] === "string" ? (facts[k] as string) : null);
+            return {
+              hostId: hostRow.id,
+              name: hostRow.name,
+              transport: hostRow.transport,
+              status: hostRow.status,
+              os: str("os"),
+              gpuName: str("gpuName"),
+              driverCuda: str("driverCuda"),
+              dockerVersion: str("dockerVersion"),
+            };
+          })()
+        : null;
 
       miners.push({
         deploymentId: dep.id,
@@ -336,49 +488,10 @@ export async function GET() {
             .map((e) => e.kind),
           snapshot,
         }),
-        service: (() => {
-          const okMs = probes.filter((p) => p.ok).map((p) => p.totalMs).filter((v): v is number => v !== null);
-          const sorted = [...okMs].sort((a, b) => a - b);
-          const pct = (p: number) =>
-            sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))] : null;
-          const successRatePct = probes.length
-            ? Math.round((probes.filter((p) => p.ok).length / probes.length) * 100)
-            : null;
-          return {
-            probe: latestProbe
-              ? {
-                  endpoint: latestProbe.endpoint,
-                  mode: latestProbe.mode,
-                  ok: latestProbe.ok,
-                  httpStatus: latestProbe.httpStatus,
-                  ttfbMs: latestProbe.ttfbMs,
-                  totalMs: latestProbe.totalMs,
-                  errorKind: latestProbe.errorKind,
-                  at: latestProbe.createdAt.toISOString(),
-                }
-              : null,
-            probeHistory: probes
-              .slice(0, 30)
-              .slice()
-              .reverse()
-              .map((p) => ({ at: p.createdAt.toISOString(), ok: p.ok, totalMs: p.totalMs })),
-            latencyP50Ms: pct(50),
-            latencyP95Ms: pct(95),
-            successRatePct,
-            probedCount: probes.length,
-            traffic: trafficLatest
-              ? {
-                  windowMinutes: trafficLatest.windowMinutes,
-                  requests: trafficLatest.requests,
-                  distinctValidators: trafficLatest.distinctValidators,
-                  topValidatorHotkey: trafficLatest.topValidatorHotkey,
-                  topValidatorCount: trafficLatest.topValidatorCount,
-                  logFound: trafficLatest.logFound,
-                  at: trafficLatest.createdAt.toISOString(),
-                }
-              : null,
-          };
-        })(),
+        health,
+        logs,
+        machine,
+        service,
       });
     }
 
@@ -387,6 +500,14 @@ export async function GET() {
       where: { workerName: "devops-monitor" },
       orderBy: { createdAt: "desc" },
     });
+
+    // TIER1-1 — fleet economics per day (spec §41): infra cost vs mining revenue.
+    const infraCostUsdPerDay =
+      started.reduce((a, d) => a + (d.monitoring.rewards.costPerMonthUsd ?? d.monthlyCost), 0) / 30;
+    const revenueUsdPerDay = started.reduce((a, d) => a + (d.monitoring.rewards.emissionPerDayUsd ?? 0), 0);
+    const avgHealthScore = miners.length
+      ? Math.round(miners.reduce((a, m) => a + m.health.score, 0) / miners.length)
+      : null;
 
     const payload: DevopsMonitorPayload = {
       ok: true,
@@ -398,6 +519,10 @@ export async function GET() {
         critical,
         daemonsOnline,
         openRecommendations: events.open.length,
+        infraCostUsdPerDay,
+        revenueUsdPerDay,
+        netUsdPerDay: revenueUsdPerDay - infraCostUsdPerDay,
+        avgHealthScore,
       },
       miners,
       openEvents: events.open,

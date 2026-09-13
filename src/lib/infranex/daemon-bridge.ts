@@ -213,7 +213,7 @@ export function buildDaemonScript(opts: {
 }): string {
   const { deploymentId, secret, platformUrl, minerCommand } = opts;
   return `#!/usr/bin/env python3
-"""Infranex Node Daemon v2 — telemetry + validator traffic + command pull.
+"""Infranex Node Daemon v3 — telemetry + validator traffic + live logs + command pull.
 
 Zero dependencies (Python 3.8+ stdlib only). HMAC-SHA256 signed.
 Every command was approved by a human through the Trigger Engine.
@@ -360,6 +360,66 @@ _TRAFFIC_STATE = _Traffic()
 def traffic_stats():
     return _TRAFFIC_STATE.stats()
 
+# TIER1-1 — live miner logs. Same incremental-read trick as traffic, but the
+# goal is different: surface the miner's OWN lines on the platform board.
+# Severity is parsed from the text (ERROR/CRIT/FATAL → error, WARN → warning,
+# SUCCESS/OK → success, everything else info). Lines are reported ONCE per
+# batch; the platform dedupes by content hash so daemon restarts re-reading
+# the tail can't double-log.
+LOG_TAIL_MAX_LINES = 60
+LOG_LINE_MAX_CHARS = 300
+
+class _Logs:
+    def __init__(self):
+        self.pos = None          # byte offset already consumed
+
+    def _read_new_lines(self):
+        try:
+            size = os.path.getsize(TRAFFIC_LOG)
+            if self.pos is None:
+                with open(TRAFFIC_LOG, "rb") as f:
+                    f.seek(max(0, size - TRAFFIC_BOOTSTRAP_BYTES))
+                    blob = f.read().decode("utf-8", "ignore")
+                self.pos = size
+                return blob.splitlines()
+            if size < self.pos:      # rotated/truncated — start over
+                self.pos = 0
+            with open(TRAFFIC_LOG, "rb") as f:
+                f.seek(self.pos)
+                blob = f.read().decode("utf-8", "ignore")
+            self.pos = size
+            return blob.splitlines()
+        except Exception:
+            self.pos = None
+            return []
+
+    def tail(self):
+        lines = self._read_new_lines()
+        if not lines:
+            return []
+        out = []
+        now = int(time.time())
+        for raw in lines[-LOG_TAIL_MAX_LINES:]:
+            line = raw.strip()[:LOG_LINE_MAX_CHARS]
+            if not line:
+                continue
+            u = line.upper()
+            if re.search(r"\b(ERROR|CRIT|CRITICAL|FATAL|TRACEBACK|EXCEPTION)\b", u):
+                sev = "error"
+            elif re.search(r"\b(WARN|WARNING)\b", u):
+                sev = "warning"
+            elif re.search(r"\b(SUCCESS|OK|REGISTERED|COMPLETED)\b", u):
+                sev = "success"
+            else:
+                sev = "info"
+            out.append({"at": now, "severity": sev, "source": "miner", "message": line})
+        return out
+
+_LOGS_STATE = _Logs()
+
+def log_tail():
+    return _LOGS_STATE.tail()
+
 def telemetry():
     return {
         "ts": int(time.time()),
@@ -369,6 +429,7 @@ def telemetry():
         "minerProcessAlive": process_alive(),
         "loadavg": [round(x, 2) for x in os.getloadavg()],
         "traffic": traffic_stats(),
+        "logs": log_tail(),
     }
 
 def restart_miner():

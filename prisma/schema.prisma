@@ -439,6 +439,32 @@ model TrafficSample {
   @@index([deploymentId, createdAt])
 }
 
+// ---------------------------------------------------------------------------
+// TIER1-1 — Live miner logs (spec §45). The Node Daemon tails the miner log
+// incrementally each telemetry POST (severity parsed per line: info / success
+// / warning / error); the platform stores a rolling window per deployment so
+// the DevOps board can show WHAT the miner is actually saying, not just its
+// vitals. lineKey dedupes daemon retries reporting the same lines.
+// ~200 rows per deployment.
+// ---------------------------------------------------------------------------
+
+model MinerLog {
+  id           String   @id @default(cuid())
+  deploymentId String
+  at           DateTime
+  // "info" | "success" | "warning" | "error"
+  severity     String   @default("info")
+  // "miner" | "daemon" | "system"
+  source       String   @default("miner")
+  message      String
+  // sha1(deploymentId|at|message) — duplicate lines from daemon restarts are skipped
+  lineKey      String
+  createdAt    DateTime @default(now())
+
+  @@index([deploymentId, at])
+  @@index([deploymentId, lineKey])
+}
+
 // Gated-access user base (AUTH-1). Only rows here can sign in on /login with
 // userId + access code. Codes are stored ONE-WAY hashed (scrypt salt:hash)
 // for verification, plus AES-256-GCM encrypted (codeEnc) so the admin panel
