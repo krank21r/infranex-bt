@@ -98,6 +98,7 @@ export default function LoginPage() {
               <Label htmlFor="userId">User ID</Label>
               <Input
                 id="userId"
+                suppressHydrationWarning
                 value={userId}
                 onChange={(e) => setUserId(e.target.value)}
                 placeholder="e.g. admin"
@@ -115,6 +116,7 @@ export default function LoginPage() {
               <div className="relative">
                 <Input
                   id="code"
+                  suppressHydrationWarning
                   type={showCode ? "text" : "password"}
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
@@ -127,6 +129,7 @@ export default function LoginPage() {
                 />
                 <button
                   type="button"
+                  suppressHydrationWarning
                   onClick={() => setShowCode((v) => !v)}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
                   aria-label={showCode ? "Hide access code" : "Show access code"}
@@ -146,7 +149,7 @@ export default function LoginPage() {
               </p>
             )}
 
-            <Button type="submit" className="h-10 w-full rounded-lg" disabled={busy}>
+            <Button type="submit" suppressHydrationWarning className="h-10 w-full rounded-lg" disabled={busy}>
               {busy ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
