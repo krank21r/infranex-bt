@@ -27,6 +27,46 @@ export function isChannelKind(v: unknown): v is AlertChannelKind {
 
 const RANK: Record<string, number> = { info: 0, warning: 1, critical: 2 };
 
+/**
+ * WINDUP-1 — webhook destination policy (defense-in-depth against SSRF).
+ * The channel CRUD surface is admin-only, but URLs are still validated at
+ * BOTH create/update AND delivery time: absolute http(s) only, and — in
+ * production — no loopback/link-local/RFC1918/ULA hosts (webhooks must go
+ * out to the real internet). Development allows private hosts so the test
+ * suite's local Bun.serve receiver keeps working.
+ * Throws with a human-readable message; the API routes surface it as 400.
+ */
+export function validateWebhookUrl(rawUrl: string): void {
+  let u: URL;
+  try {
+    u = new URL(rawUrl);
+  } catch {
+    throw new Error("Webhook URL is not a valid absolute URL");
+  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") {
+    throw new Error("Webhook URL must start with http:// or https://");
+  }
+  if (process.env.NODE_ENV !== "production") return; // dev: local receivers OK
+
+  // URL.hostname keeps IPv6 literals bracketed — strip for uniform checks.
+  const host = u.hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
+  const privateHost =
+    host === "localhost" ||
+    host.endsWith(".localhost") ||
+    host === "0.0.0.0" ||
+    host === "::1" ||
+    /^127\./.test(host) ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^169\.254\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host) ||
+    host.startsWith("::ffff:127.") ||
+    ((host.startsWith("fc") || host.startsWith("fd")) && host.includes(":"));
+  if (privateHost) {
+    throw new Error("Webhook URL must not point at a private or loopback address");
+  }
+}
+
 export interface AlertEventInput {
   kind: string;
   severity: string;
@@ -86,6 +126,13 @@ async function deliverToChannel(
     await bookkeep(channel.id, false, "stored webhook URL failed to decrypt");
     return { ok: false, error: "decrypt failed" };
   }
+  try {
+    validateWebhookUrl(url);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "webhook URL rejected";
+    await bookkeep(channel.id, false, msg);
+    return { ok: false, error: msg };
+  }
   const fmt = formatAlertBody(isChannelKind(channel.kind) ? channel.kind : "generic", event);
   try {
     const res = await fetchImpl(url, {
@@ -94,6 +141,7 @@ async function deliverToChannel(
       body: fmt.body,
       signal: AbortSignal.timeout(10_000),
       cache: "no-store",
+      redirect: "error", // WINDUP-1: a 302 must not bounce a public URL into an internal one
     });
     if (!res.ok) {
       const t = (await res.text().catch(() => "")).slice(0, 200);
@@ -216,7 +264,8 @@ export async function createChannel(input: {
   digest?: boolean;
 }) {
   const url = input.url.trim();
-  if (!/^https?:\/\//i.test(url)) throw new Error("Webhook URL must start with http:// or https://");
+  // Full destination policy (was: scheme-only regex — WINDUP-1 SSRF hardening).
+  validateWebhookUrl(url);
   const row = await db.alertChannel.create({
     data: {
       name: input.name.trim().slice(0, 80),

@@ -1,8 +1,11 @@
 // DevOps Engine — GPU host inventory: list + create.
 // Secrets are encrypted at rest and NEVER returned to the client.
+// WINDUP-1: POST (registering an SSH target + its credential) is ADMIN-ONLY;
+// GET stays session-gated so operators can see the fleet they operate on.
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireActiveAdmin } from "@/lib/auth-admin";
 import { encryptSecret } from "@/lib/devops/crypto";
 
 export const dynamic = "force-dynamic";
@@ -64,7 +67,11 @@ export async function GET() {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const gate = await requireActiveAdmin(req);
+  if ("error" in gate) {
+    return NextResponse.json({ error: gate.error }, { status: gate.status });
+  }
   try {
     const body = (await req.json()) as Record<string, unknown>;
     const name = String(body.name ?? "").trim();

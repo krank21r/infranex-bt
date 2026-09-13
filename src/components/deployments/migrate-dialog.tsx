@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
  * Provision new pod → switch → re-bridge → terminate old pod, all recorded
  * as a "migrate" revision + step trail. Mock fleets migrate within the
  * simulated fleet (preset synthetic targets); live deployments migrate onto
- * RunPod on-demand offers from the live catalog.
+ * on-demand offers from their own rental provider (RunPod or Vast.ai).
  */
 
 interface MigrationResultDTO {
@@ -166,7 +166,7 @@ export function MigrateDialog({
               <p className="rounded-lg border border-dashed border-border/60 px-3 py-6 text-center text-xs text-muted-foreground">
                 {isMock
                   ? "No other mock targets available."
-                  : "No eligible RunPod on-demand offers right now (spot offers are refused for long-running miners)."}
+                  : `No eligible ${liveProvider === "vast" ? "Vast.ai" : "RunPod"} on-demand offers right now (spot offers are refused for long-running miners).`}
               </p>
             )}
             {targets.map((o) => (

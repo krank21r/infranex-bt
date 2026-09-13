@@ -1,30 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
+import { requireActiveAdmin } from "@/lib/auth-admin";
 import { db } from "@/lib/db";
 import { encryptSecret } from "@/lib/devops/crypto";
+import { validateWebhookUrl } from "@/lib/infranex/alerts";
 
 export const dynamic = "force-dynamic";
 
 /**
  * TIER4 — one alert channel: PATCH (ADMIN-ONLY) to update / enable / disable,
  * DELETE (ADMIN-ONLY) to remove. The stored webhook URL is never returned —
- * updates accept a new plaintext URL and re-encrypt.
+ * updates accept a new plaintext URL and re-encrypt. Gates use the shared
+ * WINDUP-1 helper (role + still-active revocation check).
  */
-
-async function requireAdmin(req: NextRequest) {
-  const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value);
-  if (!session) return { error: "Not signed in", status: 401 as const };
-  if (session.role !== "admin") {
-    return { error: "Admin privileges required.", status: 403 as const };
-  }
-  return { session };
-}
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const gate = await requireAdmin(req);
+  const gate = await requireActiveAdmin(req);
   if ("error" in gate) {
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
@@ -43,8 +36,13 @@ export async function PATCH(
     }
     if (typeof body.url === "string" && body.url.trim()) {
       const url = body.url.trim();
-      if (!/^https?:\/\//i.test(url)) {
-        return NextResponse.json({ error: "Webhook URL must start with http:// or https://" }, { status: 400 });
+      try {
+        validateWebhookUrl(url);
+      } catch (e) {
+        return NextResponse.json(
+          { error: e instanceof Error ? e.message : "Invalid webhook URL" },
+          { status: 400 }
+        );
       }
       data.urlEnc = encryptSecret(url);
     }
@@ -71,7 +69,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const gate = await requireAdmin(req);
+  const gate = await requireActiveAdmin(req);
   if ("error" in gate) {
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }

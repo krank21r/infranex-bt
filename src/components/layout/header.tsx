@@ -22,6 +22,9 @@ import {
 } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
+import { useTriggers } from "@/lib/infranex/use-triggers";
+import { cn, formatRelativeTime } from "@/lib/utils";
+import type { TriggerEventDTO } from "@/lib/infranex/use-triggers";
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -51,6 +54,14 @@ export function Header({ onMenuClick, title, eyebrow }: HeaderProps) {
     retry: false,
   });
   const user = session?.user;
+
+  // WINDUP-1: the bell now shows REAL open trigger findings (was: three
+  // hardcoded demo notifications + a fake "3 new" badge on a live ops
+  // surface — misleading during real incidents). Same cached query the
+  // Trigger Center uses, so this adds no extra polling.
+  const { data: trig } = useTriggers();
+  const openEvents: TriggerEventDTO[] = (trig?.open ?? []).slice(0, 3);
+  const openCount = trig?.open?.length ?? 0;
   const initials = (user?.label || user?.userId || "OP")
     .replace(/[^a-zA-Z0-9]/g, " ")
     .trim()
@@ -188,47 +199,48 @@ export function Header({ onMenuClick, title, eyebrow }: HeaderProps) {
                 aria-label="Notifications"
               >
                 <Bell className="h-5 w-5" />
-                <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive" />
+                {openCount > 0 && (
+                  <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive" />
+                )}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-80">
               <DropdownMenuLabel className="flex items-center justify-between">
-                <span>Notifications</span>
+                <span>Open findings</span>
                 <Badge variant="outline" className="text-xs">
-                  3 new
+                  {openCount} open
                 </Badge>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="flex flex-col items-start gap-1 py-2">
-                <div className="flex w-full items-center gap-2">
+              {openEvents.length === 0 ? (
+                <div className="flex items-center gap-2 px-3 py-4 text-xs text-muted-foreground">
                   <span className="h-2 w-2 rounded-full bg-success" />
-                  <span className="text-sm font-medium">Miner registered</span>
-                  <span className="ml-auto text-xs text-muted-foreground">2m</span>
+                  All clear — no open trigger findings.
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  apex-prod-01 joined Subnet 7 · Apex
-                </p>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="flex flex-col items-start gap-1 py-2">
-                <div className="flex w-full items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-warning" />
-                  <span className="text-sm font-medium">GPU catalog degraded</span>
-                  <span className="ml-auto text-xs text-muted-foreground">18m</span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  RunPod H100 offers temporarily unavailable
-                </p>
-              </DropdownMenuItem>
-              <DropdownMenuItem className="flex flex-col items-start gap-1 py-2">
-                <div className="flex w-full items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-primary" />
-                  <span className="text-sm font-medium">Score updated</span>
-                  <span className="ml-auto text-xs text-muted-foreground">5m</span>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Subnet 23 · Mosaic now ranks #1 (88.4)
-                </p>
-              </DropdownMenuItem>
+              ) : (
+                openEvents.map((e) => (
+                  <DropdownMenuItem key={e.id} className="flex flex-col items-start gap-1 py-2">
+                    <div className="flex w-full items-center gap-2">
+                      <span
+                        className={cn(
+                          "h-2 w-2 shrink-0 rounded-full",
+                          e.severity === "critical" && "bg-destructive",
+                          e.severity === "warning" && "bg-amber-400",
+                          e.severity !== "critical" && e.severity !== "warning" && "bg-primary"
+                        )}
+                      />
+                      <span className="truncate text-sm font-medium">{e.title}</span>
+                      <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                        {formatRelativeTime(e.createdAt)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {e.kind}
+                      {e.netuid !== null ? ` · α${e.netuid}` : ""}
+                    </p>
+                  </DropdownMenuItem>
+                ))
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
 

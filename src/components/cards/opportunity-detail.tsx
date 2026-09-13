@@ -453,7 +453,7 @@ export function OpportunityDetailDialog({
                 {(() => {
                   const seat = assessSeatChance({
                     minersCount: o.totalSlots != null && o.freeSlots != null ? o.totalSlots - o.freeSlots : null,
-                    maxUids: o.totalSlots,
+                    maxUids: o.totalSlots ?? null, // WINDUP-1: totalSlots also undefined-able here
                     freeSlots: o.freeSlots,
                     burnCostTao: o.burnCostTao ?? null,
                     immunityBlocks: o.immunityBlocks ?? null,

@@ -106,7 +106,7 @@ export async function runTriggerPass(): Promise<PassResult> {
           kind: "KILL",
           severity: "critical",
           dedupeKey: key,
-          title: `Kill "dep.minerName" — still down after re-sync`,
+          title: `Kill "${dep.minerName}" — still down after re-sync`,
           detail: `Pod has been down for ${downPasses} consecutive passes and a RE_SYNC was already executed. Burning money with no incentive — approval will terminate the pod.`,
           evidence: {
             podDownPasses: downPasses,

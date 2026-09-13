@@ -1,7 +1,6 @@
 import { db } from "@/lib/db";
 import { fetchLiveSnapshot } from "../chain";
 import { subnets as curatedSubnets } from "../data";
-import type { Subnet } from "../types";
 import { fetchJudgeInputs, extractJudgeProfile } from "./extract";
 import { buildCohort } from "./cohort";
 import { simulateAgainstProfile } from "./simulate";
@@ -222,18 +221,4 @@ export async function runSimulation(netuid: number, spec: MinerSpec) {
   const result = simulateAgainstProfile(profile, spec);
   await saveJudgeRun(profile, spec, result);
   return { profile, result };
-}
-
-/** Subnets available for profiling (curated list, enriched with live names). */
-export function listJudgeableSubnets(): Pick<
-  Subnet,
-  "netuid" | "name" | "symbol" | "category" | "githubUrl"
->[] {
-  return curatedSubnets.map((s) => ({
-    netuid: s.netuid,
-    name: s.name,
-    symbol: s.symbol,
-    category: s.category,
-    githubUrl: s.githubUrl,
-  }));
 }

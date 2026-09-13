@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireActiveAdmin } from "@/lib/auth-admin";
 import { decryptSecret } from "@/lib/devops/crypto";
 import {
   PROVIDER_META,
@@ -9,7 +10,9 @@ import {
 } from "@/lib/infranex/providers";
 
 // POST /api/providers/keys/test — re-validate a provider API key on demand
-// (the GPU catalog dialog's "Test" button).
+// (the GPU catalog dialog's "Test" button). ADMIN-ONLY (WINDUP-1): stored-key
+// tests refresh the credential verdict and candidate probes otherwise act as
+// an unauthenticated-to-provider relay.
 //
 // Body: { provider, key? }
 //   - { provider }          → test the STORED key (and refresh its status row)
@@ -22,6 +25,11 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
+  const gate = await requireActiveAdmin(req);
+  if ("error" in gate) {
+    return NextResponse.json({ error: gate.error }, { status: gate.status });
+  }
+
   const body = (await req.json().catch(() => null)) as
     | { provider?: string; key?: string }
     | null;

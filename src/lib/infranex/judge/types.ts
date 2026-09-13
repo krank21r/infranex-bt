@@ -18,36 +18,6 @@ export const JUDGE_ARCHETYPES = [
 
 export type JudgeKind = (typeof JUDGE_ARCHETYPES)[number];
 
-export const JUDGE_KIND_META: Record<
-  JudgeKind,
-  { label: string; blurb: string }
-> = {
-  latency_race: {
-    label: "Latency Race",
-    blurb: "Fastest complete responses take the incentive — speed dominates the score.",
-  },
-  quality_judge: {
-    label: "Quality Judge",
-    blurb: "A scoring model (or rubric) grades output quality above all else.",
-  },
-  market_clearing: {
-    label: "Market Clearing",
-    blurb: "Validators buy from the cheapest/fastest supply — price and throughput clear the market.",
-  },
-  uptime_sla: {
-    label: "Uptime SLA",
-    blurb: "Simply staying online and responsive within deadlines earns most of the incentive.",
-  },
-  resource_fit: {
-    label: "Resource Fit",
-    blurb: "The judge gates on hardware/model capacity (VRAM, model size) before anything else.",
-  },
-  unknown: {
-    label: "Unclassified",
-    blurb: "Not enough repo evidence to classify — weights shown are neutral priors.",
-  },
-};
-
 /** One scored axis of a judge's composite. */
 export interface JudgeDimension {
   key: string;

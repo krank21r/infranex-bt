@@ -16,9 +16,12 @@ const MAX_FAILURES = 10;
 const attempts = new Map<string, { count: number; resetAt: number }>();
 
 function clientIp(req: NextRequest): string {
+  // WINDUP-1: prefer x-real-ip — Caddy sets it from the actual remote host.
+  // x-forwarded-for is client-spoofable, and the limiter is keyed on this
+  // value, so header rotation previously minted fresh brute-force buckets.
   return (
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     req.headers.get("x-real-ip") ||
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     "local"
   );
 }

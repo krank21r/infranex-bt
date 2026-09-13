@@ -38,7 +38,8 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "Infranex BT" }],
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    // WINDUP-1: was an external CDN URL — serve the bundled logo instead.
+    icon: "/logo.svg",
   },
   openGraph: {
     title: "Infranex BT — Bittensor Subnet Intelligence Platform",

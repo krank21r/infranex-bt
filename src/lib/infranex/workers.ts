@@ -83,13 +83,6 @@ export function startWorkers() {
   workerTimers.push(setInterval(() => void runDigestWorker(), INTERVALS.digest));
 }
 
-/** Stop all workers (for testing). */
-export function stopWorkers() {
-  workerTimers.forEach(clearInterval);
-  workerTimers.length = 0;
-  workersStarted = false;
-}
-
 /** Get the status of all workers from the DB. */
 export async function getWorkerStatuses() {
   const recent = await db.workerStatus.findMany({

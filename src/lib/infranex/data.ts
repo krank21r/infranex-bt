@@ -598,16 +598,12 @@ subnets.forEach((s) => {
 // ---------------------------------------------------------------------------
 
 export {
-  type ScoreComponents,
   SCORE_WEIGHTS,
   deriveFactors,
   totalScore,
   riskLevel,
   classifySubnetHardware,
   scoreMinersLedger,
-  type SubnetHardwareProfile,
-  type MinerLedger,
-  type MinerLedgerDiagnostics,
   GPU_TIERS,
   estimateGpuTierFromRevenue,
 } from "./miner-score";
@@ -967,43 +963,3 @@ export const workers: WorkerStatus[] = [
   { name: "Monitoring Engine", status: "healthy", lastRun: "1m ago", latencyMs: 240, tasksProcessed: 98214 },
   { name: "Change Detector", status: "healthy", lastRun: "7m ago", latencyMs: 680, tasksProcessed: 3120 },
 ];
-
-// ---------------------------------------------------------------------------
-// Aggregated metrics
-// ---------------------------------------------------------------------------
-
-export function getDashboardMetrics() {
-  const trackedSubnets = subnets.length;
-  const activeSubnets = subnets.filter((s) => s.status === "active").length;
-  const totalMiners = subnets.reduce((a, s) => a + s.minersCount, 0);
-  const totalValidators = subnets.reduce((a, s) => a + s.validatorsCount, 0);
-  const totalMarketCap = subnets.reduce((a, s) => a + s.marketCap, 0);
-  const totalEmission = subnets.reduce((a, s) => a + s.emission, 0);
-  const avgScore =
-    opportunities.reduce((a, o) => a + o.score, 0) / opportunities.length;
-  const runCount = opportunities.filter((o) => o.score >= 60).length;
-  const watchCount = opportunities.filter(
-    (o) => o.score >= 40 && o.score < 60
-  ).length;
-  const avoidCount = opportunities.filter((o) => o.score < 40).length;
-  const portfolioEarnings = userMiners.reduce((a, m) => a + m.totalEarnings, 0);
-  const portfolioDailyEmission = userMiners.reduce((a, m) => a + m.emission, 0);
-  const activeMiners = userMiners.filter((m) => m.status === "active").length;
-
-  return {
-    trackedSubnets,
-    activeSubnets,
-    totalMiners,
-    totalValidators,
-    totalMarketCap,
-    totalEmission,
-    avgScore: Math.round(avgScore * 10) / 10,
-    runCount,
-    watchCount,
-    avoidCount,
-    portfolioEarnings,
-    portfolioDailyEmission,
-    activeMiners,
-    taoUsd: TAO_USD,
-  };
-}

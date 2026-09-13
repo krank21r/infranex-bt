@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
-import { db } from "@/lib/db";
+import { requireActiveAdmin } from "@/lib/auth-admin";
 import { testChannel } from "@/lib/infranex/alerts";
 
 export const dynamic = "force-dynamic";
@@ -8,15 +7,15 @@ export const dynamic = "force-dynamic";
 /**
  * TIER4 — test-deliver a synthetic payload to one alert channel (ADMIN-ONLY).
  * Returns the delivery verdict so the UI can show "delivered" vs the error.
+ * Gate = shared WINDUP-1 helper (role + still-active revocation check).
  */
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value);
-  if (!session) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
-  if (session.role !== "admin") {
-    return NextResponse.json({ error: "Admin privileges required." }, { status: 403 });
+  const gate = await requireActiveAdmin(req);
+  if ("error" in gate) {
+    return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
   const { id } = await params;
   try {

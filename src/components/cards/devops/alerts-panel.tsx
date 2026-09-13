@@ -97,13 +97,22 @@ export function AlertsPanel() {
 
   const toggle = async (id: string, enabled: boolean) => {
     setBusy(true);
+    setNote(null);
     try {
-      await fetch(`/api/alerts/channels/${id}`, {
+      const res = await fetch(`/api/alerts/channels/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled }),
       });
+      // WINDUP-1: failures were swallowed (a 403 for non-admins silently
+      // "succeeded") — surface them like remove() does.
+      if (!res.ok) {
+        const j = await res.json().catch(() => null);
+        setError(j?.error ?? `update failed (${res.status})`);
+      }
       await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "update failed");
     } finally {
       setBusy(false);
     }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
+import { requireActiveAdmin } from "@/lib/auth-admin";
 import { db } from "@/lib/db";
 import {
   createChannel,
@@ -16,17 +16,9 @@ export const dynamic = "force-dynamic";
  *   GET   → all channels (URL masked to a hint — never the plaintext)
  *   POST  → create a channel (ADMIN-ONLY) { name, kind, url, minSeverity, digest }
  *
- * The proxy guarantees a valid session for GET; mutations re-verify the role.
+ * The proxy guarantees a valid session for GET; mutations re-verify the role
+ * AND that the account is still active (WINDUP-1 shared gate).
  */
-
-async function requireAdmin(req: NextRequest) {
-  const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value);
-  if (!session) return { error: "Not signed in", status: 401 as const };
-  if (session.role !== "admin") {
-    return { error: "Admin privileges required.", status: 403 as const };
-  }
-  return { session };
-}
 
 export async function GET() {
   const rows = await db.alertChannel.findMany({ orderBy: { createdAt: "desc" } });
@@ -50,7 +42,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const gate = await requireAdmin(req);
+  const gate = await requireActiveAdmin(req);
   if ("error" in gate) {
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }

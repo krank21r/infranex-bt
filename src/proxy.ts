@@ -7,6 +7,11 @@
 //   /login                 — the sign-in page
 //   /api/auth/login        — credential check + cookie mint
 //   /api/auth/logout       — cookie clear
+//   /api/daemon/commands   — HMAC-signed daemon bridge (WINDUP-1): the Node
+//   /api/daemon/telemetry    Daemon has no cookie; its auth is the per-deployment
+//                            HMAC (x-infranex-signature, ±5 min replay window,
+//                            timing-safe compare). Session-gating these made
+//                            every real-daemon call 401 at the edge.
 // Everything else (pages AND /api/*) requires a valid session cookie:
 //   pages  → 307 redirect to /login
 //   api    → 401 JSON (fetch-safe; the browser already sends the cookie)
@@ -16,7 +21,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
 
-const PUBLIC_PATHS = new Set(["/login", "/api/auth/login", "/api/auth/logout"]);
+const PUBLIC_PATHS = new Set([
+  "/login",
+  "/api/auth/login",
+  "/api/auth/logout",
+  "/api/daemon/commands", // HMAC-authenticated (daemon bridge)
+  "/api/daemon/telemetry", // HMAC-authenticated (daemon bridge)
+]);
 
 function isPublic(pathname: string): boolean {
   return PUBLIC_PATHS.has(pathname);

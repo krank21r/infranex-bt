@@ -43,10 +43,6 @@ export function formatPercent(value: number, decimals = 2): string {
   return `${value >= 0 ? "+" : ""}${value.toFixed(decimals)}%`;
 }
 
-export function formatPercentPlain(value: number, decimals = 1): string {
-  return `${value.toFixed(decimals)}%`;
-}
-
 export function formatDuration(seconds: number): string {
   if (seconds < 60) return `${Math.floor(seconds)}s`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${Math.floor(seconds % 60)}s`;
@@ -105,11 +101,6 @@ export function getStatusColor(status: string | null | undefined): StatusColor {
   };
   if (!status) return colors.inactive;
   return colors[status.toLowerCase()] || colors.inactive;
-}
-
-export function calculateChange(current: number, previous: number): number {
-  if (previous === 0) return current > 0 ? 100 : 0;
-  return ((current - previous) / Math.abs(previous)) * 100;
 }
 
 export function truncate(str: string, length: number): string {

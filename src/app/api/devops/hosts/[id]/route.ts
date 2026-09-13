@@ -1,7 +1,10 @@
 // DevOps Engine — single host: detail (host + latest check per step) + delete.
+// WINDUP-1: DELETE is ADMIN-ONLY (removing a host erases its checks + install
+// history); GET stays session-gated.
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireActiveAdmin } from "@/lib/auth-admin";
 import { secretHint, decryptSecret } from "@/lib/devops/crypto";
 
 export const dynamic = "force-dynamic";
@@ -52,9 +55,13 @@ export async function GET(
 }
 
 export async function DELETE(
-  _req: Request,
+  req: NextRequest,
   ctx: { params: Promise<{ id: string }> }
 ) {
+  const gate = await requireActiveAdmin(req);
+  if ("error" in gate) {
+    return NextResponse.json({ error: gate.error }, { status: gate.status });
+  }
   const { id } = await ctx.params;
   try {
     await db.hostCheck.deleteMany({ where: { hostId: id } });

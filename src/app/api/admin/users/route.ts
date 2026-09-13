@@ -11,7 +11,7 @@
 // copy, so the files NEVER drift from the database.
 
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
+import { requireActiveAdmin } from "@/lib/auth-admin";
 import {
   listUsersWithCodes,
   regenerateUserCode,
@@ -20,17 +20,8 @@ import {
 
 export const dynamic = "force-dynamic";
 
-async function requireAdmin(req: NextRequest) {
-  const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value);
-  if (!session) return { error: "Not signed in", status: 401 as const };
-  if (session.role !== "admin") {
-    return { error: "Admin privileges required.", status: 403 as const };
-  }
-  return { session };
-}
-
 export async function GET(req: NextRequest) {
-  const gate = await requireAdmin(req);
+  const gate = await requireActiveAdmin(req);
   if ("error" in gate) {
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }
@@ -39,7 +30,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const gate = await requireAdmin(req);
+  const gate = await requireActiveAdmin(req);
   if ("error" in gate) {
     return NextResponse.json({ error: gate.error }, { status: gate.status });
   }

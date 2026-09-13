@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { requireActiveAdmin } from "@/lib/auth-admin";
 import { decryptSecret, encryptSecret } from "@/lib/devops/crypto";
 import {
   PROVIDER_META,
@@ -13,6 +14,12 @@ import {
 // Provider API keys — manage from the GPU catalog. The plaintext key NEVER
 // leaves the server: GET returns a masked hint only, PUT encrypts at rest and
 // immediately validates against the provider so the UI shows a verdict.
+//
+// WINDUP-1: GET stays session-gated (masked hints only, needed by the wizard
+// to know whether real rental is configured); PUT/DELETE are ADMIN-ONLY and
+// re-check the account is still active — these routes decide which credential
+// the platform spends with, so members (viewer/analyst/ops) must never be
+// able to swap or delete rental keys.
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +67,11 @@ export async function GET() {
 
 /** Add or update a provider key. Encrypts, saves, and validates immediately. */
 export async function PUT(req: NextRequest) {
+  const gate = await requireActiveAdmin(req);
+  if ("error" in gate) {
+    return NextResponse.json({ error: gate.error }, { status: gate.status });
+  }
+
   const body = (await req.json().catch(() => null)) as { provider?: string; key?: string } | null;
   const provider = body?.provider;
   const key = typeof body?.key === "string" ? body.key.trim() : "";
@@ -106,6 +118,11 @@ export async function PUT(req: NextRequest) {
 
 /** Remove a stored key (the provider simply falls back to not configured). */
 export async function DELETE(req: NextRequest) {
+  const gate = await requireActiveAdmin(req);
+  if ("error" in gate) {
+    return NextResponse.json({ error: gate.error }, { status: gate.status });
+  }
+
   const provider = req.nextUrl.searchParams.get("provider");
   if (!isProviderId(provider)) {
     return NextResponse.json({ error: "Unknown provider." }, { status: 400 });

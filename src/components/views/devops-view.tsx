@@ -143,10 +143,14 @@ export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void })
     setBusyId(id ?? "__run");
     setNote(null);
     try {
-      const res = (await fn()) as { action?: string; pass?: { created: number; resolved: number; devopsEvaluated?: number } };
+      const res = (await fn()) as { action?: string; pass?: { created: number; resolved: number; deploymentsEvaluated?: number } };
       if (res?.pass) {
         setNote(
-          `Pass complete — ${res.pass.devopsEvaluated ?? res.pass.created} miners evaluated, ${res.pass.created} new findings, ${res.pass.resolved} resolved.`
+          // WINDUP-1: was `devopsEvaluated` — always 0 (not undefined) when the
+          // devops sub-pass skipped, so the ?? fallback never fired and the note
+          // undercounted. deploymentsEvaluated is the trigger-pass count this
+          // copy describes (same field trigger-center reads).
+          `Pass complete — ${res.pass.deploymentsEvaluated ?? res.pass.created} miners evaluated, ${res.pass.created} new findings, ${res.pass.resolved} resolved.`
         );
       } else if (res?.action) {
         setNote(res.action);

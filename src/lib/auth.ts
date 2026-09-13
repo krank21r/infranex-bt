@@ -14,7 +14,11 @@
 import crypto from "node:crypto";
 
 export const SESSION_COOKIE = "infranex_session";
-export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
+// WINDUP-1: 30d → 7d. Session revocation is DB-backed on the sensitive
+// routes (src/lib/auth-admin.ts), but proxy-only surfaces honor a token
+// until expiry — a shorter TTL bounds that window without breaking the
+// 5-operator workflow (re-login weekly).
+export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
 export interface SessionPayload {
   uid: string;

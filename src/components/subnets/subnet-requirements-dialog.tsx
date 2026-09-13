@@ -174,6 +174,7 @@ export function SubnetRequirementsDialog({
             refreshing={refreshing}
             onRefresh={refresh}
             onStartMining={onStartMining}
+            onOpenChange={onOpenChange}
             onCopy={copyCommand}
           />
         )}
@@ -361,6 +362,7 @@ function LiveProfileView({
   refreshing,
   onRefresh,
   onStartMining,
+  onOpenChange,
   onCopy,
 }: {
   profile: SubnetRequirementsProfile;
@@ -369,6 +371,9 @@ function LiveProfileView({
   refreshing: boolean;
   onRefresh: () => void;
   onStartMining?: (s: Subnet) => void;
+  /** WINDUP-1: was referenced without being in scope (tsc error + runtime
+   *  ReferenceError when "Start mining" was clicked) — now wired through. */
+  onOpenChange: (open: boolean) => void;
   onCopy: (text: string) => void;
 }) {
   const p = profile;
@@ -377,7 +382,7 @@ function LiveProfileView({
       {/* Provenance strip */}
       <div className="flex flex-wrap items-center gap-2">
         {p.sources.map((s) => (
-          <Chip key={s}>{s === "github" ? "GitHub repo" : s === "chain" ? "On-chain identity" : "Classifier"}</Chip>
+          <Chip key={s}>{s === "github" ? "GitHub repo" : s === "chain" ? "On-chain identity" : s === "curated" ? "Curated dataset" : "Classifier"}</Chip>
         ))}
         <ConfidenceBadge confidence={p.confidence} />
         <Chip>{cached ? "cached (6h TTL)" : "fresh pull"}</Chip>
@@ -470,13 +475,13 @@ function LiveProfileView({
             </Button>
           )}
           {p.readmeUrl && (
-            <Button size="sm" variant="ghost" className="gap-2" onClick={() => window.open(p.readmeUrl, "_blank")}>
+            <Button size="sm" variant="ghost" className="gap-2" onClick={() => window.open(p.readmeUrl!, "_blank")}>
               <ExternalLink className="h-3.5 w-3.5" />
               README
             </Button>
           )}
           {p.requirementsUrl && (
-            <Button size="sm" variant="ghost" className="gap-2" onClick={() => window.open(p.requirementsUrl, "_blank")}>
+            <Button size="sm" variant="ghost" className="gap-2" onClick={() => window.open(p.requirementsUrl!, "_blank")}>
               <ExternalLink className="h-3.5 w-3.5" />
               requirements.txt
             </Button>

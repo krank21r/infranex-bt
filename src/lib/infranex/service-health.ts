@@ -320,7 +320,6 @@ async function writeTrafficSample(depId: string, t: TrafficRecord) {
 }
 
 async function prune(model: "probeSample" | "trafficSample", deploymentId: string) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const m = (db as any)[model] as {
     findMany: (a: any) => Promise<{ id: string }[]>;
     deleteMany: (a: any) => Promise<unknown>;

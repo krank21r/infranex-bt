@@ -30,6 +30,21 @@ const KIND_META = {
   DEREG_RISK: { label: "DEREG-RISK", icon: ShieldAlert, chip: "border-violet-500/40 bg-violet-500/10 text-violet-300" },
 } as const;
 
+// WINDUP-1 (crash fix): this card predates the newer trigger kinds
+// (GPU_HEALTH, PROBE_FAIL, ESCALATION, UPSTREAM_DRIFT, BENCH_REGRESS,
+// RUNWAY, …). An unguarded `KIND_META[event.kind]` returned undefined and
+// crashed the whole Monitoring view on the first such event — fall back to
+// a neutral rendering instead (same guard pattern as devops-view).
+function kindMetaOf(kind: string): { label: string; icon: typeof ShieldAlert; chip: string } {
+  return (
+    KIND_META[kind as keyof typeof KIND_META] ?? {
+      label: kind,
+      icon: ShieldAlert,
+      chip: "border-border/40 bg-muted/10 text-muted-foreground",
+    }
+  );
+}
+
 export function TriggerCenter({ onNavigate }: { onNavigate: (v: ViewKey) => void }) {
   const { data, isLoading, refetch, isFetching } = useTriggers();
   const actions = useTriggerActions();
@@ -165,7 +180,7 @@ function EventRow({
   onDismiss: () => void;
   onNavigate: (v: ViewKey) => void;
 }) {
-  const meta = KIND_META[event.kind];
+  const meta = kindMetaOf(event.kind);
   const Icon = meta.icon;
   return (
     <div className="rounded-xl border border-border/50 bg-background/30">

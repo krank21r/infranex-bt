@@ -41,7 +41,7 @@ import {
   type RegistrationWizardContext,
 } from "@/lib/infranex/use-deployments";
 import { WalletRegistrationDialog } from "@/components/devops/wallet-registration-dialog";
-import { assessSeatChance, formatBurnTao } from "@/lib/infranex/miner-score";
+import { assessSeatChance } from "@/lib/infranex/miner-score";
 import type { SubnetRequirementsProfile } from "@/lib/devops/subnet-requirements";
 import { useToast } from "@/hooks/use-toast";
 
@@ -98,6 +98,11 @@ export function DeployWizard({ open, onOpenChange, initialNetuid, initialOfferId
   // A subnet preselect lands on step 2 — "check required GPU" — the step
   // the user explicitly asked for after choosing the subnet.
   const wasOpen = useRef(false);
+  /* WINDUP-1: seeding the wizard's state on the closed→open transition is
+   * deliberate (singleton dialog re-seeded per entry point). The
+   * react-hooks/set-state-in-effect rule forbids the pattern wholesale, so
+   * scope the disable to exactly this block. */
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (open && !wasOpen.current) {
       const hasSubnet = initialNetuid != null;
@@ -114,6 +119,7 @@ export function DeployWizard({ open, onOpenChange, initialNetuid, initialOfferId
     }
     wasOpen.current = open;
   }, [open, initialNetuid, initialOfferId]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const reset = () => {
     setStep(1);

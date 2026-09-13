@@ -40,6 +40,11 @@ import type {
 
 type Health = "healthy" | "warning" | "critical";
 
+// WINDUP-1: mirrors runway.ts's at_risk band (WARN_BLOCKS = 1800 = 6 h).
+// runway.ts is server-only (imports the DB), so the value is mirrored here
+// under the same name — update both together if the band is ever tuned.
+const RUNWAY_WARN_BLOCKS = 1800;
+
 export function MinerOpsCard({
   miner,
   thresholds,
@@ -52,7 +57,11 @@ export function MinerOpsCard({
   onRunDoctor?: (hostId: string) => void;
   doctorBusyHostId?: string | null;
 }) {
-  const health = computeHealth(miner, thresholds);
+  // WINDUP-1: use the server's authoritative health (health-score.ts — it
+  // also weighs probe failures, PROBE_FAIL and critical RUNWAY events).
+  // The old local recompute missed those, so the card border could stay
+  // green while the HealthScoreChip on the same card showed critical.
+  const health: Health = miner.health?.status ?? "healthy";
   const isMock = miner.mode === "mock";
 
   return (
@@ -378,7 +387,7 @@ export function MinerOpsCard({
                   miner.runway.margins.immunityBlocksLeft === 0
                     ? "critical"
                     : miner.runway.margins.immunityBlocksLeft != null &&
-                        miner.runway.margins.immunityBlocksLeft <= 1800
+                        miner.runway.margins.immunityBlocksLeft <= RUNWAY_WARN_BLOCKS
                       ? "warning"
                       : undefined
                 }
@@ -450,27 +459,6 @@ export function MinerOpsCard({
 }
 
 // ---------------------------------------------------------------------------
-
-function computeHealth(miner: DevopsMinerDTO, t: DevopsThresholds): Health {
-  const temp = miner.gpu?.tempC ?? null;
-  if (
-    miner.alerts.some((a) => a.level === "critical") ||
-    miner.uid?.riskLevel === "critical" ||
-    miner.gpu?.processAlive === false ||
-    (temp !== null && temp >= t.tempCriticalC)
-  ) {
-    return "critical";
-  }
-  if (
-    miner.alerts.some((a) => a.level === "warning") ||
-    miner.uid?.riskLevel === "warning" ||
-    (temp !== null && temp >= t.tempWarnC) ||
-    (miner.gpu?.utilPct != null && miner.gpu.utilPct < t.utilFloorPct)
-  ) {
-    return "warning";
-  }
-  return "healthy";
-}
 
 function HealthDot({ health }: { health: Health }) {
   return (
