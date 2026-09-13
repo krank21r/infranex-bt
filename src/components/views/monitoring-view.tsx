@@ -175,7 +175,7 @@ function Header({ onNavigate, onRefresh, isFetching }: { onNavigate: (v: ViewKey
     <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <p className="text-eyebrow text-muted-foreground">
-          Section · 07 · Monitoring Engine ·{" "}
+          Section · 09 · Monitoring Engine ·{" "}
           <span className="text-primary">Step 4 — watch it mine</span>
         </p>
         <h1 className="animate-rise text-display text-3xl font-bold tracking-tight md:text-4xl">

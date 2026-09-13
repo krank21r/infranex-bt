@@ -75,7 +75,7 @@ export function AnalyticsView() {
   return (
     <div className="space-y-6">
       <header>
-        <p className="text-eyebrow text-muted-foreground">Section · 06</p>
+        <p className="text-eyebrow text-muted-foreground">Section · 11</p>
         <h1 className="animate-rise text-display text-3xl font-bold tracking-tight md:text-4xl">
           Analytics
         </h1>

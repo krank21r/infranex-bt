@@ -147,7 +147,7 @@ function Header({
   return (
     <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        <p className="text-eyebrow text-muted-foreground">Section · 08 · Optimization Engine</p>
+        <p className="text-eyebrow text-muted-foreground">Section · 10 · Optimization Engine</p>
         <h1 className="animate-rise text-display text-3xl font-bold tracking-tight md:text-4xl">
           Optimization
         </h1>

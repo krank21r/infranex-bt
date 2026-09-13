@@ -32,7 +32,7 @@ export function MinersView({ onNavigate }: MinersViewProps) {
     <div className="space-y-6">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-eyebrow text-muted-foreground">Section · 05</p>
+          <p className="text-eyebrow text-muted-foreground">Section · 08</p>
           <h1 className="animate-rise text-display text-3xl font-bold tracking-tight md:text-4xl">
             My Miners
           </h1>

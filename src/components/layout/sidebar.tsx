@@ -25,6 +25,15 @@ import {
 } from "lucide-react";
 import type { ViewKey } from "@/lib/infranex/types";
 
+/**
+ * Workflow order — the operator journey through the platform:
+ *   Intelligence: analyze the chain → pick what to mine.
+ *   Operations:   rent GPU (Catalog) → deploy (Deployments) → run autonomously
+ *                 (DevOps Engine) → track fleet (My Miners) → watch costs
+ *                 (Monitoring) → tune (Optimization).
+ *   Platform:     cross-cutting analytics + system health.
+ * Hints renumber sequentially along that journey.
+ */
 const NAV_GROUPS: { label: string; items: { key: ViewKey; label: string; icon: typeof LayoutDashboard; hint: string }[] }[] = [
   {
     label: "Intelligence",
@@ -32,25 +41,25 @@ const NAV_GROUPS: { label: string; items: { key: ViewKey; label: string; icon: t
       { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, hint: "01" },
       { key: "opportunities", label: "Opportunities", icon: TrendingUp, hint: "02" },
       { key: "subnets", label: "Subnets", icon: Network, hint: "03" },
-      { key: "judge", label: "Judge Lab", icon: Gavel, hint: "11" },
+      { key: "judge", label: "Judge Lab", icon: Gavel, hint: "04" },
     ],
   },
   {
     label: "Operations",
     items: [
-      { key: "devops", label: "DevOps Engine", icon: Radar, hint: "13" },
-      { key: "gpus", label: "GPU Catalog", icon: Cpu, hint: "04" },
-      { key: "miners", label: "My Miners", icon: Coins, hint: "05" },
+      { key: "gpus", label: "GPU Catalog", icon: Cpu, hint: "05" },
       { key: "deployments", label: "Deployments", icon: Rocket, hint: "06" },
-      { key: "monitoring", label: "Monitoring", icon: Gauge, hint: "07" },
-      { key: "optimization", label: "Optimization", icon: Wand2, hint: "08" },
+      { key: "devops", label: "DevOps Engine", icon: Radar, hint: "07" },
+      { key: "miners", label: "My Miners", icon: Coins, hint: "08" },
+      { key: "monitoring", label: "Monitoring", icon: Gauge, hint: "09" },
+      { key: "optimization", label: "Optimization", icon: Wand2, hint: "10" },
     ],
   },
   {
     label: "Platform",
     items: [
-      { key: "analytics", label: "Analytics", icon: BarChart3, hint: "09" },
-      { key: "system", label: "System & Errors", icon: AlertTriangle, hint: "10" },
+      { key: "analytics", label: "Analytics", icon: BarChart3, hint: "11" },
+      { key: "system", label: "System & Errors", icon: AlertTriangle, hint: "12" },
     ],
   },
 ];
@@ -69,7 +78,7 @@ function adminNavGroups(isAdmin: boolean) {
     {
       label: "Administration",
       items: [
-        { key: "admin" as ViewKey, label: "Access Control", icon: ShieldCheck, hint: "12" },
+        { key: "admin" as ViewKey, label: "Access Control", icon: ShieldCheck, hint: "13" },
       ],
     },
   ];

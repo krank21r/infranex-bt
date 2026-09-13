@@ -98,7 +98,7 @@ export function GpusView({ onProvision }: GpusViewProps) {
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-eyebrow text-muted-foreground">
-            Section · 04 · <span className="text-primary">Step 2 — get a GPU host</span>
+            Section · 05 · <span className="text-primary">Step 2 — get a GPU host</span>
           </p>
           <h1 className="animate-rise text-display text-3xl font-bold tracking-tight md:text-4xl">
             GPU Catalog
