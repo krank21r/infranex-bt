@@ -22,7 +22,7 @@ import type {
   LiveSubnetMetrics,
   NeuronMetrics,
 } from "./chain";
-import type { Subnet, Opportunity } from "./types";
+import type { Subnet, Opportunity, EmissionShare } from "./types";
 
 export type { LiveNetworkSnapshot, LiveSubnetMetrics, NeuronMetrics };
 
@@ -426,4 +426,35 @@ export function getLiveDashboardMetrics(
     isLive: snap?.source === "live",
     lastFetched: snap?.fetchedAt,
   };
+}
+
+const EMISSION_COLORS = [
+  "hsl(84 90% 60%)",
+  "hsl(142 70% 50%)",
+  "hsl(45 93% 60%)",
+  "hsl(200 80% 60%)",
+  "hsl(280 70% 65%)",
+  "hsl(15 85% 60%)",
+  "hsl(170 70% 50%)",
+  "hsl(330 75% 62%)",
+];
+
+/**
+ * MOCK-PURGE-2 — emission distribution is derived from the LIVE chain
+ * snapshot (top 8 subnets by emission). The static fabricated chart data
+ * that used to ship in data.ts is gone; with no snapshot the caller shows
+ * an honest empty state.
+ */
+export function buildEmissionShares(subnets: Subnet[]): EmissionShare[] {
+  return [...subnets]
+    .filter((s) => s.emission > 0)
+    .sort((a, b) => b.emission - a.emission)
+    .slice(0, 8)
+    .map((s, i) => ({
+      name: s.name,
+      symbol: s.symbol,
+      netuid: s.netuid,
+      emission: s.emission,
+      color: EMISSION_COLORS[i % EMISSION_COLORS.length],
+    }));
 }

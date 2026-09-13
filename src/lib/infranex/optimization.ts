@@ -1,4 +1,6 @@
-import { opportunities, subnets, gpuOffers } from "./data";
+import { opportunities, subnets } from "./data";
+import { fetchAllLiveOffers } from "./providers";
+import type { GPUOffer } from "./types";
 import type { MonitoredDeployment, MonitoringOverview } from "./monitoring";
 
 /**
@@ -146,10 +148,13 @@ function findAlternativeSubnets(
 function findAlternativeGpus(
   currentModel: string,
   currentHourlyPrice: number | null,
-  minVramGb: number
+  minVramGb: number,
+  offers: GPUOffer[]
 ): AlternativeGpu[] {
   const currentPrice = currentHourlyPrice ?? 0;
-  return gpuOffers
+  // MOCK-PURGE-2 — alternatives come from the LIVE provider catalog only;
+  // with no configured key there are simply no GPU alternatives to suggest.
+  return offers
     .filter(
       (o) =>
         o.model !== currentModel &&
@@ -169,7 +174,8 @@ function findAlternativeGpus(
 }
 
 function buildRecommendation(
-  dep: MonitoredDeployment
+  dep: MonitoredDeployment,
+  liveOffers: GPUOffer[]
 ): DeploymentRecommendation {
   const score = computeHealthScore(dep);
   const currentSubnet = subnets.find((s) => s.netuid === dep.netuid);
@@ -290,7 +296,8 @@ function buildRecommendation(
         gpus: findAlternativeGpus(
           dep.gpuModel,
           dep.monitoring.pod.costPerHr,
-          currentSubnet?.minVramGb ?? 24
+          currentSubnet?.minVramGb ?? 24,
+          liveOffers
         ),
       }
     : { subnets: [], gpus: [] };
@@ -327,14 +334,24 @@ function buildRecommendation(
   };
 }
 
-export function computeOptimizations(
+export async function computeOptimizations(
   overview: MonitoringOverview
-): OptimizationOverview {
+): Promise<OptimizationOverview> {
   const startedDeps = overview.deployments.filter(
     (d) => d.status === "started"
   );
 
-  const recommendations = startedDeps.map(buildRecommendation);
+  // MOCK-PURGE-2 — GPU alternatives come from the live provider catalog
+  // (single fetch per pass). No key configured → empty alternatives.
+  let liveOffers: GPUOffer[] = [];
+  try {
+    const snap = await fetchAllLiveOffers();
+    liveOffers = snap.offers;
+  } catch {
+    liveOffers = [];
+  }
+
+  const recommendations = startedDeps.map((d) => buildRecommendation(d, liveOffers));
 
   const keep = recommendations.filter((r) => r.type === "keep").length;
   const optimize = recommendations.filter((r) => r.type === "optimize").length;

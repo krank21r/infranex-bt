@@ -168,7 +168,7 @@ export function ProviderKeysDialog({
     },
     onSuccess: () => {
       invalidate();
-      toast({ title: "Key removed", description: "The provider falls back to indicative pricing." });
+      toast({ title: "Key removed", description: "That provider's live offers disappear from the catalog until a key is re-added." });
     },
     onError: (e: Error) => toast({ title: "Could not remove the key", description: e.message, variant: "destructive" }),
   });
@@ -316,7 +316,7 @@ export function ProviderKeysDialog({
           <CircleCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />
           Keys are AES-256-GCM encrypted at rest, used only by the server to call the
           provider APIs, and never displayed in full again. Removing a key immediately
-          falls that provider back to indicative pricing.
+          drops that provider's offers from the live catalog.
         </p>
         <p className="flex items-start gap-2 text-xs text-muted-foreground">
           <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" />

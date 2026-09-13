@@ -422,7 +422,7 @@ function ResolutionSteps({
       "Add or update provider keys in GPU catalog → Provider API keys (RunPod, Vast.ai, Lambda) — encrypted server-side, validated on save.",
       "A RunPod key set via RUNPOD_API_KEY in .env still works as a fallback, but the UI-managed key takes precedence.",
       "The 60s cache will retry automatically on the next poll.",
-      "If every provider is unreachable, the GPU catalog falls back to indicative static prices from other providers.",
+      "If no provider is reachable, the GPU catalog is honestly empty — no synthetic fallback prices are shown (MOCK-PURGE-2).",
     ],
   };
   const list = steps[checkId] ?? ["No specific steps — retry the check."];

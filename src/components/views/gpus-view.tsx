@@ -87,10 +87,12 @@ export function GpusView({ onProvision }: GpusViewProps) {
     return r;
   }, [allOffers, offerProvider, offerSort, offerMaxPrice]);
 
-  // Prefer the cheapest LIVE H100; fall back to indicative if no live offers.
-  const liveH100s = allOffers.filter((o) => o.live && o.model.includes("H100"));
-  const h100Pool = liveH100s.length > 0 ? liveH100s : allOffers.filter((o) => o.model.includes("H100"));
-  const cheapestH100 = h100Pool.sort((a, b) => a.hourlyPrice - b.hourlyPrice)[0];
+  // MOCK-PURGE-2 — live H100s only; the "indicative" synthetic fallback is
+  // gone, so with no live offer the recommendation card simply doesn't render.
+  const liveH100s = allOffers
+    .filter((o) => o.live && o.model.includes("H100"))
+    .sort((a, b) => a.hourlyPrice - b.hourlyPrice);
+  const cheapestH100 = liveH100s[0];
   const liveCount = allOffers.filter((o) => o.live).length;
 
   return (
@@ -109,7 +111,7 @@ export function GpusView({ onProvision }: GpusViewProps) {
               ? `${liveCount} live offers from ${liveProviderLabel}`
               : isLive
                 ? `${liveCount} live RunPod offers`
-                : "Live provider pricing"}
+                : "no live offers yet — connect a provider key below"}
             {snap?.totalGpuTypes ? ` across ${snap.totalGpuTypes} GPU types` : ""}
             {configuredProviders.length > 0
               ? `. ${configuredProviders.length} provider${configuredProviders.length > 1 ? "s" : ""} connected via your API keys.`
@@ -149,19 +151,17 @@ export function GpusView({ onProvision }: GpusViewProps) {
 
       {/* Recommendation highlight */}
       {cheapestH100 && (
-      <Card className={cn("border-primary/30 bg-primary/[0.04]", !isLive && "border-warning/30 bg-warning/[0.04]")}>
+      <Card className="border-primary/30 bg-primary/[0.04]">
         <CardContent className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-3">
-            <span className={cn("flex h-10 w-10 items-center justify-center rounded-lg border", isLive ? "border-primary/40 bg-primary/10 text-primary" : "border-warning/40 bg-warning/10 text-warning")}>
+            <span className="flex h-10 w-10 items-center justify-center rounded-lg border border-primary/40 bg-primary/10 text-primary">
               <Sparkles className="h-5 w-5" />
             </span>
             <div>
-              <p className={cn("text-eyebrow", isLive ? "text-primary" : "text-warning")}>
-                {isLive ? "Live top recommendation" : "Indicative recommendation"}
-              </p>
+              <p className="text-eyebrow text-primary">Live top recommendation</p>
               <p className="text-display text-xl font-semibold">
                 {cheapestH100.model} ·{" "}
-                <span className={isLive ? "text-primary" : "text-warning"}>{cheapestH100.provider}</span>
+                <span className="text-primary">{cheapestH100.provider}</span>
                 {cheapestH100.live && (
                   <span className="ml-2 inline-flex items-center gap-1 text-[10px] font-normal text-success">
                     <span className="h-1.5 w-1.5 rounded-full bg-success" /> live
@@ -169,14 +169,15 @@ export function GpusView({ onProvision }: GpusViewProps) {
                 )}
               </p>
               <p className="mt-0.5 text-sm text-muted-foreground">
-                Cheapest H100 80GB — best fit for subnets 3, 7, 9, 19, 23
+                Cheapest live H100 offer — confirm the target subnet's VRAM
+                requirements in the deploy wizard before renting.
               </p>
             </div>
           </div>
           <div className="flex items-center gap-6">
             <div className="text-right">
               <p className="text-xs text-muted-foreground">Hourly</p>
-              <p className={cn("tabular text-2xl font-bold", isLive ? "text-primary" : "text-warning")}>
+              <p className="tabular text-2xl font-bold text-primary">
                 ${cheapestH100.hourlyPrice.toFixed(2)}
               </p>
             </div>
@@ -296,13 +297,9 @@ export function GpusView({ onProvision }: GpusViewProps) {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <span className="font-medium">{o.model}</span>
-                            {o.live ? (
+                            {o.live && (
                               <Badge variant="outline" className="border-success/30 text-[9px] text-success">
                                 live
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-[9px] text-muted-foreground">
-                                indicative
                               </Badge>
                             )}
                           </div>

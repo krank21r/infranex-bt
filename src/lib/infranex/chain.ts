@@ -15,8 +15,12 @@ import path from "node:path";
 
 const WS_URL = "wss://entrypoint-finney.opentensor.ai:443";
 const RPC_URL = "https://entrypoint-finney.opentensor.ai/rpc";
-const METADATA_FILE = path.join(process.cwd(), ".chain-metadata.json");
-const PRICE_HISTORY_FILE = path.join(process.cwd(), ".alpha-price-history.json");
+// Standalone server chdirs into .next/standalone — anchor caches on the
+// repo root (INFRANEX_REPO_ROOT pinned in the start script) so rebuilds
+// don't reset the chain metadata + alpha price trend windows.
+const REPO_ROOT = process.env.INFRANEX_REPO_ROOT ?? process.cwd();
+const METADATA_FILE = path.join(REPO_ROOT, ".chain-metadata.json");
+const PRICE_HISTORY_FILE = path.join(REPO_ROOT, ".alpha-price-history.json");
 
 // ---------------------------------------------------------------------------
 // Alpha price history — server-side ring buffer that powers the 24h alpha

@@ -11,7 +11,12 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-const SECRET_FILE = path.join(process.cwd(), ".devops-secret");
+// Production standalone server.js chdirs into .next/standalone — a
+// cwd-relative path forks a shadow secret that every rebuild wipes,
+// silently rotating the encryption key. Anchor on the repo root
+// (INFRANEX_REPO_ROOT pinned in the start script) — MOCK-PURGE-2.
+const REPO_ROOT = process.env.INFRANEX_REPO_ROOT ?? process.cwd();
+const SECRET_FILE = path.join(REPO_ROOT, ".devops-secret");
 
 let cachedKey: Buffer | null = null;
 

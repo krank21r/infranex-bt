@@ -34,7 +34,7 @@ export type MergedGpuOffer = GPUOffer & {
   source?: string;
 };
 
-/** Returns all offers (live RunPod + indicative other providers), sorted by VRAM. */
+/** Returns live provider offers (empty until a provider key is configured), sorted by VRAM. */
 export function useMergedGpuOffers(): {
   offers: MergedGpuOffer[];
   snap: ReturnType<typeof useGpuOffers>["data"];

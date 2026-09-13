@@ -92,7 +92,11 @@ export async function syncCredentialFiles(): Promise<{ main: string; backup: str
   }));
   const json = JSON.stringify(payload, null, 2) + "\n";
 
-  const mainPath = path.join(process.cwd(), "scripts", "users.local.json");
+  // Standalone server chdirs into .next/standalone — anchor on the repo root
+  // (INFRANEX_REPO_ROOT pinned in the start script) so credential re-mirrors
+  // land in the real scripts/ dir instead of a shadow copy wiped by rebuilds.
+  const repoRoot = process.env.INFRANEX_REPO_ROOT ?? process.cwd();
+  const mainPath = path.join(repoRoot, "scripts", "users.local.json");
   fs.mkdirSync(path.dirname(mainPath), { recursive: true });
   fs.writeFileSync(mainPath, json, { mode: 0o600 });
 

@@ -177,24 +177,6 @@ export interface Opportunity {
   meetsMinimum?: boolean;
 }
 
-export interface UserMiner {
-  id: string;
-  name: string;
-  hotkey: string;
-  netuid: number;
-  subnetName: string;
-  status: "active" | "inactive" | "pending" | "error";
-  createdAt: string;
-  totalEarnings: number; // TAO
-  uptimePercent: number;
-  rank: number;
-  incentive: number;
-  trust: number;
-  emission: number;
-  gpu: string;
-  region: string;
-}
-
 export interface GPUModel {
   id: string;
   name: string;
@@ -240,48 +222,12 @@ export interface GPUOffer {
   cpuCores: number;
 }
 
-export interface Deployment {
-  id: string;
-  minerName: string;
-  netuid: number;
-  subnetName: string;
-  gpu: string;
-  provider: string;
-  status:
-    | "requested"
-    | "approved"
-    | "provisioning"
-    | "deploying"
-    | "started"
-    | "stopped"
-    | "failed";
-  progress: number; // 0-100
-  estimatedMonthlyCost: number;
-  estimatedMonthlyRevenue: number;
-  startedAt: string;
-  steps: { name: string; label: string; status: "done" | "running" | "pending" | "failed" }[];
-}
-
-export interface RevenuePoint {
-  day: string;
-  tao: number;
-  usd: number;
-}
-
 export interface EmissionShare {
   name: string;
   symbol: string;
   netuid: number;
   emission: number;
   color: string;
-}
-
-export interface WorkerStatus {
-  name: string;
-  status: "healthy" | "degraded" | "down";
-  lastRun: string;
-  latencyMs: number;
-  tasksProcessed: number;
 }
 
 export type ViewKey =

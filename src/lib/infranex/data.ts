@@ -2,18 +2,13 @@ import type {
   Subnet,
   Opportunity,
   OpportunityFactor,
-  UserMiner,
   GPUModel,
-  GPUOffer,
-  Deployment,
-  RevenuePoint,
-  EmissionShare,
-  WorkerStatus,
 } from "./types";
 
 // ---------------------------------------------------------------------------
-// Subnets — modelled on the live Bittensor network (names approximate, figures
-// are representative for demo purposes).
+// Subnets — curated reference catalog (names/categories approximate public
+// information). Used as the scraping seed and the live-snapshot merge base;
+// it is NOT user data and never rendered as live telemetry.
 // ---------------------------------------------------------------------------
 
 export const subnets: Subnet[] = [
@@ -715,6 +710,11 @@ export const opportunities: Opportunity[] = (() => {
 
 // ---------------------------------------------------------------------------
 // GPU catalog
+
+// ---------------------------------------------------------------------------
+// GPU catalog — hardware spec reference (static specs, not market data) plus
+// the provider list used for catalog filters. Live pricing comes exclusively
+// from configured provider APIs (MOCK-PURGE-2 — no synthetic offers).
 // ---------------------------------------------------------------------------
 
 export const gpuModels: GPUModel[] = [
@@ -729,237 +729,3 @@ export const gpuModels: GPUModel[] = [
 ];
 
 export const gpuProviders = ["RunPod", "Vast.ai", "TensorDock", "E2E Cloud", "Lambda"];
-
-export const gpuOffers: GPUOffer[] = [
-  { id: "o1", model: "RTX 4090", vramGb: 24, provider: "Vast.ai", region: "US-East", hourlyPrice: 0.34, monthlyPrice: 245, availability: "available", isSpot: true, ramGb: 64, cpuCores: 8 },
-  { id: "o2", model: "RTX 4090", vramGb: 24, provider: "RunPod", region: "EU-West", hourlyPrice: 0.39, monthlyPrice: 281, availability: "limited", isSpot: false, ramGb: 64, cpuCores: 10 },
-  { id: "o3", model: "RTX A5000", vramGb: 24, provider: "TensorDock", region: "US-West", hourlyPrice: 0.22, monthlyPrice: 158, availability: "available", isSpot: true, ramGb: 48, cpuCores: 8 },
-  { id: "o4", model: "RTX A6000", vramGb: 48, provider: "RunPod", region: "US-East", hourlyPrice: 0.45, monthlyPrice: 324, availability: "available", isSpot: false, ramGb: 96, cpuCores: 12 },
-  { id: "o5", model: "A100 40GB", vramGb: 40, provider: "Vast.ai", region: "EU-Central", hourlyPrice: 0.64, monthlyPrice: 461, availability: "limited", isSpot: true, ramGb: 128, cpuCores: 16 },
-  { id: "o6", model: "A100 40GB", vramGb: 40, provider: "Lambda", region: "US-West", hourlyPrice: 0.75, monthlyPrice: 540, availability: "available", isSpot: false, ramGb: 128, cpuCores: 16 },
-  { id: "o7", model: "A100 80GB", vramGb: 80, provider: "RunPod", region: "US-East", hourlyPrice: 1.1, monthlyPrice: 792, availability: "scarce", isSpot: false, ramGb: 192, cpuCores: 24 },
-  { id: "o8", model: "A100 80GB", vramGb: 80, provider: "TensorDock", region: "EU-West", hourlyPrice: 0.98, monthlyPrice: 706, availability: "limited", isSpot: true, ramGb: 192, cpuCores: 24 },
-  { id: "o9", model: "H100 80GB", vramGb: 80, provider: "RunPod", region: "US-East", hourlyPrice: 2.49, monthlyPrice: 1793, availability: "scarce", isSpot: false, ramGb: 256, cpuCores: 32 },
-  { id: "o10", model: "H100 80GB", vramGb: 80, provider: "Lambda", region: "US-West", hourlyPrice: 2.19, monthlyPrice: 1577, availability: "limited", isSpot: true, ramGb: 256, cpuCores: 32 },
-  { id: "o11", model: "H100 80GB", vramGb: 80, provider: "Vast.ai", region: "EU-Central", hourlyPrice: 2.39, monthlyPrice: 1721, availability: "scarce", isSpot: false, ramGb: 256, cpuCores: 32 },
-  { id: "o12", model: "H200 141GB", vramGb: 141, provider: "Lambda", region: "US-West", hourlyPrice: 3.49, monthlyPrice: 2513, availability: "scarce", isSpot: false, ramGb: 384, cpuCores: 48 },
-  { id: "o13", model: "L40S", vramGb: 48, provider: "E2E Cloud", region: "AP-South", hourlyPrice: 0.82, monthlyPrice: 590, availability: "available", isSpot: false, ramGb: 128, cpuCores: 16 },
-  { id: "o14", model: "RTX A6000", vramGb: 48, provider: "TensorDock", region: "AP-South", hourlyPrice: 0.41, monthlyPrice: 295, availability: "available", isSpot: true, ramGb: 96, cpuCores: 12 },
-];
-
-// ---------------------------------------------------------------------------
-// User miners (portfolio)
-// ---------------------------------------------------------------------------
-
-export const userMiners: UserMiner[] = [
-  {
-    id: "m1",
-    name: "apex-prod-01",
-    hotkey: "5FKtj8nP3qW7vR2sN6mB1cD4eF8gH9iJ0kL",
-    netuid: 7,
-    subnetName: "Apex",
-    status: "active",
-    createdAt: "2024-11-02",
-    totalEarnings: 184.32,
-    uptimePercent: 99.2,
-    rank: 47,
-    incentive: 0.71,
-    trust: 0.88,
-    emission: 0.0142,
-    gpu: "H100 80GB",
-    region: "US-East",
-  },
-  {
-    id: "m2",
-    name: "vision-edge-02",
-    hotkey: "5GmN4qR8sT2uV6wX0yZ3aB5cD7eF9gH1iJ",
-    netuid: 3,
-    subnetName: "Vision Labs",
-    status: "active",
-    createdAt: "2024-12-18",
-    totalEarnings: 142.07,
-    uptimePercent: 98.4,
-    rank: 112,
-    incentive: 0.64,
-    trust: 0.81,
-    emission: 0.0118,
-    gpu: "A100 80GB",
-    region: "EU-West",
-  },
-  {
-    id: "m3",
-    name: "mosaic-fusion-03",
-    hotkey: "5Hp7tW2xY9zA4bC6dE8fG0hI2jK4lM6nO",
-    netuid: 23,
-    subnetName: "Mosaic",
-    status: "active",
-    createdAt: "2025-01-09",
-    totalEarnings: 96.51,
-    uptimePercent: 97.8,
-    rank: 38,
-    incentive: 0.76,
-    trust: 0.84,
-    emission: 0.0131,
-    gpu: "H100 80GB",
-    region: "US-West",
-  },
-  {
-    id: "m4",
-    name: "cortex-text-04",
-    hotkey: "5Cd4uY8vR1sT3wX6yZ0aB2cD4eF6gH8iJ",
-    netuid: 1,
-    subnetName: "Cortex",
-    status: "inactive",
-    createdAt: "2024-10-22",
-    totalEarnings: 211.88,
-    uptimePercent: 94.1,
-    rank: 203,
-    incentive: 0.42,
-    trust: 0.69,
-    emission: 0.0,
-    gpu: "A100 40GB",
-    region: "US-East",
-  },
-  {
-    id: "m5",
-    name: "flux-stream-05",
-    hotkey: "5Fx8wE2mN4qR6sT8uV0yZ2aB4cD6eF8g",
-    netuid: 19,
-    subnetName: "Flux",
-    status: "pending",
-    createdAt: "2025-02-14",
-    totalEarnings: 0,
-    uptimePercent: 0,
-    rank: 0,
-    incentive: 0,
-    trust: 0,
-    emission: 0,
-    gpu: "H100 80GB",
-    region: "AP-South",
-  },
-];
-
-// ---------------------------------------------------------------------------
-// Deployments
-// ---------------------------------------------------------------------------
-
-export const deployments: Deployment[] = [
-  {
-    id: "d1",
-    minerName: "apex-prod-01",
-    netuid: 7,
-    subnetName: "Apex",
-    gpu: "H100 80GB",
-    provider: "RunPod",
-    status: "started",
-    progress: 100,
-    estimatedMonthlyCost: 1793,
-    estimatedMonthlyRevenue: 3120,
-    startedAt: "2025-02-01",
-    steps: [
-      { name: "request", label: "Request", status: "done" },
-      { name: "approve", label: "Approve", status: "done" },
-      { name: "provision", label: "Provision GPU", status: "done" },
-      { name: "setup", label: "Environment Setup", status: "done" },
-      { name: "deploy", label: "Deploy Miner", status: "done" },
-      { name: "health", label: "Health Check", status: "done" },
-    ],
-  },
-  {
-    id: "d2",
-    minerName: "mosaic-fusion-03",
-    netuid: 23,
-    subnetName: "Mosaic",
-    gpu: "H100 80GB",
-    provider: "Lambda",
-    status: "deploying",
-    progress: 68,
-    estimatedMonthlyCost: 1577,
-    estimatedMonthlyRevenue: 3380,
-    startedAt: "2025-02-18",
-    steps: [
-      { name: "request", label: "Request", status: "done" },
-      { name: "approve", label: "Approve", status: "done" },
-      { name: "provision", label: "Provision GPU", status: "done" },
-      { name: "setup", label: "Environment Setup", status: "done" },
-      { name: "deploy", label: "Deploy Miner", status: "running" },
-      { name: "health", label: "Health Check", status: "pending" },
-    ],
-  },
-  {
-    id: "d3",
-    minerName: "flux-stream-05",
-    netuid: 19,
-    subnetName: "Flux",
-    gpu: "H100 80GB",
-    provider: "Vast.ai",
-    status: "provisioning",
-    progress: 34,
-    estimatedMonthlyCost: 1721,
-    estimatedMonthlyRevenue: 3260,
-    startedAt: "2025-02-20",
-    steps: [
-      { name: "request", label: "Request", status: "done" },
-      { name: "approve", label: "Approve", status: "done" },
-      { name: "provision", label: "Provision GPU", status: "running" },
-      { name: "setup", label: "Environment Setup", status: "pending" },
-      { name: "deploy", label: "Deploy Miner", status: "pending" },
-      { name: "health", label: "Health Check", status: "pending" },
-    ],
-  },
-];
-
-// ---------------------------------------------------------------------------
-// Charts
-// ---------------------------------------------------------------------------
-
-export const revenueSeries: RevenuePoint[] = (() => {
-  const days = 30;
-  const out: RevenuePoint[] = [];
-  let tao = 1.2;
-  for (let i = days; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    tao = Math.max(0.6, tao + (Math.random() - 0.45) * 0.18);
-    const usd = Math.round(tao * TAO_USD * 100) / 100;
-    out.push({
-      day: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      tao: Math.round(tao * 100) / 100,
-      usd,
-    });
-  }
-  return out;
-})();
-
-const EMISSION_COLORS = [
-  "hsl(84 90% 60%)",
-  "hsl(142 70% 50%)",
-  "hsl(45 93% 60%)",
-  "hsl(200 80% 60%)",
-  "hsl(280 70% 65%)",
-  "hsl(15 85% 60%)",
-  "hsl(170 70% 50%)",
-  "hsl(330 75% 62%)",
-];
-
-export const emissionShares: EmissionShare[] = subnets
-  .slice(0, 8)
-  .map((s, i) => ({
-    name: s.name,
-    symbol: s.symbol,
-    netuid: s.netuid,
-    emission: s.emission,
-    color: EMISSION_COLORS[i % EMISSION_COLORS.length],
-  }));
-
-// ---------------------------------------------------------------------------
-// Workers
-// ---------------------------------------------------------------------------
-
-export const workers: WorkerStatus[] = [
-  { name: "Subnet Scanner", status: "healthy", lastRun: "2m ago", latencyMs: 412, tasksProcessed: 16483 },
-  { name: "Opportunity Scorer", status: "healthy", lastRun: "5m ago", latencyMs: 1280, tasksProcessed: 4210 },
-  { name: "GPU Catalog Sync", status: "degraded", lastRun: "18m ago", latencyMs: 3120, tasksProcessed: 892 },
-  { name: "Monitoring Engine", status: "healthy", lastRun: "1m ago", latencyMs: 240, tasksProcessed: 98214 },
-  { name: "Change Detector", status: "healthy", lastRun: "7m ago", latencyMs: 680, tasksProcessed: 3120 },
-];

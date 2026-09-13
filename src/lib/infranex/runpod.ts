@@ -1,4 +1,3 @@
-import { gpuOffers as curatedOffers } from "./data";
 import type { GPUOffer } from "./types";
 
 /**
@@ -224,29 +223,15 @@ export async function fetchLiveGpuOffers(): Promise<LiveGpuSnapshot> {
 }
 
 /**
- * Merge live RunPod offers with the curated catalog. Live RunPod prices
- * replace any curated RunPod entry; other providers (Vast.ai, TensorDock,
- * Lambda, E2E) remain "indicative" static values.
+ * MOCK-PURGE-2 — live offers only. Fabricated "indicative" catalog prices are
+ * gone: with no configured provider key (or a provider error) the catalog is
+ * honestly empty instead of showing synthetic marketplace data.
  */
 export function mergeGpuOffers(snap: LiveGpuSnapshot | undefined): Array<
   GPUOffer & { live?: boolean; source?: string }
 > {
-  if (!snap || snap.offers.length === 0) {
-    return curatedOffers.map((o) => ({
-      ...o,
-      live: false,
-      source: o.provider === "RunPod" ? "static" : "indicative",
-    }));
-  }
-  const result: Array<GPUOffer & { live?: boolean; source?: string }> = [];
-  // Add all live offers first (RunPod live; Vast/Lambda when their keys are set)
-  for (const o of snap.offers) {
-    result.push({ ...o, live: true, source: o.source });
-  }
-  // Then curated offers from other providers (skip curated RunPod, replaced by live)
-  for (const o of curatedOffers) {
-    if (o.provider === "RunPod") continue; // replaced by live
-    result.push({ ...o, live: false, source: "indicative" });
-  }
-  return result.sort((a, b) => b.vramGb - a.vramGb);
+  if (!snap) return [];
+  return snap.offers
+    .map((o) => ({ ...o, live: true, source: o.source }))
+    .sort((a, b) => b.vramGb - a.vramGb);
 }

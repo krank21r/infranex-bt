@@ -7,20 +7,16 @@ import { Badge } from "@/components/ui/badge";
 import { MetricCard } from "@/components/cards/metric-card";
 import { DataSourceBanner } from "@/components/cards/data-source-banner";
 import { OpportunityTable } from "@/components/tables/opportunity-table";
-import { RevenueChart } from "@/components/charts/revenue-chart";
 import { EmissionDonut } from "@/components/charts/emission-donut";
 import {
-  opportunities as curatedOpportunities,
-  revenueSeries,
-  emissionShares,
-  workers,
-} from "@/lib/infranex/data";
-import {
   useNetwork,
+  mergeSubnets,
   mergeOpportunities,
   getLiveDashboardMetrics,
+  buildEmissionShares,
 } from "@/lib/infranex/use-network";
-import { cn, formatNumber, formatCurrency, formatTao } from "@/lib/utils";
+import { useWorkerStatus } from "@/lib/infranex/use-worker-status";
+import { cn, formatNumber, formatCurrency, formatTao, formatRelativeTime } from "@/lib/utils";
 import { useProfitabilityConfig } from "@/lib/infranex/use-profitability";
 import type { Opportunity, ViewKey } from "@/lib/infranex/types";
 
@@ -36,6 +32,16 @@ export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }
   const m = getLiveDashboardMetrics(snap, profConfig);
   const liveOpps = mergeOpportunities(snap, profConfig);
   const top = liveOpps.slice(0, 8);
+
+  // MOCK-PURGE-2 — emission distribution derives from the LIVE chain snapshot
+  // and the Workers card reads real engine runs from /api/workers/status.
+  const emissionSharesLive = buildEmissionShares(mergeSubnets(snap));
+  const {
+    data: workerData,
+    isFetching: workersFetching,
+    refetch: refetchWorkers,
+  } = useWorkerStatus();
+  const workersLive = workerData?.workers ?? [];
 
   return (
     <div className="space-y-10">
@@ -162,7 +168,7 @@ export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }
           <Card className="glass">
             <CardHeader className="pb-2">
               <p className="text-eyebrow text-muted-foreground">
-                Emission · last 30 days
+                Realized earnings · daemon telemetry
               </p>
               <CardTitle className="text-display text-xl font-bold">
                 Portfolio revenue
@@ -177,7 +183,13 @@ export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }
                   · {formatTao(m.portfolioEarnings)}
                 </span>
               </div>
-              <RevenueChart data={revenueSeries} height={200} />
+              <div className="flex h-[200px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border/50 text-center">
+                <TrendingUp className="h-5 w-5 text-muted-foreground/50" />
+                <p className="max-w-[260px] text-xs text-muted-foreground">
+                  No realized revenue yet — the earnings series appears once a
+                  miner is running and its daemon reports telemetry.
+                </p>
+              </div>
             </CardContent>
           </Card>
 
@@ -191,19 +203,28 @@ export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <EmissionDonut data={emissionShares} height={200} />
-              <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5">
-                {emissionShares.slice(0, 6).map((e) => (
-                  <div key={e.netuid} className="flex items-center gap-2 text-xs">
-                    <span
-                      className="h-2 w-2 shrink-0 rounded-full ring-2 ring-background"
-                      style={{ backgroundColor: e.color }}
-                    />
-                    <span className="truncate text-muted-foreground">{e.name}</span>
-                    <span className="ml-auto mono tabular font-medium">{e.emission.toFixed(2)}</span>
+              {emissionSharesLive.length === 0 ? (
+                <div className="flex h-[200px] items-center justify-center px-4 text-center text-xs text-muted-foreground">
+                  Awaiting the live chain snapshot — the emission distribution
+                  appears once the scanner syncs.
+                </div>
+              ) : (
+                <>
+                  <EmissionDonut data={emissionSharesLive} height={200} />
+                  <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5">
+                    {emissionSharesLive.slice(0, 6).map((e) => (
+                      <div key={e.netuid} className="flex items-center gap-2 text-xs">
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full ring-2 ring-background"
+                          style={{ backgroundColor: e.color }}
+                        />
+                        <span className="truncate text-muted-foreground">{e.name}</span>
+                        <span className="ml-auto mono tabular font-medium">{e.emission.toFixed(2)}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -263,42 +284,62 @@ export function DashboardView({ onSelectOpportunity, onStartMining, onNavigate }
               <p className="text-eyebrow text-muted-foreground">System</p>
               <CardTitle className="text-display text-2xl font-bold">Workers</CardTitle>
             </div>
-            <Button variant="ghost" size="sm" className="gap-2 rounded-lg">
-              <RefreshCw className="h-3.5 w-3.5" />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2 rounded-lg"
+              onClick={() => refetchWorkers()}
+              disabled={workersFetching}
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${workersFetching ? "animate-spin" : ""}`} />
               Refresh
             </Button>
           </CardHeader>
           <CardContent className="space-y-2">
-            {workers.map((w) => (
-              <div
-                key={w.name}
-                className="flex items-center gap-3 rounded-lg border border-border/40 bg-card/30 px-3 py-2.5 transition-colors hover:border-border/70 hover:bg-card/50"
-              >
-                <span
-                  className={cn(
-                    "h-2 w-2 shrink-0 rounded-full",
-                    w.status === "healthy"
-                      ? "bg-success shadow-[0_0_8px_0_hsl(var(--success)/0.7)]"
-                      : w.status === "degraded"
-                        ? "bg-warning shadow-[0_0_8px_0_hsl(var(--warning)/0.7)]"
-                        : "bg-destructive shadow-[0_0_8px_0_hsl(var(--destructive)/0.7)]"
-                  )}
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{w.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    last run {w.lastRun} ·{" "}
-                    <span className="mono tabular">{w.latencyMs}ms</span>
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="mono tabular text-sm font-semibold">
-                    {formatNumber(w.tasksProcessed)}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground">tasks</p>
-                </div>
+            {workersLive.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-border/50 px-3 py-8 text-center text-xs text-muted-foreground">
+                No worker runs recorded yet — trigger a pass from
+                System &amp; Errors or DevOps Engine.
               </div>
-            ))}
+            ) : (
+              workersLive.map((w) => {
+                const ok = w.status === "completed" || w.status === "running";
+                const failed = w.status === "failed";
+                return (
+                  <div
+                    key={w.id}
+                    className="flex items-center gap-3 rounded-lg border border-border/40 bg-card/30 px-3 py-2.5 transition-colors hover:border-border/70 hover:bg-card/50"
+                  >
+                    <span
+                      className={cn(
+                        "h-2 w-2 shrink-0 rounded-full",
+                        ok
+                          ? "bg-success shadow-[0_0_8px_0_hsl(var(--success)/0.7)]"
+                          : failed
+                            ? "bg-destructive shadow-[0_0_8px_0_hsl(var(--destructive)/0.7)]"
+                            : "bg-warning shadow-[0_0_8px_0_hsl(var(--warning)/0.7)]"
+                      )}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{w.workerName}</p>
+                      <p className="text-xs text-muted-foreground">
+                        last run {formatRelativeTime(w.lastRun)} ·{" "}
+                        <span className="mono tabular">{w.durationMs}ms</span>
+                        {w.error ? (
+                          <span className="text-destructive"> · {w.error}</span>
+                        ) : null}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="mono tabular text-sm font-semibold">
+                        {formatNumber(w.tasksProcessed)}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">tasks</p>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </CardContent>
         </Card>
       </section>

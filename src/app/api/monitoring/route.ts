@@ -11,7 +11,7 @@ export const maxDuration = 60;
 
 export async function GET() {
   const overview = await fetchMonitoringOverview();
-  const optimizations = computeOptimizations(overview);
+  const optimizations = await computeOptimizations(overview);
   return NextResponse.json(
     { ...overview, optimizations },
     { headers: { "Cache-Control": "no-store, max-age=0" } }

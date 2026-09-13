@@ -32,7 +32,8 @@ import {
   VastProvider,
 } from "../src/lib/infranex/deployment/providers/vast";
 import type { DeploymentConfig } from "../src/lib/infranex/deployment/config";
-import { offerProviderId } from "../src/lib/infranex/types";
+import { offerProviderId, type Subnet } from "../src/lib/infranex/types";
+import { createDeployment } from "../src/lib/infranex/deployment/engine";
 import {
   buildFleetContext,
   runOpsAgent,
@@ -56,7 +57,7 @@ function check(name: string, ok: boolean, detail: unknown = "") {
   }
 }
 
-const BASE = "http://localhost:3000";
+const BASE = process.env.TEST_BASE_URL ?? "http://localhost:3000";
 const WEBHOOK_PORT = 4599;
 
 async function loginCookie(userId: string, code: string): Promise<string> {
@@ -470,14 +471,74 @@ async function main() {
   const patched = channelsAfter.channels.find((c) => c.id === createdChId);
   check("channel list masks URL + reflects patch", !!patched && patched.urlHint.includes("****") && patched.enabled === false, patched);
 
-  // Tenancy: POST /api/deployments attributes the creator; ?scope=mine filters.
+  // Tenancy + offer policy (MOCK-PURGE-2): the API provisions from LIVE
+  // provider offers ONLY — a fabricated curated o1..o14 id must be refused
+  // honestly (no provider key configured in tests → no live catalog). Owner
+  // attribution is exercised through the engine directly; ?scope=mine
+  // filtering stays API-tested.
   const createRes = await fetch(`${BASE}/api/deployments`, {
     method: "POST", headers: { cookie: adminC, "Content-Type": "application/json" },
     body: JSON.stringify({ netuid: 9, offerId: "o2", minerName: "t4-tenancy-dep", mode: "runpod" }),
   });
-  check("deployment created via API", createRes.status === 201, createRes.status);
-  const createdDep = ((await createRes.json()) as { deployment?: { id?: string; ownerUserId?: string; createdByLabel?: string } }).deployment;
-  check("deployment attributed to admin", createdDep?.ownerUserId === "admin" && createdDep?.createdByLabel === "Administrator", createdDep);
+  const createErr = ((await createRes.json()) as { error?: string }).error ?? "";
+  check(
+    "fabricated offer refused — live catalog only",
+    createRes.status === 400 && createErr.includes("GPU offer not found"),
+    { status: createRes.status, createErr }
+  );
+
+  const TENANCY_SUBNET = {
+    netuid: 9,
+    name: "Pre",
+    symbol: "PRE",
+    description: "tier4 tenancy fixture",
+    category: "Inference",
+    owner: "",
+    tempo: 360,
+    emission: 0,
+    taoInReserve: 0,
+    price: 0,
+    marketCap: 0,
+    volume24h: 0,
+    change24h: 0,
+    minersCount: 1,
+    validatorsCount: 1,
+    maxNeurons: 256,
+    status: "active" as const,
+    registrationOpen: true,
+    createdAt: new Date().toISOString(),
+    tags: [],
+    minVramGb: 24,
+    recommendedGpu: "RTX 4090",
+    burnCostTao: null,
+    immunityBlocks: null,
+    maxUids: null,
+    rewardedMiners: null,
+  } as Subnet;
+  const createdDep = await createDeployment({
+    subnet: TENANCY_SUBNET,
+    offer: {
+      id: "t4-live-fixture",
+      model: "RTX 4090",
+      vramGb: 24,
+      provider: "RunPod",
+      region: "US-East",
+      hourlyPrice: 0.34,
+      monthlyPrice: 245,
+      availability: "available",
+      isSpot: false,
+      ramGb: 64,
+      cpuCores: 8,
+    },
+    minerName: "t4-tenancy-dep",
+    mode: "runpod",
+    owner: { userId: "admin", label: "Administrator" },
+  });
+  check(
+    "deployment attributed to admin",
+    createdDep.ownerUserId === "admin" && createdDep.createdByLabel === "Administrator",
+    { owner: createdDep.ownerUserId, label: createdDep.createdByLabel }
+  );
   const mineAdmin = (await (await fetch(`${BASE}/api/deployments?scope=mine`, { headers: { cookie: adminC } })).json()) as { deployments: { id: string }[] };
   check("scope=mine includes own", mineAdmin.deployments.some((d) => d.id === createdDep?.id), mineAdmin.deployments.length);
   const mineOps = (await (await fetch(`${BASE}/api/deployments?scope=mine`, { headers: { cookie: opsC } })).json()) as { deployments: { id: string }[] };

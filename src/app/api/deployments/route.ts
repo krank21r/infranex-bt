@@ -3,7 +3,7 @@ import {
   createDeployment,
   listDeployments,
 } from "@/lib/infranex/deployment/engine";
-import { subnets, gpuOffers } from "@/lib/infranex/data";
+import { subnets } from "@/lib/infranex/data";
 import { fetchLiveSnapshot } from "@/lib/infranex/chain";
 import { pullSubnetRequirements } from "@/lib/devops/subnet-requirements";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
@@ -107,23 +107,24 @@ export async function POST(req: NextRequest) {
     const subnet = await resolveSubnet(netuid);
     if (!subnet) return NextResponse.json({ error: "Subnet not found" }, { status: 400 });
 
-    // WINDUP-1 (functional bug): the wizard sells LIVE catalog offers
-    // (runpod-*/vast-*/lambda-* ids) whenever a provider key is configured,
-    // but this route only resolved against the CURATED list — every real
-    // rental click 400'd with "GPU offer not found". Resolve curated first
-    // (fast path for mock mode), then the live catalog (mirrors the migrate
-    // route's resolution).
-    let offer: GPUOffer | undefined = gpuOffers.find((o) => o.id === offerId);
-    if (!offer) {
-      try {
-        const { fetchAllLiveOffers } = await import("@/lib/infranex/providers");
-        const snap = await fetchAllLiveOffers();
-        offer = snap.offers.find((o) => o.id === offerId) ?? undefined;
-      } catch {
-        offer = undefined;
-      }
+    // MOCK-PURGE-2 — offers resolve from LIVE provider catalogs only. The
+    // curated o1..o14 "fast path" was a mock-mode leftover (fabricated
+    // marketplace prices) and is gone; with no provider key configured the
+    // POST fails honestly until a real key is added in the GPU catalog.
+    let offer: GPUOffer | undefined;
+    try {
+      const { fetchAllLiveOffers } = await import("@/lib/infranex/providers");
+      const snap = await fetchAllLiveOffers();
+      offer = snap.offers.find((o) => o.id === offerId) ?? undefined;
+    } catch {
+      offer = undefined;
     }
-    if (!offer) return NextResponse.json({ error: "GPU offer not found" }, { status: 400 });
+    if (!offer) {
+      return NextResponse.json(
+        { error: "GPU offer not found — connect a provider API key in the GPU catalog and pick a live offer" },
+        { status: 400 }
+      );
+    }
 
     if (!minerName?.trim()) {
       return NextResponse.json({ error: "minerName is required" }, { status: 400 });
