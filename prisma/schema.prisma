@@ -288,7 +288,12 @@ model TriggerEvent {
   resolvedAt    DateTime?
   updatedAt     DateTime @updatedAt
 
-  @@unique([kind, dedupeKey, status])
+  // TIER3 FIX — the old @@unique([kind, dedupeKey, status]) silently capped
+  // every condition at ONE acted event for the platform's lifetime: the
+  // second approve→act cycle of the same (kind, dedupeKey) hit P2002 (e.g.
+  // a pod that cycles down twice). Open-event dedupe is enforced in code by
+  // commitFinding (findFirst among status:"open"), which is the semantics
+  // we actually want; history rows must be allowed to repeat.
   @@index([status])
   @@index([kind])
   @@index([deploymentId])
@@ -512,4 +517,64 @@ model AppUser {
   lastLoginAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+}
+
+// TIER3 — Autopilot policy engine. Operator-defined rules that let the
+// engine auto-approve + execute trigger events without waiting for a human.
+// Every execution still goes through actOnTrigger (the ONLY deployment-
+// mutating path), so the change feed remains the full audit trail.
+model AutopilotRule {
+  id        String   @id @default(cuid())
+  name      String
+  // TriggerKind to match, or "ANY" for all kinds. Destructive kinds
+  // (KILL / ESCALATION / recycle suggestions) are denylisted in code and
+  // can never be auto-acted regardless of rules.
+  kind      String   @default("ANY")
+  // Minimum severity this rule acts on: info < warning < critical.
+  minSeverity String @default("warning")
+  // Safety default: only auto-act on mock deployments. Widening to real
+  // pods is an explicit operator decision.
+  mockOnly  Boolean  @default(true)
+  // Max auto-executions per rolling hour (rate limit).
+  maxPerHour Int     @default(3)
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// TIER3 — Git intelligence: upstream repo state per netuid. The first
+// check adopts the current release/commit as the baseline (no event);
+// later checks commit UPSTREAM_DRIFT trigger events when the repo moves.
+model UpstreamState {
+  id        String   @id @default(cuid())
+  netuid    Int      @unique
+  repoUrl   String
+  lastTag   String?
+  lastTagAt DateTime?
+  lastSha   String?
+  lastShaAt DateTime?
+  checkedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// TIER3 — Benchmark harness history: periodic synthetic axon-latency runs
+// per deployment. Regressions vs the rolling baseline commit BENCH_REGRESS
+// trigger events; mocks are recorded but never alarm.
+model BenchmarkRun {
+  id           String   @id @default(cuid())
+  deploymentId String
+  at           DateTime @default(now())
+  // Benchmark kind, e.g. "axon-latency".
+  bench        String   @default("axon-latency")
+  samples      Int
+  okCount      Int
+  p50Ms        Float?
+  p95Ms        Float?
+  successPct   Float
+  // "mock" | "real" — mock runs are simulated numbers, never alarm.
+  mode         String   @default("real")
+  errorKind    String?
+  detailJson   String   @default("{}")
+
+  @@index([deploymentId, at])
 }

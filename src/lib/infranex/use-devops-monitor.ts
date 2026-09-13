@@ -181,6 +181,28 @@ export interface DevopsServiceThresholds {
 export interface DevopsMonitorPayload {
   ok: boolean;
   fetchedAt: string;
+  /** TIER3 — autopilot policy rules + recent auto-executed actions. */
+  autopilot: {
+    rules: {
+      id: string;
+      name: string;
+      kind: string;
+      minSeverity: string;
+      mockOnly: boolean;
+      maxPerHour: number;
+      enabled: boolean;
+    }[];
+    recentActions: { id: string; kind: string; title: string; at: string; ruleName: string | null }[];
+  };
+  /** TIER3 — benchmark summary per started deployment. */
+  benchmarks: {
+    deploymentId: string;
+    minerName: string;
+    mode: string;
+    latest: { at: string; p50Ms: number | null; p95Ms: number | null; successPct: number; samples: number } | null;
+    baselineP50Ms: number | null;
+    runs: number;
+  }[];
   summary: {
     monitored: number;
     healthy: number;

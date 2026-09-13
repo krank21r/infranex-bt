@@ -316,7 +316,7 @@ async function testLadder() {
   const evRollEvidence = JSON.parse(evRoll?.evidenceJson ?? "{}");
   check("differing revision → suggests rollback", evRollEvidence.suggestedAction === "rollback" && typeof evRollEvidence.targetRev === "number", JSON.stringify({ a: evRollEvidence.suggestedAction, t: evRollEvidence.targetRev }));
   check("rollback escalation refreshed the open event", rRoll.escalationEventId === evRoll?.id);
-  check("refresh updated the title to the rollback ask", evRoll?.title.includes(`r${evRollEvidence.targetRev}`), evRoll?.title);
+  check("refresh updated the title to the rollback ask", evRoll?.title.includes(`r${evRollEvidence.targetRev}`) ?? false, evRoll?.title);
   check("refresh updated the runbook to the rollback steps", evRoll!.runbookJson.includes(`r${evRollEvidence.targetRev}`));
 
   // Dedupe — second exhaustion refreshes instead of spamming.

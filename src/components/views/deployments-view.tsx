@@ -27,6 +27,7 @@ import {
   RotateCw,
   ShieldCheck,
   History,
+  ArrowRightLeft,
 } from "lucide-react";
 import { cn, formatCurrency, formatRelativeTime } from "@/lib/utils";
 import {
@@ -41,6 +42,7 @@ import {
 } from "@/lib/infranex/use-deployments";
 import type { OpenDeployWizardOptions } from "@/components/deployments/deploy-wizard";
 import { RevisionsDialog } from "@/components/deployments/revisions-dialog";
+import { MigrateDialog } from "@/components/deployments/migrate-dialog";
 import { DevOpsEngineSection } from "@/components/devops/devops-console";
 import { WalletRegistrationDialog } from "@/components/devops/wallet-registration-dialog";
 
@@ -205,6 +207,7 @@ function DeploymentCard({
   const [devopsBusy, setDevopsBusy] = useState(false);
   const [wizardBusy, setWizardBusy] = useState(false);
   const [revOpen, setRevOpen] = useState(false);
+  const [migOpen, setMigOpen] = useState(false);
 
   const isStarted = d.status === "started";
   const hasHotkey = SS58_RE.test(d.hotkey ?? "");
@@ -382,6 +385,18 @@ function DeploymentCard({
             <History className="h-3.5 w-3.5" />
             Revisions
           </Button>
+          {/* TIER3 — migrate to a different GPU offer (spec §20) */}
+          {isStarted && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setMigOpen(true)}
+            >
+              <ArrowRightLeft className="h-3.5 w-3.5" />
+              Migrate
+            </Button>
+          )}
           {isInProgress && (
             <Button
               variant="outline"
@@ -477,6 +492,15 @@ function DeploymentCard({
         minerName={d.minerName}
         open={revOpen}
         onOpenChange={setRevOpen}
+      />
+      <MigrateDialog
+        deploymentId={d.id}
+        minerName={d.minerName}
+        mode={d.mode}
+        currentGpuModel={d.gpuModel}
+        currentHourlyCost={d.hourlyCost}
+        open={migOpen}
+        onOpenChange={setMigOpen}
       />
     </Card>
   );

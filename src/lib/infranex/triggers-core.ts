@@ -18,7 +18,14 @@ export type TriggerKind =
   | "PROBE_FAIL"
   | "SERVICE_LATENCY"
   | "QUERY_DROUGHT"
-  | "ESCALATION";
+  | "ESCALATION"
+  // TIER3 — committed by the upstream watcher (upstream.ts) when the
+  // subnet repo moves (new release tag / new commit) after the deployment
+  // was provisioned: the operator gets prev→latest and one-click resync.
+  | "UPSTREAM_DRIFT"
+  // TIER3 — committed by the benchmark harness (benchmarks.ts) when the
+  // latest axon-latency run regressed vs the rolling baseline.
+  | "BENCH_REGRESS";
 
 export const TRIGGER_KIND_META: Record<
   TriggerKind,
@@ -46,6 +53,10 @@ export const TRIGGER_KIND_META: Record<
   // automatic repair rung failed: the operator gets the ladder trace plus a
   // one-click rollback target (last known-good config revision) when one exists.
   ESCALATION: { label: "Escalation", severity: "critical", color: "red" },
+  // TIER3 — upstream repo moved after deploy (upstream.ts).
+  UPSTREAM_DRIFT: { label: "Upstream", severity: "warning", color: "indigo" },
+  // TIER3 — benchmark run regressed vs rolling baseline (benchmarks.ts).
+  BENCH_REGRESS: { label: "Bench Regress", severity: "warning", color: "teal" },
 };
 
 export interface TriggerEventDTO {

@@ -17,7 +17,9 @@ export interface TriggerEventDTO {
     | "PROBE_FAIL"
     | "SERVICE_LATENCY"
     | "QUERY_DROUGHT"
-    | "ESCALATION";
+    | "ESCALATION"
+    | "UPSTREAM_DRIFT"
+    | "BENCH_REGRESS";
   severity: string;
   status: "open" | "approved" | "acted" | "dismissed" | "resolved";
   title: string;

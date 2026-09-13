@@ -28,6 +28,8 @@ import {
   RadioTower,
   Wallet,
   OctagonAlert,
+  GitBranch,
+  Gauge,
 } from "lucide-react";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { useDevopsMonitor } from "@/lib/infranex/use-devops-monitor";
@@ -35,6 +37,7 @@ import { useTriggerActions, type TriggerEventDTO } from "@/lib/infranex/use-trig
 import type { ViewKey } from "@/lib/infranex/types";
 import { MinerOpsCard } from "@/components/cards/devops/miner-ops-card";
 import { StrategyBoard } from "@/components/cards/devops/strategy-board";
+import { AutopilotPanel } from "@/components/cards/devops/autopilot-panel";
 
 /**
  * DEVOPS-1 — the DevOps Engine view. One live cockpit for every running
@@ -64,6 +67,10 @@ const KIND_META: Record<
   // executes the recorded rollback (or records the escalation when there is
   // nothing to revert and KILL is next).
   ESCALATION: { label: "ESCALATION", icon: OctagonAlert, chip: "border-red-500/50 bg-red-500/15 text-red-200" },
+  // TIER3 — upstream repo moved after deploy (git intelligence).
+  UPSTREAM_DRIFT: { label: "UPSTREAM", icon: GitBranch, chip: "border-indigo-500/40 bg-indigo-500/10 text-indigo-300" },
+  // TIER3 — benchmark run regressed vs the rolling baseline.
+  BENCH_REGRESS: { label: "BENCH REGRESS", icon: Gauge, chip: "border-teal-500/40 bg-teal-500/10 text-teal-300" },
 };
 
 export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void }) {
@@ -107,6 +114,9 @@ export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void })
     if (ev.kind === "PROBE_FAIL") {
       if (a === "restart") return { action: a, label: "Restart the miner — re-announce a fresh axon endpoint" };
       return null;
+    }
+    if (ev.kind === "UPSTREAM_DRIFT") {
+      return { action: "resync", label: "Re-pull the upstream requirements profile onto the GPU" };
     }
     // TIER2 — an ESCALATION with a rollback target restores the last
     // known-good config on approval; without one it records the escalation.
@@ -263,6 +273,9 @@ export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void })
           {note}
         </p>
       )}
+
+      {/* TIER3 — Autopilot policy rules + Benchmark harness summary */}
+      {data && <AutopilotPanel data={data} />}
 
       {/* DEVOPS-3 — Miner Mindset strategy board */}
       <Card className="border-border/60 bg-card/50">

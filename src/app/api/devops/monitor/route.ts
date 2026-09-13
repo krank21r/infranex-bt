@@ -132,6 +132,26 @@ export interface DevopsMiner {
 export interface DevopsMonitorPayload {
   ok: true;
   fetchedAt: string;
+  autopilot: {
+    rules: {
+      id: string;
+      name: string;
+      kind: string;
+      minSeverity: string;
+      mockOnly: boolean;
+      maxPerHour: number;
+      enabled: boolean;
+    }[];
+    recentActions: { id: string; kind: string; title: string; at: string; ruleName: string | null }[];
+  };
+  benchmarks: {
+    deploymentId: string;
+    minerName: string;
+    mode: string;
+    latest: { at: string; p50Ms: number | null; p95Ms: number | null; successPct: number; samples: number } | null;
+    baselineP50Ms: number | null;
+    runs: number;
+  }[];
   summary: {
     monitored: number;
     healthy: number;
@@ -509,6 +529,66 @@ export async function GET() {
       ? Math.round(miners.reduce((a, m) => a + m.health.score, 0) / miners.length)
       : null;
 
+    // TIER3 — autopilot rules + recent auto-actions (evidence-stamped).
+    const autopilotRules = await db.autopilotRule.findMany({ orderBy: { createdAt: "desc" } });
+    const actedWithAuto = await db.triggerEvent.findMany({
+      where: { status: "acted", evidenceJson: { contains: '"auto":' } },
+      orderBy: { updatedAt: "desc" },
+      take: 5,
+    });
+    const autopilotSection = {
+      rules: autopilotRules.map((r) => ({
+        id: r.id,
+        name: r.name,
+        kind: r.kind,
+        minSeverity: r.minSeverity,
+        mockOnly: r.mockOnly,
+        maxPerHour: r.maxPerHour,
+        enabled: r.enabled,
+      })),
+      recentActions: actedWithAuto.map((e) => {
+        let ruleName: string | null = null;
+        try {
+          const ev = JSON.parse(e.evidenceJson) as { auto?: { ruleName?: string } };
+          ruleName = ev.auto?.ruleName ?? null;
+        } catch {
+          ruleName = null;
+        }
+        return { id: e.id, kind: e.kind, title: e.title, at: e.updatedAt.toISOString(), ruleName };
+      }),
+    };
+
+    // TIER3 — benchmark summary per started deployment: latest run + the
+    // rolling baseline the regression rule compares against.
+    const benchmarkRows = await db.benchmarkRun.findMany({
+      orderBy: { at: "desc" },
+      take: 400,
+    });
+    const benchmarksSection = started.map((d) => {
+      const runs = benchmarkRows.filter((r) => r.deploymentId === d.id);
+      const latest = runs[0] ?? null;
+      const baselineRows = runs.slice(1).filter((r) => (r.p50Ms ?? 0) > 0 && r.okCount > 0 && r.mode === "real").slice(0, 10);
+      const baselineP50 = baselineRows.length
+        ? Math.round([...baselineRows.map((r) => r.p50Ms as number)].sort((a, b) => a - b)[Math.floor((baselineRows.length - 1) / 2)])
+        : null;
+      return {
+        deploymentId: d.id,
+        minerName: d.minerName,
+        mode: d.mode,
+        latest: latest
+          ? {
+              at: latest.at.toISOString(),
+              p50Ms: latest.p50Ms,
+              p95Ms: latest.p95Ms,
+              successPct: latest.successPct,
+              samples: latest.samples,
+            }
+          : null,
+        baselineP50Ms: baselineP50,
+        runs: runs.length,
+      };
+    });
+
     const payload: DevopsMonitorPayload = {
       ok: true,
       fetchedAt: new Date().toISOString(),
@@ -527,6 +607,8 @@ export async function GET() {
       miners,
       openEvents: events.open,
       recentEvents: events.recent,
+      autopilot: autopilotSection,
+      benchmarks: benchmarksSection,
       lastPass: workerRow
         ? {
             at: workerRow.createdAt.toISOString(),

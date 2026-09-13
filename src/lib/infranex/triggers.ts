@@ -402,6 +402,29 @@ export async function actOnTrigger(id: string): Promise<{ event: TriggerEventDTO
       actionNote =
         "Escalation recorded — no config revision to revert. If the miner stays down, the next rung is KILL (terminate + stop billing).";
     }
+  } else if (kind === "UPSTREAM_DRIFT" && row.deploymentId) {
+    // TIER3 — the subnet repo moved after the miner was provisioned.
+    // Approval re-pulls the requirements profile onto the GPU — the same
+    // implementation path as drift resync (snapshot → regenerate command →
+    // apply_config via daemon / tick mocks / platform-only note).
+    const { applySubnetConfigToGpu } = await import("./deployment/apply-drift");
+    try {
+      const r = await applySubnetConfigToGpu(row.deploymentId);
+      actionNote = `Applied to GPU — ${
+        r.applied.length ? r.applied.join("; ") : "requirements profile refreshed (no config deltas)"
+      }. ${r.note}`;
+    } catch (e) {
+      actionNote = `Upstream resync FAILED: ${
+        e instanceof Error ? e.message : "unknown error"
+      } — deployment config untouched; check the DevOps board and retry.`;
+    }
+  } else if (kind === "BENCH_REGRESS") {
+    // TIER3 — benchmark regression vs the miner's own rolling baseline:
+    // advisory. Latency degradation without probe failure is a serving-
+    // quality problem, not a dead process — the Runtime Optimizer's
+    // accelerated profiles are the fix path.
+    actionNote =
+      "Acknowledged — regression logged against the rolling baseline. The Runtime Optimizer's accelerated profiles (vLLM batching, TensorRT-LLM, AWQ/EXL2) are the fix path if it persists.";
   } else if (kind === "SUBNET_DRIFT" && row.deploymentId) {
     // DEVOPS-2 — subnet changes are now IMPLEMENTED on the GPU, not just
     // acknowledged. The event's evidence carries the remediation plan the

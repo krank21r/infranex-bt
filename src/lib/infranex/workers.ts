@@ -8,6 +8,9 @@ import { runUidDefensePass } from "./uid-defense";
 import { runDevopsPass } from "./devops-monitor";
 import { runMinerMindsetPass } from "./miner-mindset";
 import { runServiceHealthPass } from "./service-health";
+import { runAutopilotPass } from "./autopilot";
+import { runUpstreamPass } from "./upstream";
+import { runBenchmarkPass } from "./benchmarks";
 
 /**
  * Background worker system.
@@ -42,6 +45,10 @@ const INTERVALS = {
   market: 60 * 1000,        // 1 minute
   github: 60 * 60 * 1000,  // 60 minutes
   devops: 90 * 1000,        // 90 seconds — DEVOPS-1 continuous monitor
+  // TIER3 — upstream watcher (git intelligence): release/commit tracking.
+  upstream: 30 * 60 * 1000, // 30 minutes
+  // TIER3 — benchmark harness: periodic axon-latency runs per deployment.
+  benchmarks: 10 * 60 * 1000, // 10 minutes
 };
 
 // Track whether workers are running (singleton)
@@ -58,11 +65,15 @@ export function startWorkers() {
   void runMarketWorker();
   void runGithubWorker();
   void runDevopsWorker();
+  void runUpstreamWorker();
+  void runBenchmarkWorker();
 
   workerTimers.push(setInterval(() => void runChainWorker(), INTERVALS.chain));
   workerTimers.push(setInterval(() => void runMarketWorker(), INTERVALS.market));
   workerTimers.push(setInterval(() => void runGithubWorker(), INTERVALS.github));
   workerTimers.push(setInterval(() => void runDevopsWorker(), INTERVALS.devops));
+  workerTimers.push(setInterval(() => void runUpstreamWorker(), INTERVALS.upstream));
+  workerTimers.push(setInterval(() => void runBenchmarkWorker(), INTERVALS.benchmarks));
 }
 
 /** Stop all workers (for testing). */
@@ -139,7 +150,81 @@ async function runDevopsWorker(): Promise<WorkerRunResult> {
       // Strategy layer must never take the whole worker down.
       console.warn(`[devops-worker] mindset pass skipped: ${e instanceof Error ? e.message : e}`);
     }
+    // TIER3 — autopilot: auto-approve + execute OPEN events that match an
+    // enabled policy rule (denylist + scope + rate limit enforced inside).
+    try {
+      await runAutopilotPass();
+    } catch (e) {
+      // Policy layer must never take the whole worker down.
+      console.warn(`[devops-worker] autopilot pass skipped: ${e instanceof Error ? e.message : e}`);
+    }
     tasksProcessed = devops.deploymentsEvaluated;
+    const result: WorkerRunResult = {
+      workerName,
+      status: "completed",
+      durationMs: Date.now() - start,
+      tasksProcessed,
+    };
+    await logWorkerRun(result);
+    return result;
+  } catch (e) {
+    const result: WorkerRunResult = {
+      workerName,
+      status: "failed",
+      durationMs: Date.now() - start,
+      tasksProcessed,
+      error: e instanceof Error ? e.message : String(e),
+    };
+    await logWorkerRun(result);
+    return result;
+  }
+}
+
+/**
+ * TIER3 — upstream watcher (git intelligence). Tracks the latest release
+ * tag + commit SHA per deployed subnet's repo; first sighting adopts the
+ * baseline, repo movement commits UPSTREAM_DRIFT trigger events.
+ */
+export async function runUpstreamWorker(): Promise<WorkerRunResult> {
+  const start = Date.now();
+  const workerName = "upstream-watcher";
+  let tasksProcessed = 0;
+  try {
+    const r = await runUpstreamPass();
+    tasksProcessed = r.watched;
+    const result: WorkerRunResult = {
+      workerName,
+      status: "completed",
+      durationMs: Date.now() - start,
+      tasksProcessed,
+    };
+    await logWorkerRun(result);
+    return result;
+  } catch (e) {
+    const result: WorkerRunResult = {
+      workerName,
+      status: "failed",
+      durationMs: Date.now() - start,
+      tasksProcessed,
+      error: e instanceof Error ? e.message : String(e),
+    };
+    await logWorkerRun(result);
+    return result;
+  }
+}
+
+/**
+ * TIER3 — benchmark harness. Periodic multi-sample axon-latency runs per
+ * started deployment; regressions vs the rolling baseline commit
+ * BENCH_REGRESS trigger events (mocks never alarm).
+ */
+export async function runBenchmarkWorker(): Promise<WorkerRunResult> {
+  const start = Date.now();
+  const workerName = "benchmark-runner";
+  let tasksProcessed = 0;
+  try {
+    const r = await runBenchmarkPass();
+    tasksProcessed = r.ran;
     const result: WorkerRunResult = {
       workerName,
       status: "completed",
