@@ -605,9 +605,18 @@ export async function applyRuntimeOptimization(
   }
 
   // Durable platform-side config update.
+  // TIER2 — snapshot the live config BEFORE the runtime optimization writes,
+  // so an over-aggressive profile is one rollback away.
   try {
     const cfg = deserializeConfig(row.config);
     if (cfg) {
+      const { snapshotRevision } = await import("./deployment/revisions");
+      await snapshotRevision(
+        row.id,
+        "runtime-opt",
+        `before runtime optimization: ${applied.slice(0, 2).join("; ")}`,
+        "engine"
+      ).catch(() => null);
       const envVars = Array.isArray(cfg.docker.envVars) ? [...cfg.docker.envVars] : [];
       for (const [k, v] of Object.entries(envDelta)) {
         const i = envVars.findIndex((e) => e.name === k);

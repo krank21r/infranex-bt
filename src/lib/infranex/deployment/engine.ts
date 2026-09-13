@@ -239,6 +239,9 @@ export async function createDeployment(input: CreateDeploymentInput): Promise<De
       hotkey: input.hotkey ?? null,
     },
   });
+  // TIER2 — r1: the deployment's initial config anchors the rollback chain.
+  const { snapshotRevision } = await import("./revisions");
+  await snapshotRevision(row.id, "deploy", "initial deploy config", "engine").catch(() => null);
   return toRecord(row);
 }
 

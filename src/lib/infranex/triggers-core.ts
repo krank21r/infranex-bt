@@ -17,7 +17,8 @@ export type TriggerKind =
   | "RUNTIME_OPT"
   | "PROBE_FAIL"
   | "SERVICE_LATENCY"
-  | "QUERY_DROUGHT";
+  | "QUERY_DROUGHT"
+  | "ESCALATION";
 
 export const TRIGGER_KIND_META: Record<
   TriggerKind,
@@ -41,6 +42,10 @@ export const TRIGGER_KIND_META: Record<
   PROBE_FAIL: { label: "Probe Fail", severity: "critical", color: "red" },
   SERVICE_LATENCY: { label: "Service Latency", severity: "warning", color: "yellow" },
   QUERY_DROUGHT: { label: "Query Drought", severity: "warning", color: "rose" },
+  // TIER2 — committed by the escalation ladder (escalation.ts) when every
+  // automatic repair rung failed: the operator gets the ladder trace plus a
+  // one-click rollback target (last known-good config revision) when one exists.
+  ESCALATION: { label: "Escalation", severity: "critical", color: "red" },
 };
 
 export interface TriggerEventDTO {
@@ -132,6 +137,9 @@ export async function commitFinding(input: {
       data: {
         evidenceJson: JSON.stringify(input.evidence),
         detail: input.detail,
+        title: input.title,
+        runbookJson: JSON.stringify(input.runbook),
+        severity: input.severity,
         updatedAt: new Date(),
       },
     });

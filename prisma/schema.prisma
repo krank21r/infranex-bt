@@ -465,6 +465,37 @@ model MinerLog {
   @@index([deploymentId, lineKey])
 }
 
+// ---------------------------------------------------------------------------
+// TIER2 — Deployment config revisions (spec §20/§25 rollback). Every config-
+// mutating action snapshots the PREVIOUS config here before writing, so any
+// change (initial deploy, drift remediation, runtime optimization, a rollback
+// itself) can be undone: restore the JSON, push apply_config via the daemon.
+// The escalation ladder points at the newest revision that differs from the
+// current config as the "last known-good" rollback target.
+// ~20 rows per deployment (pruned oldest-first).
+// ---------------------------------------------------------------------------
+
+model DeploymentRevision {
+  id           String   @id @default(cuid())
+  deploymentId String
+  // Monotonic per-deployment revision number (r1 = initial deploy config).
+  rev          Int
+  // "deploy" | "drift" | "runtime-opt" | "rollback-backup"
+  cause        String
+  // Full DeploymentConfig JSON that was active BEFORE the next change.
+  configJson   String
+  // Requirements profile snapshot at that time (when one existed).
+  requirementsJson String?
+  // Human note: what changed, or which rollback this backup was taken for.
+  note         String   @default("")
+  // "engine" (automation) or the operator userId for manual changes.
+  actor        String   @default("engine")
+  createdAt    DateTime @default(now())
+
+  @@unique([deploymentId, rev])
+  @@index([deploymentId, createdAt])
+}
+
 // Gated-access user base (AUTH-1). Only rows here can sign in on /login with
 // userId + access code. Codes are stored ONE-WAY hashed (scrypt salt:hash)
 // for verification, plus AES-256-GCM encrypted (codeEnc) so the admin panel

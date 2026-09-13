@@ -124,6 +124,8 @@ export async function applySubnetConfigToGpu(
   const applied = diffProfiles(oldProfile, fresh);
 
   // --- Platform-side state: snapshot + regenerated miner command ---------
+  // TIER2 — snapshot the live config BEFORE the drift remediation writes, so
+  // the pre-drift state is one rollback away.
   const cfg = deserializeConfig(row.config);
   const walletName = cfg?.miner.walletName ?? "infranex";
   const hotkeyName = cfg?.miner.hotkeyName ?? "default";
@@ -132,6 +134,13 @@ export async function applySubnetConfigToGpu(
   if (cfg) {
     newCommand = concreteMinerCommand(fresh.minerCommandTemplate, walletName, hotkeyName, row.netuid);
     if (newCommand && newCommand !== cfg.docker.command) {
+      const { snapshotRevision } = await import("./revisions");
+      await snapshotRevision(
+        deploymentId,
+        "drift",
+        applied.length ? `before drift remediation: ${applied.slice(0, 3).join("; ")}` : "before drift remediation",
+        "engine"
+      ).catch(() => null);
       cfg.docker.command = newCommand;
       if (fresh.pythonVersion) cfg.requirements.pythonVersion = fresh.pythonVersion;
       if (fresh.cudaMinVersion) cfg.requirements.cudaVersion = fresh.cudaMinVersion;

@@ -26,6 +26,7 @@ import {
   KeyRound,
   RotateCw,
   ShieldCheck,
+  History,
 } from "lucide-react";
 import { cn, formatCurrency, formatRelativeTime } from "@/lib/utils";
 import {
@@ -39,6 +40,7 @@ import {
   type RegistrationWizardContext,
 } from "@/lib/infranex/use-deployments";
 import type { OpenDeployWizardOptions } from "@/components/deployments/deploy-wizard";
+import { RevisionsDialog } from "@/components/deployments/revisions-dialog";
 import { DevOpsEngineSection } from "@/components/devops/devops-console";
 import { WalletRegistrationDialog } from "@/components/devops/wallet-registration-dialog";
 
@@ -202,6 +204,7 @@ function DeploymentCard({
   const [devopsNote, setDevopsNote] = useState<string | null>(null);
   const [devopsBusy, setDevopsBusy] = useState(false);
   const [wizardBusy, setWizardBusy] = useState(false);
+  const [revOpen, setRevOpen] = useState(false);
 
   const isStarted = d.status === "started";
   const hasHotkey = SS58_RE.test(d.hotkey ?? "");
@@ -369,6 +372,16 @@ function DeploymentCard({
             <Terminal className="h-3.5 w-3.5" />
             View logs
           </Button>
+          {/* TIER2 — config revision history + rollback (spec §20/§25) */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => setRevOpen(true)}
+          >
+            <History className="h-3.5 w-3.5" />
+            Revisions
+          </Button>
           {isInProgress && (
             <Button
               variant="outline"
@@ -459,6 +472,12 @@ function DeploymentCard({
           </p>
         )}
       </CardContent>
+      <RevisionsDialog
+        deploymentId={d.id}
+        minerName={d.minerName}
+        open={revOpen}
+        onOpenChange={setRevOpen}
+      />
     </Card>
   );
 }

@@ -16,7 +16,8 @@ export interface TriggerEventDTO {
     | "RUNTIME_OPT"
     | "PROBE_FAIL"
     | "SERVICE_LATENCY"
-    | "QUERY_DROUGHT";
+    | "QUERY_DROUGHT"
+    | "ESCALATION";
   severity: string;
   status: "open" | "approved" | "acted" | "dismissed" | "resolved";
   title: string;

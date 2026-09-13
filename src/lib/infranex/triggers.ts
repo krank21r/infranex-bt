@@ -167,6 +167,15 @@ export async function runTriggerPass(): Promise<PassResult> {
         await autoResolve("KILL", key);
         result.resolved++;
       }
+      // TIER2 — an exhausted-ladder ESCALATION resolves when the pod recovers
+      // on its own (or after someone fixed it out-of-band).
+      const openEsc = await db.triggerEvent.findFirst({
+        where: { kind: "ESCALATION", dedupeKey: `${key}:ladder`, status: "open" },
+      });
+      if (openEsc) {
+        await autoResolve("ESCALATION", `${key}:ladder`);
+        result.resolved++;
+      }
     }
 
     // ---- SCALE: mining at a clear loss --------------------------------
@@ -258,16 +267,13 @@ export async function actOnTrigger(id: string): Promise<{ event: TriggerEventDTO
     await terminateDeployment(row.deploymentId);
     actionNote = "Deployment terminated (pod destroyed, billing stopped).";
   } else if (kind === "RE_SYNC" && row.deploymentId) {
-    // Try the DevOps daemon first; fall back to a deployment tick for mock.
-    const { restartViaDaemon } = await import("./daemon-bridge");
-    const dep = row.deploymentId;
-    try {
-      actionNote = await restartViaDaemon(dep);
-    } catch {
-      actionNote = "No daemon reachable — deployment ticked for re-sync; check provider console.";
-      const { tickDeployment } = await import("./deployment/engine");
-      await tickDeployment(dep).catch(() => null);
-    }
+    // TIER2 — the repair runs through the escalation ladder: daemon restart,
+    // one retry, then a platform tick; only when every rung fails does the
+    // operator get an ESCALATION event (with a rollback target when a config
+    // revision exists to revert to).
+    const { runRepairLadder } = await import("./escalation");
+    const ladder = await runRepairLadder(row.deploymentId, { originKind: "RE_SYNC" });
+    actionNote = ladder.note;
   } else if (kind === "SCALE") {
     actionNote = "Acknowledged — routed to the Optimization Engine for cheaper configs.";
   } else if (kind === "DEREG_RISK" && row.deploymentId) {
@@ -281,13 +287,12 @@ export async function actOnTrigger(id: string): Promise<{ event: TriggerEventDTO
         const r = await applyFailoverToGpu(row.deploymentId);
         actionNote = `Applied to GPU — ${r.note}.`;
         if (r.transport === "platform-only") {
-          // Still attempt the classic restart so the miner re-syncs.
-          const { restartViaDaemon } = await import("./daemon-bridge");
-          try {
-            actionNote += ` Restart queued: ${await restartViaDaemon(row.deploymentId)}`;
-          } catch {
-            actionNote += " No daemon to queue a restart on — install the Node Daemon for remote failover.";
-          }
+          // Still attempt the classic restart so the miner re-syncs — through
+          // the escalation ladder so a dead daemon escalates instead of dying
+          // quietly here.
+          const { runRepairLadder } = await import("./escalation");
+          const ladder = await runRepairLadder(row.deploymentId, { originKind: "DEREG_RISK" });
+          actionNote += ` ${ladder.note}`;
         }
       } catch (e) {
         actionNote = `Failover apply FAILED: ${
@@ -295,14 +300,9 @@ export async function actOnTrigger(id: string): Promise<{ event: TriggerEventDTO
         } — no GPU change was made; check the DevOps board and retry.`;
       }
     } else {
-      const { restartViaDaemon } = await import("./daemon-bridge");
-      try {
-        actionNote = await restartViaDaemon(row.deploymentId);
-      } catch {
-        actionNote = "No daemon reachable — deployment ticked for re-sync; check the provider console.";
-        const { tickDeployment } = await import("./deployment/engine");
-        await tickDeployment(row.deploymentId).catch(() => null);
-      }
+      const { runRepairLadder } = await import("./escalation");
+      const ladder = await runRepairLadder(row.deploymentId, { originKind: "DEREG_RISK" });
+      actionNote = ladder.note;
     }
   } else if (kind === "ARBITRAGE" && row.deploymentId) {
     // DEVOPS-3 — compute recycling: the engine treats compute as a liquid
@@ -353,15 +353,9 @@ export async function actOnTrigger(id: string): Promise<{ event: TriggerEventDTO
     // so the fresh process re-announces its endpoint on-chain.
     const evidence = safeParse(row.evidenceJson);
     if (evidence.suggestedAction === "restart") {
-      const { restartViaDaemon } = await import("./daemon-bridge");
-      try {
-        actionNote = `Applied to GPU — ${await restartViaDaemon(row.deploymentId)}`;
-      } catch {
-        actionNote =
-          "Applied to GPU — no daemon reachable, deployment ticked for re-sync; check the provider console.";
-        const { tickDeployment } = await import("./deployment/engine");
-        await tickDeployment(row.deploymentId).catch(() => null);
-      }
+      const { runRepairLadder } = await import("./escalation");
+      const ladder = await runRepairLadder(row.deploymentId, { originKind: "PROBE_FAIL" });
+      actionNote = `Applied to GPU — ${ladder.note}`;
     } else {
       actionNote = "Acknowledged — endpoint condition logged; keep monitoring for recurrence.";
     }
@@ -380,14 +374,33 @@ export async function actOnTrigger(id: string): Promise<{ event: TriggerEventDTO
     // anything else (thermal, idle GPU, silent daemon) → acknowledge only.
     const evidence = safeParse(row.evidenceJson);
     if (evidence.suggestedAction === "restart") {
-      const { restartViaDaemon } = await import("./daemon-bridge");
-      try {
-        actionNote = await restartViaDaemon(row.deploymentId);
-      } catch {
-        actionNote = "No daemon reachable — miner restart could not be queued; check the provider console.";
-      }
+      const { runRepairLadder } = await import("./escalation");
+      const ladder = await runRepairLadder(row.deploymentId, { originKind: "GPU_HEALTH" });
+      actionNote = ladder.note;
     } else {
       actionNote = "Acknowledged — GPU condition logged; keep monitoring for recurrence.";
+    }
+  } else if (kind === "ESCALATION" && row.deploymentId) {
+    // TIER2 — the ladder exhausted every automatic repair. The evidence names
+    // the rung plan: "rollback" executes the config rollback to the recorded
+    // last known-good revision (restores config + requirements, pushes
+    // apply_config via the daemon / ticks mocks); anything else records the
+    // escalation and points at KILL as the next rung.
+    const evidence = safeParse(row.evidenceJson);
+    const targetRev = typeof evidence.targetRev === "number" ? evidence.targetRev : null;
+    if (evidence.suggestedAction === "rollback" && targetRev !== null) {
+      const { rollbackToRevision } = await import("./deployment/revisions");
+      try {
+        const r = await rollbackToRevision(row.deploymentId, targetRev, { actor: "engine:escalation" });
+        actionNote = `${r.note} Undone: ${r.applied.join("; ") || "no field deltas"}.`;
+      } catch (e) {
+        actionNote = `Rollback FAILED: ${
+          e instanceof Error ? e.message : "unknown error"
+        } — the live config was NOT changed; resolve manually from the Deployments view's revision history.`;
+      }
+    } else {
+      actionNote =
+        "Escalation recorded — no config revision to revert. If the miner stays down, the next rung is KILL (terminate + stop billing).";
     }
   } else if (kind === "SUBNET_DRIFT" && row.deploymentId) {
     // DEVOPS-2 — subnet changes are now IMPLEMENTED on the GPU, not just
@@ -412,16 +425,11 @@ export async function actOnTrigger(id: string): Promise<{ event: TriggerEventDTO
         } — deployment config untouched or partially updated; check the DevOps board and retry after fixing the cause.`;
       }
     } else if (suggested === "restart") {
-      // Metagraph shift — restart the miner so it re-syncs + re-announces.
-      const { restartViaDaemon } = await import("./daemon-bridge");
-      try {
-        actionNote = `Applied to GPU — ${await restartViaDaemon(row.deploymentId)}`;
-      } catch {
-        actionNote =
-          "Applied to GPU — no daemon reachable, deployment ticked for re-sync; check the provider console.";
-        const { tickDeployment } = await import("./deployment/engine");
-        await tickDeployment(row.deploymentId).catch(() => null);
-      }
+      // Metagraph shift — restart the miner so it re-syncs + re-announces,
+      // through the escalation ladder.
+      const { runRepairLadder } = await import("./escalation");
+      const ladder = await runRepairLadder(row.deploymentId, { originKind: "SUBNET_DRIFT" });
+      actionNote = `Applied to GPU — ${ladder.note}`;
     } else {
       actionNote =
         "Acknowledged — economics drift has no direct GPU change; the Optimization Engine can rank alternatives if the numbers no longer work.";

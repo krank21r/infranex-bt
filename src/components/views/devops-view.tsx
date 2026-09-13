@@ -27,6 +27,7 @@ import {
   Timer,
   RadioTower,
   Wallet,
+  OctagonAlert,
 } from "lucide-react";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { useDevopsMonitor } from "@/lib/infranex/use-devops-monitor";
@@ -59,6 +60,10 @@ const KIND_META: Record<
   PROBE_FAIL: { label: "PROBE FAIL", icon: Activity, chip: "border-red-500/40 bg-red-500/10 text-red-300" },
   SERVICE_LATENCY: { label: "SERVICE LATENCY", icon: Timer, chip: "border-yellow-500/40 bg-yellow-500/10 text-yellow-300" },
   QUERY_DROUGHT: { label: "QUERY DROUGHT", icon: RadioTower, chip: "border-rose-500/40 bg-rose-500/10 text-rose-300" },
+  // TIER2 — the escalation ladder exhausted every automatic repair; approving
+  // executes the recorded rollback (or records the escalation when there is
+  // nothing to revert and KILL is next).
+  ESCALATION: { label: "ESCALATION", icon: OctagonAlert, chip: "border-red-500/50 bg-red-500/15 text-red-200" },
 };
 
 export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void }) {
@@ -102,6 +107,14 @@ export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void })
     if (ev.kind === "PROBE_FAIL") {
       if (a === "restart") return { action: a, label: "Restart the miner — re-announce a fresh axon endpoint" };
       return null;
+    }
+    // TIER2 — an ESCALATION with a rollback target restores the last
+    // known-good config on approval; without one it records the escalation.
+    if (ev.kind === "ESCALATION") {
+      if (a === "rollback" && typeof ev.evidence?.targetRev === "number") {
+        return { action: a, label: `Roll back to r${ev.evidence.targetRev} — restore last known-good config` };
+      }
+      return { action: "record", label: "Record escalation — no config to revert (KILL is next)" };
     }
     return null;
   };
