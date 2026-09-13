@@ -22,6 +22,7 @@ import {
   Gavel,
   Radar,
   ShieldCheck,
+  BookOpen,
 } from "lucide-react";
 import type { ViewKey } from "@/lib/infranex/types";
 
@@ -60,6 +61,7 @@ const NAV_GROUPS: { label: string; items: { key: ViewKey; label: string; icon: t
     items: [
       { key: "analytics", label: "Analytics", icon: BarChart3, hint: "11" },
       { key: "system", label: "System & Errors", icon: AlertTriangle, hint: "12" },
+      { key: "runbook", label: "Runbook", icon: BookOpen, hint: "13" },
     ],
   },
 ];
@@ -78,7 +80,7 @@ function adminNavGroups(isAdmin: boolean) {
     {
       label: "Administration",
       items: [
-        { key: "admin" as ViewKey, label: "Access Control", icon: ShieldCheck, hint: "13" },
+        { key: "admin" as ViewKey, label: "Access Control", icon: ShieldCheck, hint: "14" },
       ],
     },
   ];

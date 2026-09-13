@@ -14,6 +14,7 @@ import { MonitoringView } from "@/components/views/monitoring-view";
 import { OptimizationView } from "@/components/views/optimization-view";
 import { AnalyticsView } from "@/components/views/analytics-view";
 import { SystemView } from "@/components/views/system-view";
+import { RunbookView } from "@/components/views/runbook-view";
 import { AdminView } from "@/components/views/admin-view";
 import { OpportunityDetailDialog } from "@/components/cards/opportunity-detail";
 import {
@@ -39,7 +40,8 @@ const VIEW_META: Record<
   optimization: { title: "Optimization", eyebrow: "Section · 10 · Optimization engine" },
   analytics: { title: "Analytics", eyebrow: "Section · 11 · Trends" },
   system: { title: "System & Errors", eyebrow: "Section · 12 · Diagnostics" },
-  admin: { title: "Access Control", eyebrow: "Section · 13 · Administration" },
+  runbook: { title: "Runbook", eyebrow: "Section · 13 · Operator reference" },
+  admin: { title: "Access Control", eyebrow: "Section · 14 · Administration" },
 };
 
 export default function Home() {
@@ -121,6 +123,7 @@ export default function Home() {
       {view === "optimization" && <OptimizationView onNavigate={setView} />}
       {view === "analytics" && <AnalyticsView />}
       {view === "system" && <SystemView onNavigate={setView} />}
+      {view === "runbook" && <RunbookView onNavigate={setView} />}
       {view === "admin" && <AdminView />}
 
       <OpportunityDetailDialog

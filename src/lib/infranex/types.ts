@@ -297,4 +297,5 @@ export type ViewKey =
   | "optimization"
   | "analytics"
   | "system"
+  | "runbook"
   | "admin";
