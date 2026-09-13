@@ -17,8 +17,6 @@
  *     so a paused daemon degrades the score instead of faking a crash.
  *   - Pure + dependency-injected: the evaluator and the tests call the same
  *     function with the same inputs, so the board and the engine agree.
- *   - Mock deployments are FORCED healthy (simulated fleet can't be sick);
- *     the card shows the score with its "mock" tag anyway.
  */
 
 // ---------------------------------------------------------------------------
@@ -41,7 +39,6 @@ export const HEALTH_THRESHOLDS = {
 // ---------------------------------------------------------------------------
 
 export interface MinerHealthInput {
-  isMock?: boolean;
   processAlive: boolean | null;
   /** Daemon silent ≥ 10 min (or no daemon at all when `hasDaemon` is false). */
   hasDaemon: boolean;
@@ -75,7 +72,6 @@ export interface MinerHealth {
   score: number;
   status: "healthy" | "warning" | "critical";
   factors: HealthFactor[];
-  simulated: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -83,23 +79,6 @@ export interface MinerHealth {
 // ---------------------------------------------------------------------------
 
 export function computeMinerHealth(input: MinerHealthInput): MinerHealth {
-  if (input.isMock) {
-    return {
-      score: 96,
-      status: "healthy",
-      simulated: true,
-      factors: [
-        { key: "process", label: "Process", score: 25, max: 25, detail: "simulated miner" },
-        { key: "daemon", label: "Daemon", score: 15, max: 15, detail: "simulated telemetry" },
-        { key: "service", label: "Service", score: 20, max: 20, detail: "simulated probe" },
-        { key: "thermal", label: "Thermal", score: 15, max: 15, detail: "simulated GPU" },
-        { key: "workload", label: "Workload", score: 10, max: 10, detail: "simulated utilization" },
-        { key: "traffic", label: "Traffic", score: 10, max: 10, detail: "simulated queries" },
-        { key: "chain", label: "Chain", score: 5, max: 5, detail: "no real UID" },
-      ],
-    };
-  }
-
   const factors: HealthFactor[] = [];
 
   // A silent daemon means we can't actually see the process either — never
@@ -199,5 +178,5 @@ export function computeMinerHealth(input: MinerHealthInput): MinerHealth {
         ? "warning"
         : "healthy";
 
-  return { score, status, factors, simulated: false };
+  return { score, status, factors };
 }

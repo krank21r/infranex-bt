@@ -228,7 +228,7 @@ async function main() {
     });
     check(
       "healthy probe → real-mode sample with timing, no alarms",
-      r.probesTaken >= 2 && sample?.ok === true && sample?.mode === "real" && sample?.totalMs === 320,
+      r.probesTaken >= 1 && sample?.ok === true && sample?.mode === "real" && sample?.totalMs === 320,
       JSON.stringify({ probesTaken: r.probesTaken, sample })
     );
 
@@ -354,7 +354,7 @@ async function main() {
       (await openEvent(DEP_PROBE, "QUERY_DROUGHT")) === null
     );
 
-    // --- mock deployment: simulated, never alarms ---------------------------
+    // --- mock deployment: excluded from the pass entirely (MOCK-PURGE-1) ----
     resetServiceStateForTests();
     await runServiceHealthPass({ traffic: () => null });
     const mockProbe = await db.probeSample.findFirst({
@@ -366,13 +366,13 @@ async function main() {
       orderBy: { createdAt: "desc" },
     });
     check(
-      "mock deployment → simulated probe sample (ok, mode=mock)",
-      mockProbe?.mode === "mock" && mockProbe?.ok === true,
+      "mock deployment → NO probe sample (excluded, never simulated)",
+      mockProbe === null,
       JSON.stringify(mockProbe)
     );
     check(
-      "mock deployment → simulated traffic sample with validator counts",
-      mockTraffic !== null && (mockTraffic.requests ?? 0) > 0 && (mockTraffic.distinctValidators ?? 0) > 0,
+      "mock deployment → NO traffic sample (excluded, never simulated)",
+      mockTraffic === null,
       JSON.stringify(mockTraffic)
     );
     check(
@@ -418,12 +418,11 @@ async function main() {
       }
     }
     check(
-      "monitor payload — mock miner carries service block (probe + traffic + p50)",
+      "monitor payload — mock miner service block is honestly empty (excluded from pass)",
       mockMiner !== undefined &&
-        mockMiner?.service?.probe?.mode === "mock" &&
-        mockMiner?.service?.probe?.ok === true &&
-        mockMiner?.service?.traffic?.requests !== null &&
-        typeof mockMiner?.service?.latencyP50Ms === "number",
+        mockMiner?.service?.probe === null &&
+        mockMiner?.service?.traffic === null &&
+        mockMiner?.service?.latencyP50Ms === null,
       JSON.stringify(mockMiner?.service ?? null)
     );
 

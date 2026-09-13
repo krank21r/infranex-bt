@@ -35,9 +35,7 @@ import { deserializeConfig } from "./deployment/config";
  *      incentive even moves. Miners whose logs don't expose queries are
  *      reported as unknown and never false-alarm.
  *
- * Mock deployments: fully simulated (probe + plausible traffic, tagged
- * mode:"mock") so the board demonstrates the feature — a simulated pod
- * can't genuinely fail, so mocks never alarm and stale alarms clear.
+ * Mock deployments (test-harness-only) are excluded from the pass entirely.
  */
 
 // ---------------------------------------------------------------------------
@@ -178,7 +176,7 @@ export function droughtVerdict(
 export interface AxonEndpoint {
   endpoint: string;
   port: number;
-  source: "chain" | "deployment" | "mock";
+  source: "chain" | "deployment";
 }
 
 export async function resolveAxonEndpoint(dep: {
@@ -190,7 +188,7 @@ export async function resolveAxonEndpoint(dep: {
   sshHost: string | null;
   config: string;
 }): Promise<AxonEndpoint | null> {
-  if (dep.mode === "mock") return { endpoint: "simulated", port: 0, source: "mock" };
+  if (dep.mode === "mock") return null; // mocks are test-harness-only — nothing to resolve
 
   // 1) What the miner ANNOUNCES on-chain is what validators query.
   let uid = dep.registeredUid ?? null;
@@ -369,51 +367,6 @@ function parseTraffic(telemetry: unknown): TrafficRecord | null {
 }
 
 // ---------------------------------------------------------------------------
-// Mock simulators — plausible, never alarming
-// ---------------------------------------------------------------------------
-
-function simulateProbeOutcome(): ProbeOutcome {
-  // 220–900ms round trip, always ok — a simulated pod cannot genuinely fail.
-  const total = 220 + Math.random() * 680;
-  return {
-    ok: true,
-    httpStatus: 200,
-    ttfbMs: Math.round(total * 0.55),
-    totalMs: Math.round(total),
-    errorKind: null,
-    errorDetail: null,
-  };
-}
-
-function simulateTraffic(depId: string): TrafficRecord {
-  // Stable pseudo-hotkeys derived from the deployment id — plausible SS58-ish.
-  const h = (i: number) => {
-    let x = 0;
-    for (const c of depId + ":" + i) x = (x * 31 + c.charCodeAt(0)) >>> 0;
-    return `5MOCK${x.toString(36).toUpperCase().padStart(10, "0")}`;
-  };
-  const validators = 3 + Math.floor(Math.random() * 4); // 3-6 distinct
-  const requests = 25 + Math.floor(Math.random() * 45); // 25-70 / window
-  let topIdx = 0;
-  let topCount = 0;
-  const counts = Array.from({ length: validators }, () => 1 + Math.floor(Math.random() * 12));
-  counts.forEach((c, i) => {
-    if (c > topCount) {
-      topCount = c;
-      topIdx = i;
-    }
-  });
-  return {
-    windowMinutes: 60,
-    requests,
-    distinctValidators: validators,
-    topValidatorHotkey: h(topIdx),
-    topValidatorCount: topCount,
-    logFound: true,
-  };
-}
-
-// ---------------------------------------------------------------------------
 // The pass
 // ---------------------------------------------------------------------------
 
@@ -459,7 +412,7 @@ export async function runServiceHealthPass(
 ): Promise<ServicePassResult> {
   const th: ServiceThresholds = { ...SERVICE_THRESHOLDS, ...(opts?.thresholds ?? {}) };
   const deps = (await db.deployment.findMany({
-    where: { status: "started" },
+    where: { status: "started", mode: { not: "mock" } },
   })) as unknown as DeployableDep[];
 
   const result: ServicePassResult = {
@@ -511,21 +464,9 @@ async function evaluateServiceForDep(
   let resolved = 0;
   let probed = 0;
   let traffic = 0;
-  const isMock = dep.mode === "mock";
 
   // ---- Probe --------------------------------------------------------------
-  if (isMock) {
-    const sim = simulateProbeOutcome();
-    await writeProbeSample(dep.id, { ...sim, endpoint: "simulated", mode: "mock" });
-    probed++;
-    // A simulated pod can't genuinely fail — clear stale service alarms.
-    for (const key of ["probe-fail", "slow", "drought"] as const) {
-      resolved += await autoResolveFor(key, dep.id);
-    }
-    serviceState.failStreaks.delete(dep.id);
-    serviceState.slowStreaks.delete(dep.id);
-    serviceState.droughtStreaks.delete(dep.id);
-  } else {
+  {
     const ep = opts?.resolveEndpoint
       ? await opts.resolveEndpoint(dep)
       : await resolveAxonEndpoint(dep);
@@ -636,9 +577,7 @@ async function evaluateServiceForDep(
 
   // ---- Validator traffic ---------------------------------------------------
   let trafficRec: TrafficRecord | null = null;
-  if (isMock) {
-    trafficRec = simulateTraffic(dep.id);
-  } else if (opts?.traffic) {
+  if (opts?.traffic) {
     // DI (tests): inject a traffic stream instead of daemon telemetry.
     trafficRec = opts.traffic(dep.id, dep);
   } else {

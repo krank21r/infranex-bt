@@ -18,15 +18,12 @@ import type { TriggerKind } from "./triggers-core";
  *      regardless of any rule. Same for ARBITRAGE "recycle" suggestions
  *      (they terminate the deployment). Escalations exist precisely because
  *      automatic repair failed; auto-acting them would loop.
- *   2. Scope — rules default to mockOnly: they only fire on mock
- *      deployments. Widening to real pods is an explicit operator decision
- *      stored on the rule.
- *   3. Rate limit — maxPerHour per rule (rolling hour, counted from the
+ *   2. Rate limit — maxPerHour per rule (rolling hour, counted from the
  *      evidence stamps this engine writes), so a flapping condition can't
  *      machine-gun the GPU.
- *   4. Severity floor — a rule only matches events at/above its
+ *   3. Severity floor — a rule only matches events at/above its
  *      minSeverity (info < warning < critical).
- *   5. Open only — approved events were approved by a human for a human
+ *   4. Open only — approved events were approved by a human for a human
  *      context; autopilot never re-acts on them, and it acts on an event
  *      at most once (approve → act in one pass).
  */
@@ -41,7 +38,6 @@ export interface AutopilotRuleDTO {
   name: string;
   kind: string;
   minSeverity: string;
-  mockOnly: boolean;
   maxPerHour: number;
   enabled: boolean;
   createdAt: string;
@@ -53,7 +49,6 @@ export function toRuleDTO(row: {
   name: string;
   kind: string;
   minSeverity: string;
-  mockOnly: boolean;
   maxPerHour: number;
   enabled: boolean;
   createdAt: Date;
@@ -64,7 +59,6 @@ export function toRuleDTO(row: {
     name: row.name,
     kind: row.kind,
     minSeverity: row.minSeverity,
-    mockOnly: row.mockOnly,
     maxPerHour: row.maxPerHour,
     enabled: row.enabled,
     createdAt: row.createdAt.toISOString(),
@@ -78,8 +72,8 @@ export function toRuleDTO(row: {
 
 /** Pure rule matcher — exported so tests classify EXACTLY like the engine. */
 export function ruleMatches(
-  rule: { kind: string; minSeverity: string; mockOnly: boolean; enabled: boolean },
-  event: { kind: string; severity: string; evidence: Record<string, unknown>; deploymentMode: string | null }
+  rule: { kind: string; minSeverity: string; enabled: boolean },
+  event: { kind: string; severity: string; evidence: Record<string, unknown> }
 ): { match: boolean; reason: string } {
   if (!rule.enabled) return { match: false, reason: "rule disabled" };
   if (NEVER_AUTO_KINDS.has(event.kind))
@@ -96,8 +90,6 @@ export function ruleMatches(
     (SEVERITY_RANK[event.severity] ?? 0) < (SEVERITY_RANK[rule.minSeverity] ?? 1)
   )
     return { match: false, reason: `severity ${event.severity} below rule floor ${rule.minSeverity}` };
-  if (rule.mockOnly && event.deploymentMode !== "mock")
-    return { match: false, reason: "rule is mock-scoped and the deployment is real" };
   return { match: true, reason: "ok" };
 }
 
@@ -154,7 +146,7 @@ export interface AutopilotPassResult {
 export interface AutopilotPassOptions {
   now?: Date;
   /** DI: override the rule list (tests). */
-  rules?: { id: string; name: string; kind: string; minSeverity: string; mockOnly: boolean; maxPerHour: number; enabled: boolean }[];
+  rules?: { id: string; name: string; kind: string; minSeverity: string; maxPerHour: number; enabled: boolean }[];
   /** DI: override the open-event list (tests). */
   events?: {
     id: string;
@@ -163,8 +155,6 @@ export interface AutopilotPassOptions {
     evidenceJson: string;
     deploymentId: string | null;
   }[];
-  /** DI: deployment modes by id (tests). */
-  deploymentModes?: Map<string, string>;
 }
 
 export async function runAutopilotPass(
@@ -180,16 +170,6 @@ export async function runAutopilotPass(
       take: 100,
     }));
 
-  const modeById = new Map<string, string>();
-  if (opts?.deploymentModes) {
-    for (const [k, v] of opts.deploymentModes) modeById.set(k, v);
-  } else if (events.some((e) => e.deploymentId)) {
-    const deps = await db.deployment.findMany({
-      select: { id: true, mode: true },
-    });
-    for (const d of deps) modeById.set(d.id, d.mode);
-  }
-
   const result: AutopilotPassResult = {
     evaluatedAt: now.toISOString(),
     openEvents: events.length,
@@ -200,11 +180,10 @@ export async function runAutopilotPass(
 
   for (const event of events) {
     const evidence = safeParseEvidence(event.evidenceJson);
-    const deploymentMode = event.deploymentId ? modeById.get(event.deploymentId) ?? null : null;
 
     // Most specific match wins: exact-kind rules before ANY rules.
     const candidates = rules
-      .map((rule) => ({ rule, m: ruleMatches(rule, { kind: event.kind, severity: event.severity, evidence, deploymentMode }) }))
+      .map((rule) => ({ rule, m: ruleMatches(rule, { kind: event.kind, severity: event.severity, evidence }) }))
       .filter((c) => c.m.match)
       .sort((a, b) => (a.rule.kind === event.kind ? 0 : 1) - (b.rule.kind === event.kind ? 0 : 1));
 

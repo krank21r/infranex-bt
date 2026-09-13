@@ -50,7 +50,7 @@ import { useToast } from "@/hooks/use-toast";
  * order:
  *   1. Choose the subnet        (live chain list + seat verdicts)
  *   2. Check required GPU       (real requirements profiler)
- *   3. Buy the GPU              (filtered provider offers, mock or RunPod)
+ *   3. Buy the GPU              (filtered provider offers)
  *   4. Install requirements     (automatic — real 10-step runner, live log)
  *   5. Add hotkey & run         (wallet wizard hand-off, register LAST)
  *
@@ -82,7 +82,6 @@ export function DeployWizard({ open, onOpenChange, initialNetuid, initialOfferId
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [netuid, setNetuid] = useState<number | null>(null);
   const [offerId, setOfferId] = useState<string | null>(null);
-  const [mode, setMode] = useState<"mock" | "runpod" | "vast">("mock");
   const [minerName, setMinerName] = useState("");
   const [walletName, setWalletName] = useState("infranex");
   const [depId, setDepId] = useState<string | null>(null);
@@ -109,7 +108,6 @@ export function DeployWizard({ open, onOpenChange, initialNetuid, initialOfferId
       setNetuid(initialNetuid ?? null);
       setOfferId(initialOfferId ?? null);
       setStep(hasSubnet ? 2 : 1);
-      setMode("mock");
       setMinerName("");
       setWalletName("infranex");
       setDepId(null);
@@ -125,7 +123,6 @@ export function DeployWizard({ open, onOpenChange, initialNetuid, initialOfferId
     setStep(1);
     setNetuid(null);
     setOfferId(null);
-    setMode("mock");
     setMinerName("");
     setWalletName("infranex");
     setDepId(null);
@@ -258,7 +255,7 @@ export function DeployWizard({ open, onOpenChange, initialNetuid, initialOfferId
         offerId: offer.id,
         minerName: minerName.trim(),
         walletName: walletName.trim() || undefined,
-        mode,
+        mode: realMode,
       });
       toast({
         title: "GPU rented — installing requirements",
@@ -540,25 +537,9 @@ export function DeployWizard({ open, onOpenChange, initialNetuid, initialOfferId
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => setMode("mock")}
                   className={cn(
                     "rounded-lg border p-3 text-left transition-colors",
-                    mode === "mock" ? "border-primary/40 bg-primary/[0.06]" : "border-border/60 bg-card/30"
-                  )}
-                >
-                  <p className="flex items-center gap-2 text-sm font-medium">
-                    <Server className="h-4 w-4 text-primary" /> Demo pod
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Simulated machine, same installer. Free.
-                  </p>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMode(realMode)}
-                  className={cn(
-                    "rounded-lg border p-3 text-left transition-colors",
-                    mode === realMode ? "border-primary/40 bg-primary/[0.06]" : "border-border/60 bg-card/30"
+                    "border-primary/40 bg-primary/[0.06]"
                   )}
                 >
                   <p className="flex items-center gap-2 text-sm font-medium">
@@ -570,12 +551,12 @@ export function DeployWizard({ open, onOpenChange, initialNetuid, initialOfferId
                 </button>
               </div>
 
-              {(mode === "runpod" || mode === "vast") && !realConfigured && (
+              {!realConfigured && (
                 <p className="-mt-1 flex items-start gap-1.5 text-xs text-warning">
                   <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  {mode === "vast"
-                    ? "No Vast.ai API key yet — add it in GPU catalog → “Provider API keys”, or run the Demo pod first."
-                    : "No RunPod API key yet — add it in GPU catalog → “Provider API keys”, or run the Demo pod first."}
+                  {realMode === "vast"
+                    ? "No Vast.ai API key yet — add it in GPU catalog → “Provider API keys”."
+                    : "No RunPod API key yet — add it in GPU catalog → “Provider API keys”."}
                 </p>
               )}
 
@@ -635,7 +616,7 @@ export function DeployWizard({ open, onOpenChange, initialNetuid, initialOfferId
                   ) : (
                     <Rocket className="h-4 w-4" />
                   )}
-                  {(mode === "runpod" || mode === "vast") ? "Rent & deploy (real)" : "Rent & install"}
+                  Rent & deploy (real)
                 </Button>
               </div>
             </div>

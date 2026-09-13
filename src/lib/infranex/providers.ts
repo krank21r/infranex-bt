@@ -61,7 +61,7 @@ export const PROVIDER_META: ProviderMeta[] = [
     offers: true,
     rent: false,
     keyHint: "cloud.lambdalabs.com → API keys → Add API key",
-    note: "Live on-demand pricing. Rental adapter in progress — rent via RunPod (real) or simulated mode.",
+    note: "Live on-demand pricing. Rental adapter in progress — rent via RunPod (real).",
   },
   {
     id: "nvidia",

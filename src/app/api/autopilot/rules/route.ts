@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
  * TIER3 — Autopilot policy rules.
  *
  *   GET   → all rules (newest first)
- *   POST  → create a rule { name, kind, minSeverity, mockOnly, maxPerHour }
+ *   POST  → create a rule { name, kind, minSeverity, maxPerHour }
  *           or { action: "run" } to execute one autopilot pass now.
  *
  * Auth is enforced by the proxy (all /api/* gated).
@@ -65,10 +65,8 @@ export async function POST(req: NextRequest) {
       ? Math.max(1, Math.min(60, Math.floor(body.maxPerHour)))
       : 3;
 
-  const mockOnly = typeof body.mockOnly === "boolean" ? body.mockOnly : true;
-
   const rule = await db.autopilotRule.create({
-    data: { name, kind, minSeverity, maxPerHour, mockOnly },
+    data: { name, kind, minSeverity, maxPerHour },
   });
   return NextResponse.json({ ok: true, rule: toRuleDTO(rule) });
 }

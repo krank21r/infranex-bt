@@ -102,7 +102,7 @@ export function RevisionsDialog({
           </DialogTitle>
           <DialogDescription>
             Every config change snapshots the previous state before writing. Rolling back restores
-            that config and pushes it to the GPU (apply_config via the daemon, simulated on mocks).
+            that config and pushes it to the GPU (apply_config via the daemon).
           </DialogDescription>
         </DialogHeader>
 

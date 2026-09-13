@@ -21,8 +21,7 @@ import { cn } from "@/lib/utils";
  * TIER3 — migrate a started deployment to a different GPU offer.
  *
  * Provision new pod → switch → re-bridge → terminate old pod, all recorded
- * as a "migrate" revision + step trail. Mock fleets migrate within the
- * simulated fleet (preset synthetic targets); live deployments migrate onto
+ * as a "migrate" revision + step trail. Live deployments migrate onto
  * on-demand offers from their own rental provider (RunPod or Vast.ai).
  */
 
@@ -32,49 +31,6 @@ interface MigrationResultDTO {
   note: string;
   transport: string;
 }
-
-/** Simulated targets for the mock fleet — provider "mock" keeps mode semantics. */
-const MOCK_TARGETS: MergedGpuOffer[] = [
-  {
-    id: "mock-migrate-4090",
-    model: "RTX 4090",
-    vramGb: 24,
-    provider: "mock",
-    region: "simulated",
-    hourlyPrice: 0.4,
-    monthlyPrice: 288,
-    availability: "available",
-    isSpot: false,
-    ramGb: 64,
-    cpuCores: 16,
-  },
-  {
-    id: "mock-migrate-6000",
-    model: "RTX 6000 Ada",
-    vramGb: 48,
-    provider: "mock",
-    region: "simulated",
-    hourlyPrice: 0.79,
-    monthlyPrice: 569,
-    availability: "available",
-    isSpot: false,
-    ramGb: 128,
-    cpuCores: 32,
-  },
-  {
-    id: "mock-migrate-h100",
-    model: "H100",
-    vramGb: 80,
-    provider: "mock",
-    region: "simulated",
-    hourlyPrice: 2.49,
-    monthlyPrice: 1793,
-    availability: "available",
-    isSpot: false,
-    ramGb: 240,
-    cpuCores: 48,
-  },
-];
 
 export function MigrateDialog({
   deploymentId,
@@ -99,18 +55,14 @@ export function MigrateDialog({
   const [result, setResult] = useState<MigrationResultDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const isMock = mode === "mock";
   // TIER4 — live targets come from the deployment's own rental provider
   // (offerProviderId normalizes the inconsistent catalog label casings that
   // previously made live RunPod targets unmatchable), excluding spot + the
   // current model.
   const liveProvider = mode === "vast" ? "vast" : "runpod";
-  const liveTargets = offers.filter(
+  const targets = offers.filter(
     (o) => offerProviderId(o.provider) === liveProvider && !o.isSpot && o.model !== currentGpuModel
   );
-  const targets = isMock
-    ? MOCK_TARGETS.filter((t) => t.model !== currentGpuModel)
-    : liveTargets;
 
   const migrate = async (offer: MergedGpuOffer) => {
     setBusyId(offer.id);
@@ -143,9 +95,7 @@ export function MigrateDialog({
             Migrate &quot;{minerName}&quot;
           </DialogTitle>
           <DialogDescription>
-            {isMock
-              ? "Simulated migration inside the mock fleet — the pod swap, billing change and audit trail all behave like the real path."
-              : "Provisions the new pod first, switches the deployment, re-bridges DevOps, then terminates the old pod. The miner config (subnet, hotkey, env) is untouched."}
+            {"Provisions the new pod first, switches the deployment, re-bridges DevOps, then terminates the old pod. The miner config (subnet, hotkey, env) is untouched."}
           </DialogDescription>
         </DialogHeader>
 
@@ -156,7 +106,7 @@ export function MigrateDialog({
 
         <ScrollArea className="max-h-72 pr-2">
           <div className="space-y-1.5">
-            {offersFetching && !isMock && targets.length === 0 && (
+            {offersFetching && targets.length === 0 && (
               <p className="flex items-center gap-2 py-4 text-xs text-muted-foreground">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
                 Loading live offers…
@@ -164,9 +114,7 @@ export function MigrateDialog({
             )}
             {!offersFetching && targets.length === 0 && (
               <p className="rounded-lg border border-dashed border-border/60 px-3 py-6 text-center text-xs text-muted-foreground">
-                {isMock
-                  ? "No other mock targets available."
-                  : `No eligible ${liveProvider === "vast" ? "Vast.ai" : "RunPod"} on-demand offers right now (spot offers are refused for long-running miners).`}
+                {`No eligible ${liveProvider === "vast" ? "Vast.ai" : "RunPod"} on-demand offers right now (spot offers are refused for long-running miners).`}
               </p>
             )}
             {targets.map((o) => (

@@ -2,7 +2,6 @@ import { db } from "@/lib/db";
 import { getUidState } from "./metagraph";
 import { getDaemonView } from "./daemon-bridge";
 import { commitFinding, autoResolve } from "./triggers-core";
-import { simulateMockLogs } from "./miner-logs";
 
 /**
  * DEVOPS-1 — the always-on DevOps monitor pass.
@@ -28,9 +27,10 @@ import { simulateMockLogs } from "./miner-logs";
  * events, evidence refreshed in place, recovery auto-resolves. Approval
  * gating and execution stay in the Trigger Engine (triggers.ts).
  *
- * Mock deployments are monitored but tagged: one "mock" GpuSample per pass
- * (so the board shows a heartbeat) and NO GPU/subnet alarms — a simulated
- * pod can't be genuinely hot, and a fake hotkey is not a chain entity.
+ * Mock deployments are NOT sampled: they are a test-harness-only concept
+ * (engine regression suites drive them in-process), so the live monitor
+ * skips them entirely — no heartbeat sample, no simulated logs, no alarms.
+ * A fake hotkey is not a chain entity either.
  */
 
 // ---------------------------------------------------------------------------
@@ -232,16 +232,10 @@ async function evaluateGpuHealth(dep: {
 }): Promise<{ sampled: boolean; resolved: number; findings: { action: string }[] }> {
   const findings: { action: string }[] = [];
   let resolved = 0;
-  const isMock = dep.mode === "mock";
-
-  // Mock pods: heartbeat sample only — no real GPU can be hot or dead.
-  if (isMock) {
-    await writeSample(dep.id, "mock", null, null, null, null, null);
-    // TIER1-1 — keep the mock fleet's live-log panel populated too.
-    await simulateMockLogs(dep.id).catch(() => 0);
-    // Clear anything stale from before a switch to mock.
-    resolved += await clearGpuAlarms(dep.id, ["no-daemon", "silent", "proc", "temp", "util"]);
-    return { sampled: true, resolved, findings };
+  // MOCK-PURGE-1 — mocks are test-harness-only; the live monitor skips them
+  // completely (no heartbeat sample, no simulated logs, no synthesized state).
+  if (dep.mode === "mock") {
+    return { sampled: false, resolved: 0, findings };
   }
 
   const view = await getDaemonView(dep.id);

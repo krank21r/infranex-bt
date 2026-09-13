@@ -538,9 +538,6 @@ model AutopilotRule {
   kind      String   @default("ANY")
   // Minimum severity this rule acts on: info < warning < critical.
   minSeverity String @default("warning")
-  // Safety default: only auto-act on mock deployments. Widening to real
-  // pods is an explicit operator decision.
-  mockOnly  Boolean  @default(true)
   // Max auto-executions per rolling hour (rate limit).
   maxPerHour Int     @default(3)
   enabled   Boolean  @default(true)

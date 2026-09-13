@@ -6,8 +6,8 @@ import { db } from "@/lib/db";
  *
  * Two callers:
  *   - /api/daemon/telemetry: real Node Daemon v3 tails report new lines.
- *   - devops-monitor pass: mock deployments get simulated lines so the board
- *     is fully populated without hardware.
+ *   - Engine regression suites: simulateMockLogs is a TEST-ONLY harness that
+ *     populates log rows for in-process fixture deployments.
  *
  * Dedupe: daemon restarts re-read the file tail, so the same line can arrive
  * twice. lineKey = sha1(deploymentId|at|message) and duplicates are skipped

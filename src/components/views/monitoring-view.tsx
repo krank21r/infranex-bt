@@ -301,8 +301,6 @@ function DeploymentMonitoringCard({
                   <span className={cn("badge-status", podRunning ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive")}>
                     {m.pod.desiredStatus ?? "unknown"}
                   </span>
-                ) : mode === "mock" ? (
-                  <span className="badge-status bg-muted/50 text-muted-foreground">simulated</span>
                 ) : (
                   <span className="badge-status bg-destructive/10 text-destructive">not found</span>
                 )}

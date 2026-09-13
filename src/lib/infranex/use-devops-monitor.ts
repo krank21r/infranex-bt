@@ -46,13 +46,11 @@ export interface MinerHealthDTO {
   score: number;
   status: "healthy" | "warning" | "critical";
   factors: MinerHealthFactorDTO[];
-  simulated: boolean;
 }
 
 /** TIER4 / RUNWAY-1 — immunity runway (mirrors runway.ts RunwayAssessment). */
 export interface RunwayAssessmentDTO {
   verdict: "safe" | "watch" | "at_risk" | "expired";
-  simulated: boolean;
   margins: {
     capacityFreeSlots: number | null;
     atCapacity: boolean;

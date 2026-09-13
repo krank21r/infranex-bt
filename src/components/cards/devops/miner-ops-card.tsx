@@ -62,7 +62,6 @@ export function MinerOpsCard({
   // The old local recompute missed those, so the card border could stay
   // green while the HealthScoreChip on the same card showed critical.
   const health: Health = miner.health?.status ?? "healthy";
-  const isMock = miner.mode === "mock";
 
   return (
     <Card
@@ -88,11 +87,6 @@ export function MinerOpsCard({
             <div className="flex flex-wrap items-center gap-2">
               <HealthDot health={health} />
               <p className="truncate text-display text-sm font-semibold">{miner.minerName}</p>
-              {isMock && (
-                <Badge variant="outline" className="h-4 px-1.5 text-[9px] uppercase tracking-wider text-muted-foreground">
-                  mock
-                </Badge>
-              )}
               {miner.health && <HealthScoreChip health={miner.health} />}
             </div>
             <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -156,9 +150,7 @@ export function MinerOpsCard({
                 ? "running"
                 : miner.gpu?.processAlive === false
                   ? "DOWN"
-                  : isMock
-                    ? "simulated"
-                    : "unknown"
+                  : "unknown"
             }
             tone={
               miner.gpu?.processAlive === false ? "critical" : miner.gpu?.processAlive === true ? "ok" : "muted"
@@ -192,7 +184,7 @@ export function MinerOpsCard({
             daemon
           </span>
           <span className="flex items-center gap-2 text-[11px]">
-            <DaemonChip status={isMock ? "mock" : miner.daemon?.status ?? "missing"} />
+            <DaemonChip status={miner.daemon?.status ?? "missing"} />
             {miner.daemon?.lastSeenAt && (
               <span className="mono tabular text-muted-foreground/70">
                 {formatRelativeTime(miner.daemon.lastSeenAt)}
@@ -244,7 +236,7 @@ export function MinerOpsCard({
               <Activity className="h-3 w-3" aria-hidden />
               service
             </span>
-            <ProbeChip probe={miner.service?.probe ?? null} isMock={isMock} />
+            <ProbeChip probe={miner.service?.probe ?? null} />
           </div>
           <div className="mt-1.5 grid grid-cols-3 gap-2 text-center">
             <MiniFact
@@ -294,7 +286,7 @@ export function MinerOpsCard({
               <RadioTower className="h-3 w-3" aria-hidden />
               validator queries
             </span>
-            <TrafficSummary traffic={miner.service?.traffic ?? null} isMock={isMock} />
+            <TrafficSummary traffic={miner.service?.traffic ?? null} />
           </div>
         </div>
 
@@ -420,7 +412,6 @@ export function MinerOpsCard({
               {miner.runway.margins.incentive != null
                 ? ` · incentive ${(miner.runway.margins.incentive * 100).toFixed(2)}%`
                 : ""}
-              {miner.runway.simulated ? " · simulated" : ""}
             </p>
           </div>
         )}
@@ -526,7 +517,6 @@ function RunwayChip({ runway }: { runway: RunwayAssessmentDTO }) {
       )}
     >
       {label}
-      {runway.simulated ? " · sim" : ""}
     </Badge>
   );
 }
@@ -563,7 +553,6 @@ function DaemonChip({ status }: { status: string }) {
     online: "border-success/40 bg-success/10 text-success",
     unreachable: "border-amber-500/40 bg-amber-500/10 text-amber-300",
     missing: "border-border text-muted-foreground",
-    mock: "border-border text-muted-foreground",
     pending: "border-border text-muted-foreground",
   };
   return (
@@ -573,13 +562,11 @@ function DaemonChip({ status }: { status: string }) {
   );
 }
 
-/** DEVOPS-4 — probe verdict chip: alive + latency, dead, or simulated. */
+/** DEVOPS-4 — probe verdict chip: alive + latency or dead. */
 function ProbeChip({
   probe,
-  isMock,
 }: {
   probe: { ok: boolean; totalMs: number | null; httpStatus: number | null; mode: string } | null;
-  isMock: boolean;
 }) {
   if (!probe) {
     return (
@@ -597,7 +584,7 @@ function ProbeChip({
   }
   return (
     <Badge variant="outline" className="h-4 px-1.5 text-[10px] border-success/40 bg-success/10 text-success">
-      {isMock ? "simulated" : `HTTP ${probe.httpStatus ?? "?"}`}
+      {`HTTP ${probe.httpStatus ?? "?"}`}
     </Badge>
   );
 }
@@ -605,14 +592,12 @@ function ProbeChip({
 /** DEVOPS-4 — validator traffic summary: queries/hour + distinct validators. */
 function TrafficSummary({
   traffic,
-  isMock,
 }: {
   traffic: {
     requests: number | null;
     distinctValidators: number | null;
     topValidatorHotkey: string | null;
   } | null;
-  isMock: boolean;
 }) {
   if (!traffic) {
     return <span className="mono tabular text-muted-foreground/60">no data</span>;
@@ -628,7 +613,6 @@ function TrafficSummary({
           · {traffic.distinctValidators} validator{traffic.distinctValidators === 1 ? "" : "s"}
         </span>
       )}
-      {isMock && <span className="text-[10px] text-muted-foreground/50">simulated</span>}
     </span>
   );
 }
@@ -652,7 +636,6 @@ function HealthScoreChip({ health }: { health: MinerHealthDTO }) {
     >
       <HeartPulse className="h-2.5 w-2.5" aria-hidden />
       {health.score}
-      {health.simulated ? "·sim" : ""}
     </Badge>
   );
 }

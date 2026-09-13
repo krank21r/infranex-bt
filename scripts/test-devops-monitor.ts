@@ -159,12 +159,11 @@ async function main() {
       workerRow ? `status=${workerRow.status}` : "no row found"
     );
 
-    // --- mock deployment: sampled, never alarmed ----------------------------
+    // --- mock deployment: skipped honestly (MOCK-PURGE-1) -------------------
     await createTempDeployment(MOCK_DEP, "mock");
     await api("POST", "/api/triggers", { action: "run" }, adminCookie);
     const mockSample = await db.gpuSample.findFirst({ where: { deploymentId: MOCK_DEP } });
-    check("mock started deployment gets a GpuSample heartbeat", mockSample !== null);
-    check("mock sample tagged daemonStatus=mock", mockSample?.daemonStatus === "mock");
+    check("mock deployment gets NO GpuSample (skipped, never simulated)", mockSample === null);
     const mockAlarms = await db.triggerEvent.findMany({
       where: { deploymentId: MOCK_DEP, kind: { in: ["GPU_HEALTH", "SUBNET_DRIFT"] }, status: "open" },
     });

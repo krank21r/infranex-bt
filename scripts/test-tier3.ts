@@ -89,59 +89,51 @@ async function main() {
   await db.autopilotRule.deleteMany({ where: { name: "suite auto-restart" } });
 
   console.log("== TIER3: autopilot rule matching (pure) ==");
-  const anyWarn = { id: "r1", name: "any", kind: "ANY", minSeverity: "warning", mockOnly: false, maxPerHour: 3, enabled: true };
+  const anyWarn = { id: "r1", name: "any", kind: "ANY", minSeverity: "warning", maxPerHour: 3, enabled: true };
 
   check(
     "KILL is denylisted even for ANY rules",
-    !ruleMatches(anyWarn, { kind: "KILL", severity: "critical", evidence: {}, deploymentMode: "mock" }).match
+    !ruleMatches(anyWarn, { kind: "KILL", severity: "critical", evidence: {} }).match
   );
   check(
     "ESCALATION is denylisted",
-    !ruleMatches(anyWarn, { kind: "ESCALATION", severity: "critical", evidence: {}, deploymentMode: "mock" }).match
+    !ruleMatches(anyWarn, { kind: "ESCALATION", severity: "critical", evidence: {} }).match
   );
   check(
     "ARBITRAGE recycle is denylisted",
-    !ruleMatches(anyWarn, { kind: "ARBITRAGE", severity: "critical", evidence: { suggestedAction: "recycle" }, deploymentMode: "mock" }).match
+    !ruleMatches(anyWarn, { kind: "ARBITRAGE", severity: "critical", evidence: { suggestedAction: "recycle" } }).match
   );
   check(
     "kind mismatch does not match",
-    !ruleMatches({ ...anyWarn, kind: "GPU_HEALTH" }, { kind: "PROBE_FAIL", severity: "critical", evidence: {}, deploymentMode: "mock" }).match
+    !ruleMatches({ ...anyWarn, kind: "GPU_HEALTH" }, { kind: "PROBE_FAIL", severity: "critical", evidence: {} }).match
   );
   check(
     "severity below floor does not match",
-    !ruleMatches(anyWarn, { kind: "GPU_HEALTH", severity: "info", evidence: {}, deploymentMode: "mock" }).match
+    !ruleMatches(anyWarn, { kind: "GPU_HEALTH", severity: "info", evidence: {} }).match
   );
   check(
     "severity at floor matches",
-    ruleMatches(anyWarn, { kind: "GPU_HEALTH", severity: "warning", evidence: {}, deploymentMode: "real" }).match
-  );
-  check(
-    "mockOnly rule skips real deployments",
-    !ruleMatches({ ...anyWarn, mockOnly: true }, { kind: "GPU_HEALTH", severity: "critical", evidence: {}, deploymentMode: "runpod" }).match
-  );
-  check(
-    "mockOnly rule matches mock deployments",
-    ruleMatches({ ...anyWarn, mockOnly: true }, { kind: "GPU_HEALTH", severity: "critical", evidence: {}, deploymentMode: "mock" }).match
+    ruleMatches(anyWarn, { kind: "GPU_HEALTH", severity: "warning", evidence: {} }).match
   );
   check(
     "disabled rule never matches",
-    !ruleMatches({ ...anyWarn, enabled: false }, { kind: "GPU_HEALTH", severity: "critical", evidence: {}, deploymentMode: "mock" }).match
+    !ruleMatches({ ...anyWarn, enabled: false }, { kind: "GPU_HEALTH", severity: "critical", evidence: {} }).match
   );
   check(
     "exact-kind rule beats ANY (specificity order)",
-    ruleMatches({ ...anyWarn, kind: "PROBE_FAIL" }, { kind: "PROBE_FAIL", severity: "critical", evidence: {}, deploymentMode: "mock" }).match
+    ruleMatches({ ...anyWarn, kind: "PROBE_FAIL" }, { kind: "PROBE_FAIL", severity: "critical", evidence: {} }).match
   );
 
   // ------------------------------------------------------------------
   console.log("== TIER3: autopilot end-to-end ==");
-  // The rule the suite uses: PROBE_FAIL on mock fleets, capped at 1/h so the
-  // rate limiter can be exercised.
+  // The rule the suite uses: PROBE_FAIL, capped at 1/h so the
+  // rate limiter can be exercised. (MOCK-PURGE-1: mockOnly scope removed —
+  // rules match any deployment; safety comes from the denylist + floors.)
   const suiteRule = await db.autopilotRule.create({
     data: {
       name: "suite auto-restart",
       kind: "PROBE_FAIL",
       minSeverity: "warning",
-      mockOnly: true,
       maxPerHour: 60,
     },
   });
@@ -263,7 +255,6 @@ async function main() {
       { id: probeEv2.id, kind: "PROBE_FAIL", severity: "critical", evidenceJson: probeEv2.evidenceJson, deploymentId: dep.id },
       { id: probeEv3.id, kind: "PROBE_FAIL", severity: "critical", evidenceJson: probeEv3.evidenceJson, deploymentId: dep.id },
     ],
-    deploymentModes: new Map([[dep.id, "mock"]]),
   });
   const probe2Skipped = pass2.skipped.find((s) => s.eventId === probeEv3.id);
   check(

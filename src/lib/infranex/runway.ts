@@ -23,7 +23,7 @@ import {
  * Verdicts: safe → watch (warning) → at_risk (critical T-minus) → expired.
  * "expired" is the live EVICTABLE state — DEREG_RISK already owns that alarm,
  * so runway stays quiet there to avoid double-firing the same condition.
- * Mock deployments get a deterministic simulated runway and NEVER alarm.
+ * Deployments without a valid registered hotkey are skipped (no UID, no clock).
  */
 
 const INCOME_FLOOR = 0.0005;
@@ -56,8 +56,6 @@ export interface RunwayTrajectory {
 
 export interface RunwayAssessment {
   verdict: RunwayVerdict;
-  /** True for simulated mock fleets — display-only, never alarms. */
-  simulated: boolean;
   margins: RunwayMargin;
   trajectory: RunwayTrajectory;
   /** Estimated blocks until the eviction line (null = no clock / not binding). */
@@ -204,7 +202,6 @@ export function computeRunway(input: {
 
   return {
     verdict,
-    simulated: false,
     margins: {
       capacityFreeSlots: freeSlots,
       atCapacity,
@@ -218,33 +215,12 @@ export function computeRunway(input: {
   };
 }
 
-/** Deterministic simulated runway for mock fleets — display-only, never alarms. */
-export function simulateMockRunway(minerName: string): RunwayAssessment {
-  // Stable pseudo-random per miner: 10-16 h of simulated immunity left.
-  let seed = 0;
-  for (const ch of minerName) seed = (seed * 31 + ch.charCodeAt(0)) % 9973;
-  const blocks = 3000 + (seed % 1800);
-  return {
-    verdict: "safe",
-    simulated: true,
-    margins: {
-      capacityFreeSlots: 12 + (seed % 20),
-      atCapacity: false,
-      immunityBlocksLeft: blocks,
-      incentive: 0.031 + (seed % 7) / 1000,
-    },
-    trajectory: { direction: "stable", slopePerSample: 0.001, samples: 6 },
-    tMinusBlocks: null,
-    tMinusLabel: null,
-    notes: ["Simulated runway — mock fleets have no on-chain UID, so margins are synthesized and never alarm."],
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Evaluator — runs inside the devops worker right after uid-defense
 // ---------------------------------------------------------------------------
 
-const SS58_RE = /^5[1-9A-HJ-NP-Za-km-z]{47}$/;
+/** SS58 hotkey shape (exported — the monitor payload uses the same gate). */
+export const SS58_RE = /^5[1-9A-HJ-NP-Za-km-z]{47}$/;
 const TRAJECTORY_WINDOW = 20;
 
 export async function runRunwayPass(): Promise<{
@@ -262,7 +238,7 @@ export async function runRunwayPass(): Promise<{
   for (const dep of deps) {
     if (!dep.hotkey || !SS58_RE.test(dep.hotkey)) {
       result.skipped++;
-      continue; // mocks / unconfigured hotkeys — simulated in the UI payload instead
+      continue; // no valid registered hotkey — nothing to assess on-chain
     }
     try {
       const state = await getUidState(dep.netuid, dep.hotkey);

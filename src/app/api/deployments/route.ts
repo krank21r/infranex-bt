@@ -95,11 +95,13 @@ export async function POST(req: NextRequest) {
       minerName: string;
       hotkey?: string;
       walletName?: string;
-      mode: "mock" | "runpod" | "vast";
+      mode: "runpod" | "vast";
     };
 
-    if (mode !== "mock" && mode !== "runpod" && mode !== "vast") {
-      return NextResponse.json({ error: "mode must be mock, runpod, or vast" }, { status: 400 });
+    // MOCK-PURGE-1 — mock deployments are engine-test-harness-only; the live
+    // API provisions real rentals exclusively.
+    if (mode !== "runpod" && mode !== "vast") {
+      return NextResponse.json({ error: "mode must be runpod or vast" }, { status: 400 });
     }
 
     const subnet = await resolveSubnet(netuid);
@@ -135,7 +137,7 @@ export async function POST(req: NextRequest) {
       minerName: minerName.trim(),
       hotkey: hotkey?.trim() || undefined,
       walletName: walletName?.trim() || undefined,
-      mode: mode ?? "mock",
+      mode,
       owner: session?.uid
         ? { userId: session.uid, label: session.label ?? undefined }
         : undefined,

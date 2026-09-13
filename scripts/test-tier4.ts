@@ -13,7 +13,6 @@ import { db } from "../src/lib/db";
 import {
   incentiveSlope,
   computeRunway,
-  simulateMockRunway,
   runRunwayPass,
 } from "../src/lib/infranex/runway";
 import { commitFinding, autoResolve } from "../src/lib/infranex/triggers-core";
@@ -195,10 +194,8 @@ async function main() {
   });
   check("declining near floor → watch (no clock)", drift.verdict === "watch", drift);
 
-  const sim = simulateMockRunway("monitor-demo-01");
-  const sim2 = simulateMockRunway("monitor-demo-01");
-  check("mock runway simulated + safe", sim.simulated && sim.verdict === "safe", sim);
-  check("mock runway deterministic", sim.margins.immunityBlocksLeft === sim2.margins.immunityBlocksLeft);
+  // MOCK-PURGE-1: simulateMockRunway was removed — runway is chain-honest
+  // only (no synthetic margins for fleets without a registered hotkey).
 
   console.log("\n== B. Runway pass + event lifecycle ==");
 
@@ -476,7 +473,7 @@ async function main() {
   // Tenancy: POST /api/deployments attributes the creator; ?scope=mine filters.
   const createRes = await fetch(`${BASE}/api/deployments`, {
     method: "POST", headers: { cookie: adminC, "Content-Type": "application/json" },
-    body: JSON.stringify({ netuid: 9, offerId: "o2", minerName: "t4-tenancy-dep", mode: "mock" }),
+    body: JSON.stringify({ netuid: 9, offerId: "o2", minerName: "t4-tenancy-dep", mode: "runpod" }),
   });
   check("deployment created via API", createRes.status === 201, createRes.status);
   const createdDep = ((await createRes.json()) as { deployment?: { id?: string; ownerUserId?: string; createdByLabel?: string } }).deployment;
@@ -493,28 +490,29 @@ async function main() {
   });
   check("invalid mode refused 400", badMode.status === 400, badMode.status);
 
-  // Monitor payload: runway section per miner (mock → simulated safe).
+  // Monitor payload: mock miners are reported honestly — no simulated runway,
+  // no forced health (MOCK-PURGE-1). Runway exists only with a hotkey.
   interface MonitorProbe {
     miners?: {
       minerName: string;
       mode: string;
-      runway?: { verdict?: string; simulated?: boolean; margins?: { immunityBlocksLeft?: number | null } } | null;
+      runway?: object | null;
     }[];
   }
   let monitorJson: MonitorProbe | null = null;
   for (let i = 0; i < 12; i++) {
     const mres = await fetch(`${BASE}/api/devops/monitor`, { headers: { cookie: adminC } });
     const mj = (await mres.json()) as MonitorProbe;
-    if (mj?.miners && mj.miners.length > 0 && mj.miners.every((m) => m.runway)) {
+    if (mj?.miners && mj.miners.length > 0) {
       monitorJson = mj;
       break;
     }
     await new Promise((r) => setTimeout(r, 2500));
   }
-  check("monitor payload has runway per miner", !!monitorJson?.miners?.length && monitorJson.miners.every((m) => !!m.runway), monitorJson?.miners?.length);
+  check("monitor payload has miners", !!monitorJson?.miners?.length, monitorJson?.miners?.length);
   const mockMiner = monitorJson?.miners?.find((m) => m.mode === "mock");
-  check("mock runway simulated + safe", !!mockMiner?.runway?.simulated && mockMiner.runway.verdict === "safe", mockMiner?.runway);
-  check("mock runway clock synthesized", typeof mockMiner?.runway?.margins?.immunityBlocksLeft === "number", mockMiner?.runway?.margins);
+  check("mock miner present but never simulated", !!mockMiner, monitorJson?.miners?.length);
+  check("mock miner has NO runway (honest null)", !mockMiner?.runway, mockMiner?.runway);
 
   // Agent live API run (real SDK — one call).
   const agentRun = await fetch(`${BASE}/api/devops/agent`, {

@@ -12,7 +12,7 @@ import {
   type MinerStrategyPosture,
 } from "@/lib/infranex/miner-mindset";
 import { fetchLiveSnapshot, type LiveNetworkSnapshot } from "@/lib/infranex/chain";
-import { computeRunway, simulateMockRunway, type RunwayAssessment } from "@/lib/infranex/runway";
+import { computeRunway, SS58_RE, type RunwayAssessment } from "@/lib/infranex/runway";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -141,7 +141,6 @@ export interface DevopsMonitorPayload {
       name: string;
       kind: string;
       minSeverity: string;
-      mockOnly: boolean;
       maxPerHour: number;
       enabled: boolean;
     }[];
@@ -378,7 +377,6 @@ export async function GET() {
       const silenceMs =
         daemon?.lastSeenAt != null ? Date.now() - new Date(daemon.lastSeenAt).getTime() : null;
       const health = computeMinerHealth({
-        isMock: dep.mode === "mock",
         processAlive: latestGpu?.processAlive ?? null,
         hasDaemon: daemon !== null,
         daemonSilent:
@@ -433,7 +431,7 @@ export async function GET() {
       // immunity clock from the chain snapshot's subnet metrics + the
       // deployment's registration block, trajectory from the UID history.
       const runway: RunwayAssessment | null = (() => {
-        if (dep.mode === "mock" || !dep.hotkey) return simulateMockRunway(dep.minerName);
+        if (!dep.hotkey || !SS58_RE.test(dep.hotkey)) return null; // no valid registered hotkey — no on-chain clock
         const subnetMeta = snapshot?.subnets.find((s) => s.netuid === dep.netuid) ?? null;
         const incentiveHistory = uidRows
           .filter((r) => r.deploymentId === dep.id)
@@ -576,7 +574,6 @@ export async function GET() {
         name: r.name,
         kind: r.kind,
         minSeverity: r.minSeverity,
-        mockOnly: r.mockOnly,
         maxPerHour: r.maxPerHour,
         enabled: r.enabled,
       })),

@@ -3,8 +3,8 @@
 // ---------------------------------------------------------------------------
 // DevOps Engine console — GPU host inventory + the 10-step onboarding wizard.
 //
-// Flow: add host (SSH or mock) → Run validation → the 10-step checklist runs
-// for real (or against the scripted mock host) → failed steps expose one-click
+// Flow: add host (SSH) → Run validation → the 10-step checklist runs
+// for real → failed steps expose one-click
 // Fix buttons → re-validate → host marked READY for miner deployment.
 // ---------------------------------------------------------------------------
 
@@ -165,9 +165,8 @@ export function DevOpsEngineSection({ onRent }: { onRent?: () => void }) {
             <Server className="h-8 w-8 text-muted-foreground" />
             <p className="text-sm font-medium">No GPU hosts connected yet</p>
             <p className="max-w-md text-xs text-muted-foreground">
-              Add a real machine over SSH (BYO box, colo rig) or spin up the built-in
-              mock host to try the full pipeline safely — it deliberately starts with
-              Docker and the NVIDIA toolkit missing so you can watch the engine fix them.
+              Add a real machine over SSH (BYO box, colo rig) and the engine
+              walks its full validate → fix → ready pipeline, one step at a time.
             </p>
             <Button variant="outline" className="mt-1 gap-2" onClick={() => setAddOpen(true)}>
               <Plus className="h-4 w-4" /> Add your first host
@@ -270,11 +269,6 @@ function HostCard({
         )}
         <div className="flex items-center justify-between gap-2">
           <div className="flex gap-1.5">
-            {host.transport === "mock" && (
-              <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                mock
-              </Badge>
-            )}
             <Badge variant="outline" className="text-[10px] text-muted-foreground">
               {host.authMethod}
             </Badge>
@@ -330,7 +324,7 @@ function AddHostDialog({
 }) {
   const create = useCreateHost();
   const [name, setName] = useState("");
-  const [transport, setTransport] = useState<"ssh" | "mock">("ssh");
+  const [transport, setTransport] = useState<"ssh">("ssh");
   const [host, setHost] = useState("");
   const [port, setPort] = useState("22");
   const [user, setUser] = useState("root");
@@ -415,11 +409,10 @@ function AddHostDialog({
             </div>
             <div className="space-y-1">
               <Label>Transport</Label>
-              <Select value={transport} onValueChange={(v) => setTransport(v as "ssh" | "mock")}>
+              <Select value={transport} onValueChange={(v) => setTransport(v as "ssh")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ssh">SSH (real machine)</SelectItem>
-                  <SelectItem value="mock">Mock (safe demo)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -467,12 +460,6 @@ function AddHostDialog({
                 )}
               </div>
             </>
-          )}
-          {transport === "mock" && (
-            <p className="rounded-md border border-border/60 bg-background/40 p-2 text-xs text-muted-foreground">
-              Mock host simulates Ubuntu 22.04 + RTX 4090 with Docker and the NVIDIA
-              toolkit missing. Use it to rehearse the full validate → fix → ready loop.
-            </p>
           )}
           {error && <p className="text-xs text-destructive">{error}</p>}
           <Button className="w-full" disabled={create.isPending} onClick={submit}>

@@ -184,10 +184,11 @@ export function RunbookView({ onNavigate }: RunbookViewProps) {
             <div className="flex gap-3">
               <Cpu className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
               <div>
-                <p className="text-sm font-medium">Mock miners are critical by design</p>
+                <p className="text-sm font-medium">Missing telemetry is UNKNOWN, not BAD</p>
                 <p className="text-xs leading-relaxed text-muted-foreground">
-                  Mock daemons report <span className="mono">processAlive: false</span> — the tile
-                  counts them critical while the health chip shows the simulated 96. Not a bug.
+                  A miner without fresh daemon telemetry scores mid-range on the missing
+                  signals — the board never invents a healthy reading for data it does not
+                  have. Treat a mid-range score as a daemon problem first.
                 </p>
               </div>
             </div>

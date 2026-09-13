@@ -57,7 +57,6 @@ export function AutopilotPanel({ data }: { data: DevopsMonitorPayload }) {
   const [name, setName] = useState("");
   const [kind, setKind] = useState<string>("ANY");
   const [minSeverity, setMinSeverity] = useState<string>("warning");
-  const [mockOnly, setMockOnly] = useState(true);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
@@ -68,7 +67,7 @@ export function AutopilotPanel({ data }: { data: DevopsMonitorPayload }) {
       const res = await fetch("/api/autopilot/rules", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, kind, minSeverity, mockOnly }),
+        body: JSON.stringify({ name, kind, minSeverity }),
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j?.error ?? `create failed (${res.status})`);
@@ -179,7 +178,7 @@ export function AutopilotPanel({ data }: { data: DevopsMonitorPayload }) {
                   </Badge>
                   <span className="min-w-0 flex-1 truncate text-xs font-medium">{r.name}</span>
                   <span className="mono shrink-0 text-[10px] text-muted-foreground/70">
-                    {r.kind} · ≥{r.minSeverity} · {r.mockOnly ? "mock" : "all"} · {r.maxPerHour}/h
+                    {r.kind} · ≥{r.minSeverity} · {r.maxPerHour}/h
                   </span>
                   <button
                     aria-label={r.enabled ? `Disable ${r.name}` : `Enable ${r.name}`}
@@ -240,15 +239,6 @@ export function AutopilotPanel({ data }: { data: DevopsMonitorPayload }) {
                   ))}
                 </SelectContent>
               </Select>
-              <label className="flex h-8 cursor-pointer items-center gap-2 rounded-md border border-border/60 px-2.5 text-xs text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={mockOnly}
-                  onChange={(e) => setMockOnly(e.target.checked)}
-                  className="h-3.5 w-3.5"
-                />
-                mock deployments only
-              </label>
             </div>
             <Button
               size="sm"
@@ -302,7 +292,7 @@ export function AutopilotPanel({ data }: { data: DevopsMonitorPayload }) {
           <p className="text-xs text-muted-foreground">
             Each run times 5 synthetic validator queries against the axon and records p50/p95.
             A run slower than 1.5× the rolling baseline opens a regression event; recovery
-            auto-resolves it. Mock fleets record simulated runs and never alarm.
+            auto-resolves it.
           </p>
           {benches.length === 0 ? (
             <p className="rounded-lg border border-dashed border-border/60 px-3 py-6 text-center text-sm text-muted-foreground">

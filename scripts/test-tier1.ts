@@ -78,7 +78,6 @@ async function login(userId: string, code: string): Promise<string> {
 
 const MOCK_DEP = "TESTT1-mock";
 const BASE_INPUT: MinerHealthInput = {
-  isMock: false,
   processAlive: true,
   hasDaemon: true,
   daemonSilent: false,
@@ -154,8 +153,8 @@ function testHealthScorer() {
   const drought = computeMinerHealth({ ...BASE_INPUT, queryDrought: true });
   check("query drought costs traffic points but stays healthy", drought.score === 93 && drought.status === "healthy", `score=${drought.score}`);
 
-  const mock = computeMinerHealth({ ...BASE_INPUT, isMock: true });
-  check("mock fleet forced healthy + simulated flag", mock.status === "healthy" && mock.simulated && mock.score === 96);
+  // MOCK-PURGE-1: the isMock forced-healthy path was removed — every miner
+  // scores honestly from its real telemetry (or its absence).
 
   const sumInvariant = [perfect, blindScore, down, deadAxon, thermal, silent, drought].every(
     (h) => h.factors.reduce((a, f) => a + f.score, 0) === h.score
@@ -276,8 +275,15 @@ async function main() {
   const mine = payload?.miners?.find((m) => m.deploymentId === MOCK_DEP);
   check("monitor payload includes the new mock miner", mine !== undefined);
 
-  const health = mine?.health as { score: number; status: string; factors: unknown[]; simulated: boolean } | undefined;
-  check("mock miner health present, healthy, simulated", health !== undefined && health.simulated === true && health.status === "healthy", JSON.stringify(health));
+  const health = mine?.health as { score: number; status: string; factors: unknown[]; simulated?: boolean } | undefined;
+  // MOCK-PURGE-1 — no forced-healthy mock path: a miner with no daemon,
+  // telemetry, or probe scores honestly mid-range (UNKNOWN ≠ BAD).
+  check(
+    "mock miner health present and honest (mid-range, no simulated flag)",
+    health !== undefined && health.simulated === undefined && health.status === "warning" &&
+      health.score >= 50 && health.score < 85,
+    JSON.stringify(health)
+  );
   check("health carries the 7-factor breakdown", health?.factors?.length === 7);
 
   const logs = (mine?.logs as { at: string; severity: string; message: string }[] | undefined) ?? [];
