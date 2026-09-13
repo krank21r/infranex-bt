@@ -593,6 +593,21 @@ async function evaluateSubnetDrift(dep: {
     const hyper = changes.some((c) =>
       ["tempo", "immunityPeriod", "maxAllowedUids"].some((k) => c.startsWith(k))
     );
+    // DEVOPS-2 — every drift event now carries an executable remediation
+    // plan; approve → act actually implements it on the GPU.
+    const remediation = planDriftRemediation(changes);
+    const runbook =
+      remediation.suggestedAction === "evaluate"
+        ? [
+            "Open Subnets to inspect the subnet's current state and requirements.",
+            "If economics moved against you, run the Optimization Engine for cheaper/better fits.",
+            "Approve to acknowledge once reviewed (the event re-opens on new changes).",
+          ]
+        : [
+            "Review the change list below — it is what the subnet just changed.",
+            `Approve to ${remediation.actionLabel.toLowerCase()}.`,
+            "After execution, confirm the miner re-synced on the DevOps board.",
+          ];
     const r = await commitFinding({
       kind: "SUBNET_DRIFT",
       severity: hyper ? "warning" : "info",
@@ -600,12 +615,17 @@ async function evaluateSubnetDrift(dep: {
       title: `α${dep.netuid} ${dep.subnetName} changed for "${dep.minerName}"`,
       detail: `${changes.length} change${changes.length > 1 ? "s" : ""} detected since the last pass: ${changes.join("; ")}. ${
         hyper
-          ? "Hyperparameter changes alter the subnet's operating rules — verify the miner still validates within them."
-          : "Review whether the miner still fits this subnet's economics; the Optimization Engine can rank alternatives."
+          ? "Hyperparameter changes alter the subnet's operating rules — the miner will be re-synced to them on approval."
+          : remediation.suggestedAction === "restart"
+            ? "The metagraph shifted — a miner restart re-syncs it on approval."
+            : "Review whether the miner still fits this subnet's economics; the Optimization Engine can rank alternatives."
       }`,
       evidence: {
         netuid: dep.netuid,
         changes,
+        suggestedAction: remediation.suggestedAction,
+        actionLabel: remediation.actionLabel,
+        applyPlan: remediation.applyPlan,
         before: {
           tempo: baseline.tempo,
           immunityPeriod: baseline.immunityPeriod,
@@ -626,12 +646,7 @@ async function evaluateSubnetDrift(dep: {
       },
       deploymentId: dep.id,
       netuid: dep.netuid,
-      runbook: [
-        "Open Subnets to inspect the subnet's current state and requirements.",
-        "Check miner logs — hyperparameter changes may need a miner restart or update.",
-        "If economics moved against you, run the Optimization Engine for cheaper/better fits.",
-        "Approve to acknowledge once reviewed (the event re-opens on new changes).",
-      ],
+      runbook,
     });
     findings.push({ action: r });
   } else {
@@ -642,6 +657,70 @@ async function evaluateSubnetDrift(dep: {
 
   passState.driftBaselines.set(dep.id, now);
   return { resolved: 0, findings };
+}
+
+// ---------------------------------------------------------------------------
+// Drift → GPU remediation planner (DEVOPS-2) — "checks subnet changes and
+// implements them in the GPU". Pure + exported so the trigger executor and
+// tests classify identically to the evaluator.
+// ---------------------------------------------------------------------------
+
+export type DriftAction = "resync_config" | "restart" | "evaluate";
+
+export interface DriftRemediationPlan {
+  suggestedAction: DriftAction;
+  actionLabel: string;
+  /** Human-readable steps executed on the GPU when approved. */
+  applyPlan: string[];
+}
+
+export function planDriftRemediation(changes: string[]): DriftRemediationPlan {
+  const hyper = changes.some((c) =>
+    ["tempo", "immunityPeriod", "maxAllowedUids"].some((k) => c.startsWith(k))
+  );
+  const capacity = changes.some((c) => c.startsWith("metagraph capacity"));
+  const uidMoved = changes.some((c) => c.startsWith("your UID moved"));
+  const economics = changes.some((c) => c.startsWith("subnet economics"));
+
+  // Strongest remediation wins: the miner must be brought in line with the
+  // subnet's NEW operating rules, not just nudged.
+  if (hyper) {
+    return {
+      suggestedAction: "resync_config",
+      actionLabel: "Re-sync miner config to the new subnet rules (GPU apply)",
+      applyPlan: [
+        "Re-pull the subnet's requirements profile (fresh from chain + repo).",
+        "Diff it against the profile the miner was deployed with.",
+        "Regenerate the miner command/config and update the deployment.",
+        "Push apply_config to the node daemon — it rewrites the miner command and restarts it on the GPU.",
+      ],
+    };
+  }
+  if (capacity || uidMoved) {
+    return {
+      suggestedAction: "restart",
+      actionLabel: "Restart the miner so it re-syncs the metagraph (GPU apply)",
+      applyPlan: [
+        "Queue restart_miner via the node daemon (executes within 60s).",
+        "The miner re-syncs the new metagraph and re-announces its axon on-chain.",
+      ],
+    };
+  }
+  if (economics) {
+    return {
+      suggestedAction: "evaluate",
+      actionLabel: "Review economics — no direct GPU change available",
+      applyPlan: [
+        "Emission/incentive shifts are chain-side; nothing to reconfigure on the GPU.",
+        "Run the Optimization Engine to rank cheaper hardware / better subnets.",
+      ],
+    };
+  }
+  return {
+    suggestedAction: "evaluate",
+    actionLabel: "Review the listed changes",
+    applyPlan: ["No GPU change queued — review the change list and decide manually."],
+  };
 }
 
 async function autoResolveIfOpen(dedupeKey: string): Promise<number> {

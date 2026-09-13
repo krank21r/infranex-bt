@@ -58,6 +58,16 @@ export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void })
   const recent = data?.recentEvents ?? [];
   const summary = data?.summary;
 
+  // DEVOPS-2 — drift events with an executable GPU action get the
+  // "Apply to GPU" label; everything else keeps the generic Execute.
+  const gpuActionOf = (ev: TriggerEventDTO): { action: string; label: string } | null => {
+    if (ev.kind !== "SUBNET_DRIFT") return null;
+    const a = typeof ev.evidence?.suggestedAction === "string" ? ev.evidence.suggestedAction : null;
+    if (a === "resync_config") return { action: a, label: "Re-sync miner config on the GPU" };
+    if (a === "restart") return { action: a, label: "Restart miner to re-sync metagraph" };
+    return null;
+  };
+
   const handle = async (fn: () => Promise<unknown>, id?: string) => {
     setBusyId(id ?? "__run");
     setNote(null);
@@ -184,6 +194,8 @@ export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void })
             const Icon = meta.icon;
             const isOpen = expanded === ev.id;
             const busy = busyId === ev.id;
+            const gpuAction = gpuActionOf(ev);
+            const applyPlan = Array.isArray(ev.evidence?.applyPlan) ? (ev.evidence.applyPlan as string[]) : [];
             return (
               <div
                 key={ev.id}
@@ -206,6 +218,12 @@ export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void })
                       <p className="text-sm font-medium leading-tight">{ev.title}</p>
                     </div>
                     <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{ev.detail}</p>
+                    {gpuAction && (
+                      <p className="mt-1.5 inline-flex items-center gap-1.5 rounded-md border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[11px] text-cyan-300">
+                        <ServerCog className="h-3 w-3" aria-hidden />
+                        GPU action on approval: {gpuAction.label}
+                      </p>
+                    )}
                     <p className="mono mt-1 text-[10px] text-muted-foreground/60">
                       {formatRelativeTime(ev.createdAt)} · status {ev.status}
                     </p>
@@ -225,12 +243,15 @@ export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void })
                     {ev.status === "approved" && (
                       <Button
                         size="sm"
-                        className="h-7 gap-1 px-2.5 text-xs"
+                        className={cn(
+                          "h-7 gap-1 px-2.5 text-xs",
+                          gpuAction && "border border-cyan-400/40 bg-cyan-500/20 text-cyan-200 hover:bg-cyan-500/30"
+                        )}
                         disabled={busy}
                         onClick={() => handle(() => actions.act(ev.id), ev.id)}
                       >
                         <PlayCircle className="h-3.5 w-3.5" aria-hidden />
-                        Execute
+                        {gpuAction ? "Apply to GPU" : "Execute"}
                       </Button>
                     )}
                     <div className="flex items-center gap-1">
@@ -260,6 +281,16 @@ export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void })
                 </div>
                 {isOpen && (
                   <div className="mt-3 space-y-2 border-t border-border/40 pt-2">
+                    {applyPlan.length > 0 && (
+                      <div>
+                        <p className="text-eyebrow text-muted-foreground/70">What runs on the GPU when approved</p>
+                        <ol className="mt-1 list-decimal space-y-0.5 pl-4 text-xs text-foreground/85">
+                          {applyPlan.map((step, i) => (
+                            <li key={i}>{step}</li>
+                          ))}
+                        </ol>
+                      </div>
+                    )}
                     <div>
                       <p className="text-eyebrow text-muted-foreground/70">Runbook</p>
                       <ol className="mt-1 list-decimal space-y-0.5 pl-4 text-xs text-muted-foreground">

@@ -91,7 +91,9 @@ export async function getDaemonForRequest(
 
 interface DaemonCommand {
   id: string;
-  command: "restart_miner" | "status_probe";
+  // DEVOPS-2 — apply_config pushes a re-generated miner command + env to the
+  // pod (subnet drift remediation) and restarts the miner under it.
+  command: "restart_miner" | "status_probe" | "apply_config";
   args?: Record<string, unknown>;
   createdAt: string;
   deliveredAt?: string;
@@ -216,13 +218,37 @@ export function buildDaemonScript(opts: {
 Zero dependencies (Python 3.8+ stdlib only). HMAC-SHA256 signed.
 Every command was approved by a human through the Trigger Engine.
 """
-import hashlib, hmac, json, os, subprocess, sys, time, urllib.request
+import hashlib, hmac, json, os, shlex, subprocess, sys, time, urllib.request
 
 DEPLOYMENT_ID = "${deploymentId}"
 SECRET = "${secret}"
 PLATFORM = "${platformUrl}"
 MINER_CMD = ${JSON.stringify(minerCommand)}
 INTERVAL = 60
+OVERRIDE_FILE = "/root/.infranex_miner_override"
+
+# DEVOPS-2 — config applies survive daemon restarts: the override file holds
+# the last apply_config command; load it back at boot if present.
+MINER_OVERRIDE = None
+try:
+    with open(OVERRIDE_FILE) as _f:
+        MINER_OVERRIDE = _f.read().strip() or None
+except Exception:
+    pass
+
+def active_miner_cmd():
+    return MINER_OVERRIDE or MINER_CMD
+
+def miner_patterns():
+    # Watch + kill patterns for BOTH the baked and the applied command so a
+    # config swap can't leave the old miner process orphaned.
+    toks = []
+    for cmd in (MINER_CMD, MINER_OVERRIDE):
+        if cmd and cmd.split():
+            t = cmd.split()[0]
+            if t not in toks:
+                toks.append(t)
+    return toks
 
 def sign(ts, body):
     return hmac.new(SECRET.encode(), f"{ts}.{body}".encode(), hashlib.sha256).hexdigest()
@@ -261,12 +287,15 @@ def gpu_stats():
         return []
 
 def process_alive():
-    try:
-        out = subprocess.run(["pgrep", "-f", ${JSON.stringify(minerCommand.split(" ")[0] + " " + (minerCommand.split(" ")[1] ?? ""))}],
-                             capture_output=True, text=True, timeout=5)
-        return out.returncode == 0
-    except Exception:
-        return None
+    for pat in miner_patterns():
+        try:
+            out = subprocess.run(["pgrep", "-f", pat],
+                                 capture_output=True, text=True, timeout=5)
+            if out.returncode == 0:
+                return True
+        except Exception:
+            continue
+    return None
 
 def telemetry():
     return {
@@ -290,10 +319,35 @@ def restart_miner():
                 return f"restarted via {cmd[0]}"
         except Exception:
             continue
-    subprocess.run(["pkill", "-f", ${JSON.stringify(minerCommand.split(" ")[0])}], capture_output=True)
-    subprocess.Popen(MINER_CMD, shell=True, cwd="${opts.minerDir ?? "/root"}",
+    for pat in miner_patterns():
+        subprocess.run(["pkill", "-f", pat], capture_output=True)
+    time.sleep(2)
+    subprocess.Popen(active_miner_cmd(), shell=True, cwd="${opts.minerDir ?? "/root"}",
                      stdout=open("/var/log/infranex-miner.log", "ab"), stderr=subprocess.STDOUT)
     return "restarted via pkill+relaunch"
+
+def apply_config(args):
+    # DEVOPS-2 — implement a subnet-change remediation ON the GPU pod:
+    # persist the new miner command (survives daemon restarts), optionally
+    # append env exports, then restart the miner under the new config.
+    global MINER_OVERRIDE
+    new_cmd = (args or {}).get("minerCommand")
+    env_pairs = (args or {}).get("env") or {}
+    applied = []
+    if env_pairs and isinstance(env_pairs, dict):
+        lines = "".join(f"export {k}={shlex.quote(str(v))}\n" for k, v in env_pairs.items())
+        with open("/root/.infranex_miner_env", "a") as f:
+            f.write(lines)
+        applied.append(f"{len(env_pairs)} env vars")
+    if new_cmd and isinstance(new_cmd, str) and new_cmd.strip():
+        MINER_OVERRIDE = new_cmd.strip()
+        with open(OVERRIDE_FILE, "w") as f:
+            f.write(MINER_OVERRIDE)
+        applied.append("miner command updated")
+    if not applied:
+        return "apply_config: nothing to apply (no command/env in args)"
+    restart_miner()
+    return "config applied (" + ", ".join(applied) + ") and miner restarted"
 
 def main():
     print(f"[infranex-daemon] up — deployment {DEPLOYMENT_ID}", flush=True)
@@ -307,6 +361,8 @@ def main():
                     result = restart_miner()
                 elif name == "status_probe":
                     result = json.dumps(telemetry())
+                elif name == "apply_config":
+                    result = apply_config(cmd.get("args"))
                 else:
                     result = f"unknown command {name}"
                 post("/api/daemon/commands", {"result": {"id": cmd.get("id"), "result": result}})

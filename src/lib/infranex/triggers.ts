@@ -284,10 +284,43 @@ export async function actOnTrigger(id: string): Promise<{ event: TriggerEventDTO
     } else {
       actionNote = "Acknowledged — GPU condition logged; keep monitoring for recurrence.";
     }
-  } else if (kind === "SUBNET_DRIFT") {
-    // DEVOPS-1 — informational: the subnet changed on-chain; no mutation.
-    actionNote =
-      "Acknowledged — review the listed subnet changes; the Optimization Engine can rank alternatives if the economics no longer fit.";
+  } else if (kind === "SUBNET_DRIFT" && row.deploymentId) {
+    // DEVOPS-2 — subnet changes are now IMPLEMENTED on the GPU, not just
+    // acknowledged. The event's evidence carries the remediation plan the
+    // drift evaluator classified: resync_config (re-pull profile, regenerate
+    // miner config, push apply_config via daemon), restart (metagraph
+    // re-sync), or evaluate (economics — nothing to change on the GPU).
+    const evidence = safeParse(row.evidenceJson);
+    const suggested =
+      typeof evidence.suggestedAction === "string" ? evidence.suggestedAction : "evaluate";
+
+    if (suggested === "resync_config") {
+      const { applySubnetConfigToGpu } = await import("./deployment/apply-drift");
+      try {
+        const r = await applySubnetConfigToGpu(row.deploymentId);
+        actionNote = `Applied to GPU — ${
+          r.applied.length ? r.applied.join("; ") : "requirements profile refreshed (no config deltas)"
+        }. ${r.note}`;
+      } catch (e) {
+        actionNote = `GPU apply FAILED: ${
+          e instanceof Error ? e.message : "unknown error"
+        } — deployment config untouched or partially updated; check the DevOps board and retry after fixing the cause.`;
+      }
+    } else if (suggested === "restart") {
+      // Metagraph shift — restart the miner so it re-syncs + re-announces.
+      const { restartViaDaemon } = await import("./daemon-bridge");
+      try {
+        actionNote = `Applied to GPU — ${await restartViaDaemon(row.deploymentId)}`;
+      } catch {
+        actionNote =
+          "Applied to GPU — no daemon reachable, deployment ticked for re-sync; check the provider console.";
+        const { tickDeployment } = await import("./deployment/engine");
+        await tickDeployment(row.deploymentId).catch(() => null);
+      }
+    } else {
+      actionNote =
+        "Acknowledged — economics drift has no direct GPU change; the Optimization Engine can rank alternatives if the numbers no longer work.";
+    }
   } else {
     actionNote = "No action bound to this event.";
   }
