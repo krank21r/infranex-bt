@@ -3,14 +3,14 @@
   "version": "0.2.1",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000 2>&1 | tee dev.log",
+    "dev": "DATABASE_URL=file:/home/z/my-project/infranex-bt/db/custom.db next dev -p 3000 2>&1 | tee dev.log",
     "build": "next build && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/",
-    "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
+    "start": "NODE_ENV=production DATABASE_URL=file:/home/z/my-project/infranex-bt/db/custom.db bun .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint .",
-    "db:push": "prisma db push --accept-data-loss",
+    "db:push": "DATABASE_URL=file:/home/z/my-project/infranex-bt/db/custom.db prisma db push --accept-data-loss",
     "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate dev",
-    "db:reset": "prisma migrate reset"
+    "db:migrate": "DATABASE_URL=file:/home/z/my-project/infranex-bt/db/custom.db prisma migrate dev",
+    "db:reset": "DATABASE_URL=file:/home/z/my-project/infranex-bt/db/custom.db prisma migrate reset"
   },
   "dependencies": {
     "@polkadot/api": "^15",
