@@ -25,7 +25,11 @@ export type TriggerKind =
   | "UPSTREAM_DRIFT"
   // TIER3 — committed by the benchmark harness (benchmarks.ts) when the
   // latest axon-latency run regressed vs the rolling baseline.
-  | "BENCH_REGRESS";
+  | "BENCH_REGRESS"
+  // TIER4 / RUNWAY-1 — committed by the immunity-runway pass (runway.ts)
+  // when the eviction T-minus enters the watch/at-risk bands (pre-expiry
+  // warning; the live EVICTABLE state stays owned by DEREG_RISK).
+  | "RUNWAY";
 
 export const TRIGGER_KIND_META: Record<
   TriggerKind,
@@ -57,6 +61,8 @@ export const TRIGGER_KIND_META: Record<
   UPSTREAM_DRIFT: { label: "Upstream", severity: "warning", color: "indigo" },
   // TIER3 — benchmark run regressed vs rolling baseline (benchmarks.ts).
   BENCH_REGRESS: { label: "Bench Regress", severity: "warning", color: "teal" },
+  // TIER4 — immunity runway T-minus entered the watch/at-risk band (runway.ts).
+  RUNWAY: { label: "Runway", severity: "critical", color: "lime" },
 };
 
 export interface TriggerEventDTO {
@@ -170,6 +176,24 @@ export async function commitFinding(input: {
       runbookJson: JSON.stringify(input.runbook),
     },
   });
+  // TIER4 — external alerting: fire-and-forget webhook dispatch on NEW
+  // conditions only (refreshes must not re-page every 90s pass). The
+  // dispatcher never throws — a broken webhook must not break a pass.
+  void (async () => {
+    try {
+      const { dispatchAlertEvent } = await import("./alerts");
+      await dispatchAlertEvent({
+        kind,
+        severity: input.severity,
+        title: input.title,
+        detail: input.detail,
+        deploymentId: input.deploymentId ?? null,
+        netuid: input.netuid ?? null,
+      });
+    } catch {
+      /* alerting must never break the evaluator path */
+    }
+  })();
   return "created";
 }
 

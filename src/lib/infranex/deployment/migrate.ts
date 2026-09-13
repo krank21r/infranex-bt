@@ -1,7 +1,9 @@
 import { db } from "@/lib/db";
 import type { GPUOffer } from "../types";
+import { offerProviderId } from "../types";
 import { MockProvider } from "./providers/mock";
 import { RunPodProvider } from "./providers/runpod";
+import { VastProvider } from "./providers/vast";
 import { deserializeSteps, serializeSteps, type DeploymentStep } from "./state-machine";
 import { snapshotRevision } from "./revisions";
 import { bridgeDeploymentToDevOps } from "./to-devops";
@@ -43,7 +45,7 @@ export interface MigrationResult {
   to: { providerPodId: string; gpuModel: string; hourlyCost: number; region: string };
   steps: { name: string; ok: boolean; detail: string }[];
   note: string;
-  transport: "mock" | "runpod";
+  transport: "mock" | "runpod" | "vast";
 }
 
 const MIGRATION_STEP_NAMES = [
@@ -90,20 +92,25 @@ export async function migrateDeployment(
 
   const offer = target.offer;
   const mode = row.mode;
-  const transport: MigrationResult["transport"] = mode === "mock" ? "mock" : "runpod";
+  // TIER4 — live migrations now support both real rental adapters.
+  const transport: MigrationResult["transport"] =
+    mode === "mock" ? "mock" : mode === "vast" ? "vast" : "runpod";
 
   // Preflight — mode/offer compatibility. Spot offers are refused outright
   // (a long-running miner must not land on interruptible capacity), then
   // mock deployments migrate within the simulated fleet; real deployments
-  // require a live RunPod offer.
+  // require a live offer from the matching rental provider.
   if (offer.isSpot) {
     throw new Error("Refusing to migrate a long-running miner onto a spot/interruptible offer");
   }
   if (mode === "mock" && offer.provider !== "mock") {
     throw new Error("Mock deployments migrate within the simulated fleet — this offer is for live rentals");
   }
-  if (mode !== "mock" && offer.provider !== "runpod") {
-    throw new Error(`Live pod migration currently supports RunPod offers only (got "${offer.provider}")`);
+  if (mode === "runpod" && offerProviderId(offer.provider) !== "runpod") {
+    throw new Error(`RunPod deployments migrate onto RunPod offers only (got "${offer.provider}")`);
+  }
+  if (mode === "vast" && offerProviderId(offer.provider) !== "vast") {
+    throw new Error(`Vast.ai deployments migrate onto Vast.ai offers only (got "${offer.provider}")`);
   }
 
   const results: MigrationResult["steps"] = [];
@@ -124,10 +131,14 @@ export async function migrateDeployment(
   results.push({ name: "migrate:preflight", ok: true, detail: `${row.gpuModel} → ${offer.model} (${offer.region})` });
 
   // 3. Provision the NEW pod first.
-  const provider = transport === "mock" ? MockProvider : RunPodProvider;
+  const provider =
+    transport === "mock" ? MockProvider : transport === "vast" ? VastProvider : RunPodProvider;
   const cfg = row.config ? JSON.parse(row.config) : null;
   if (!cfg) throw new Error("Deployment config missing — cannot migrate");
-  const provisionCtx = transport === "runpod" ? { sshPublicKey: row.sshPublicKey ?? undefined } : undefined;
+  // TIER4 — the target offer id rides into the provisioner via the config's
+  // gpu.offerId (Vast rents BY OFFER; RunPod maps the model to a gpu_type_id).
+  if (transport !== "mock") cfg.gpu = { ...cfg.gpu, offerId: offer.id };
+  const provisionCtx = transport !== "mock" ? { sshPublicKey: row.sshPublicKey ?? undefined } : undefined;
   const provisioned = await provider.provision(cfg, deploymentId, provisionCtx);
   if (provisioned.status === "failed") {
     results.push({ name: "migrate:provision-new", ok: false, detail: provisioned.message });
@@ -145,7 +156,7 @@ export async function migrateDeployment(
     data: {
       providerPodId: provisioned.podId,
       gpuModel: offer.model,
-      provider: transport,
+      provider: transport === "vast" ? "Vast.ai" : transport,
       sshHost: provisioned.ipAddress ?? row.sshHost,
       sshPort: provisioned.sshPort ?? row.sshPort,
       hourlyCost: offer.hourlyPrice,

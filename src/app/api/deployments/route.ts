@@ -6,12 +6,24 @@ import {
 import { subnets, gpuOffers } from "@/lib/infranex/data";
 import { fetchLiveSnapshot } from "@/lib/infranex/chain";
 import { pullSubnetRequirements } from "@/lib/devops/subnet-requirements";
+import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth";
 import type { Subnet } from "@/lib/infranex/types";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/deployments — list all deployments
-export async function GET() {
+// GET /api/deployments — list deployments.
+// TIER4 light tenancy: ?scope=mine restricts the list to the caller's own
+// deployments (ownerUserId). Default (no scope) returns everything — the
+// team-shared model: pre-tenancy rows have no owner and stay visible to all.
+export async function GET(req: NextRequest) {
+  const scope = req.nextUrl.searchParams.get("scope");
+  if (scope === "mine") {
+    const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value);
+    if (session?.uid) {
+      const deployments = await listDeployments({ ownerUserId: session.uid });
+      return NextResponse.json({ deployments });
+    }
+  }
   const deployments = await listDeployments();
   return NextResponse.json({ deployments });
 }
@@ -83,8 +95,12 @@ export async function POST(req: NextRequest) {
       minerName: string;
       hotkey?: string;
       walletName?: string;
-      mode: "mock" | "runpod";
+      mode: "mock" | "runpod" | "vast";
     };
+
+    if (mode !== "mock" && mode !== "runpod" && mode !== "vast") {
+      return NextResponse.json({ error: "mode must be mock, runpod, or vast" }, { status: 400 });
+    }
 
     const subnet = await resolveSubnet(netuid);
     if (!subnet) return NextResponse.json({ error: "Subnet not found" }, { status: 400 });
@@ -96,6 +112,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "minerName is required" }, { status: 400 });
     }
 
+    // TIER4 — attribute the deployment to its creator (light tenancy).
+    const session = await verifySessionToken(req.cookies.get(SESSION_COOKIE)?.value);
     const deployment = await createDeployment({
       subnet,
       offer,
@@ -103,6 +121,9 @@ export async function POST(req: NextRequest) {
       hotkey: hotkey?.trim() || undefined,
       walletName: walletName?.trim() || undefined,
       mode: mode ?? "mock",
+      owner: session?.uid
+        ? { userId: session.uid, label: session.label ?? undefined }
+        : undefined,
     });
 
     return NextResponse.json({ deployment }, { status: 201 });

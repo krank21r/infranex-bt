@@ -207,6 +207,25 @@ export interface GPUModel {
   tierLabel: "Entry" | "Mid" | "High" | "Flagship";
 }
 
+/**
+ * TIER4 — normalize an offer's display-provider label ("RunPod", "Vast.ai",
+ * "Lambda", "runpod"…) to a canonical provider id. Catalog sources have
+ * shipped inconsistent casings ("runpod" vs "RunPod" vs "Vast.ai"); the
+ * migration preflight + dialog filter on this helper so live targets
+ * actually match. Client-safe (pure) — imported by server libs and
+ * client components alike.
+ */
+export function offerProviderId(
+  provider: string
+): "runpod" | "vast" | "lambda" | "nvidia" | "other" {
+  const p = provider.trim().toLowerCase();
+  if (p === "runpod") return "runpod";
+  if (p === "vast.ai" || p === "vast") return "vast";
+  if (p === "lambda") return "lambda";
+  if (p === "nvidia") return "nvidia";
+  return "other";
+}
+
 export interface GPUOffer {
   id: string;
   model: string;

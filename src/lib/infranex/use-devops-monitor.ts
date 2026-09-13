@@ -49,6 +49,26 @@ export interface MinerHealthDTO {
   simulated: boolean;
 }
 
+/** TIER4 / RUNWAY-1 — immunity runway (mirrors runway.ts RunwayAssessment). */
+export interface RunwayAssessmentDTO {
+  verdict: "safe" | "watch" | "at_risk" | "expired";
+  simulated: boolean;
+  margins: {
+    capacityFreeSlots: number | null;
+    atCapacity: boolean;
+    immunityBlocksLeft: number | null;
+    incentive: number | null;
+  };
+  trajectory: {
+    direction: "rising" | "stable" | "declining" | "collapsed" | "unknown";
+    slopePerSample: number | null;
+    samples: number;
+  };
+  tMinusBlocks: number | null;
+  tMinusLabel: string | null;
+  notes: string[];
+}
+
 export interface DevopsMinerDTO {
   deploymentId: string;
   minerName: string;
@@ -136,6 +156,8 @@ export interface DevopsMinerDTO {
       at: string;
     } | null;
   };
+  /** TIER4 / RUNWAY-1 — immunity runway (verdict, margins, T-minus). */
+  runway: RunwayAssessmentDTO | null;
 }
 
 export interface DevopsThresholds {

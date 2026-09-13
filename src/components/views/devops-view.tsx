@@ -30,6 +30,7 @@ import {
   OctagonAlert,
   GitBranch,
   Gauge,
+  TimerReset,
 } from "lucide-react";
 import { cn, formatRelativeTime } from "@/lib/utils";
 import { useDevopsMonitor } from "@/lib/infranex/use-devops-monitor";
@@ -38,6 +39,8 @@ import type { ViewKey } from "@/lib/infranex/types";
 import { MinerOpsCard } from "@/components/cards/devops/miner-ops-card";
 import { StrategyBoard } from "@/components/cards/devops/strategy-board";
 import { AutopilotPanel } from "@/components/cards/devops/autopilot-panel";
+import { AlertsPanel } from "@/components/cards/devops/alerts-panel";
+import { OpsAgentPanel } from "@/components/cards/devops/ops-agent-panel";
 
 /**
  * DEVOPS-1 — the DevOps Engine view. One live cockpit for every running
@@ -71,6 +74,8 @@ const KIND_META: Record<
   UPSTREAM_DRIFT: { label: "UPSTREAM", icon: GitBranch, chip: "border-indigo-500/40 bg-indigo-500/10 text-indigo-300" },
   // TIER3 — benchmark run regressed vs the rolling baseline.
   BENCH_REGRESS: { label: "BENCH REGRESS", icon: Gauge, chip: "border-teal-500/40 bg-teal-500/10 text-teal-300" },
+  // TIER4 — immunity runway T-minus entered the watch/at-risk band.
+  RUNWAY: { label: "RUNWAY", icon: TimerReset, chip: "border-lime-500/40 bg-lime-500/10 text-lime-300" },
 };
 
 export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void }) {
@@ -109,6 +114,11 @@ export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void })
     }
     if (ev.kind === "DEREG_RISK") {
       if (a === "failover") return { action: a, label: "Fail over to the fallback profile on the GPU" };
+      return null;
+    }
+    if (ev.kind === "RUNWAY") {
+      // TIER4 — pre-expiry runway: same failover reflex as DEREG_RISK.
+      if (a === "failover") return { action: a, label: "Fail over now — defend income before the immunity window closes" };
       return null;
     }
     if (ev.kind === "PROBE_FAIL") {
@@ -276,6 +286,12 @@ export function DevopsView({ onNavigate }: { onNavigate: (v: ViewKey) => void })
 
       {/* TIER3 — Autopilot policy rules + Benchmark harness summary */}
       {data && <AutopilotPanel data={data} />}
+
+      {/* TIER4 — Ops Agent (AI fleet advisor) + external alerting channels */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <OpsAgentPanel />
+        <AlertsPanel />
+      </div>
 
       {/* DEVOPS-3 — Miner Mindset strategy board */}
       <Card className="border-border/60 bg-card/50">

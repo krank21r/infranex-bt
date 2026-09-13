@@ -11,6 +11,8 @@ import { runServiceHealthPass } from "./service-health";
 import { runAutopilotPass } from "./autopilot";
 import { runUpstreamPass } from "./upstream";
 import { runBenchmarkPass } from "./benchmarks";
+import { runRunwayPass } from "./runway";
+import { runAlertsDigestPass } from "./alerts";
 
 /**
  * Background worker system.
@@ -49,6 +51,9 @@ const INTERVALS = {
   upstream: 30 * 60 * 1000, // 30 minutes
   // TIER3 — benchmark harness: periodic axon-latency runs per deployment.
   benchmarks: 10 * 60 * 1000, // 10 minutes
+  // TIER4 — external alerting digest: hourly fleet summary to digest-enabled
+  // webhook channels (event alerts themselves are dispatched at commit time).
+  digest: 60 * 60 * 1000, // 60 minutes
 };
 
 // Track whether workers are running (singleton)
@@ -67,6 +72,7 @@ export function startWorkers() {
   void runDevopsWorker();
   void runUpstreamWorker();
   void runBenchmarkWorker();
+  void runDigestWorker();
 
   workerTimers.push(setInterval(() => void runChainWorker(), INTERVALS.chain));
   workerTimers.push(setInterval(() => void runMarketWorker(), INTERVALS.market));
@@ -74,6 +80,7 @@ export function startWorkers() {
   workerTimers.push(setInterval(() => void runDevopsWorker(), INTERVALS.devops));
   workerTimers.push(setInterval(() => void runUpstreamWorker(), INTERVALS.upstream));
   workerTimers.push(setInterval(() => void runBenchmarkWorker(), INTERVALS.benchmarks));
+  workerTimers.push(setInterval(() => void runDigestWorker(), INTERVALS.digest));
 }
 
 /** Stop all workers (for testing). */
@@ -158,6 +165,14 @@ async function runDevopsWorker(): Promise<WorkerRunResult> {
       // Policy layer must never take the whole worker down.
       console.warn(`[devops-worker] autopilot pass skipped: ${e instanceof Error ? e.message : e}`);
     }
+    // TIER4 / RUNWAY-1 — immunity runway: computes the eviction T-minus from
+    // the fresh UID-defense samples + live chain state (60s vector cache),
+    // warns BEFORE the window closes. Must never take the worker down.
+    try {
+      await runRunwayPass();
+    } catch (e) {
+      console.warn(`[devops-worker] runway pass skipped: ${e instanceof Error ? e.message : e}`);
+    }
     tasksProcessed = devops.deploymentsEvaluated;
     const result: WorkerRunResult = {
       workerName,
@@ -239,6 +254,37 @@ export async function runBenchmarkWorker(): Promise<WorkerRunResult> {
       status: "failed",
       durationMs: Date.now() - start,
       tasksProcessed,
+      error: e instanceof Error ? e.message : String(e),
+    };
+    await logWorkerRun(result);
+    return result;
+  }
+}
+
+/**
+ * TIER4 — external alerting digest worker. Hourly fleet summary posted to
+ * digest-enabled webhook channels; per-event alerts fire at commitFinding
+ * time instead (event-driven, not polled).
+ */
+export async function runDigestWorker(): Promise<WorkerRunResult> {
+  const start = Date.now();
+  const workerName = "alerts-digest";
+  try {
+    const r = await runAlertsDigestPass();
+    const result: WorkerRunResult = {
+      workerName,
+      status: "completed",
+      durationMs: Date.now() - start,
+      tasksProcessed: r.sent + r.failed,
+    };
+    await logWorkerRun(result);
+    return result;
+  } catch (e) {
+    const result: WorkerRunResult = {
+      workerName,
+      status: "failed",
+      durationMs: Date.now() - start,
+      tasksProcessed: 0,
       error: e instanceof Error ? e.message : String(e),
     };
     await logWorkerRun(result);

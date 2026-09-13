@@ -12,6 +12,7 @@ import {
   type MinerStrategyPosture,
 } from "@/lib/infranex/miner-mindset";
 import { fetchLiveSnapshot, type LiveNetworkSnapshot } from "@/lib/infranex/chain";
+import { computeRunway, simulateMockRunway, type RunwayAssessment } from "@/lib/infranex/runway";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
@@ -127,6 +128,8 @@ export interface DevopsMiner {
       at: string;
     } | null;
   };
+  /** TIER4 / RUNWAY-1 — immunity runway (verdict, margins, T-minus). */
+  runway: RunwayAssessment | null;
 }
 
 export interface DevopsMonitorPayload {
@@ -200,6 +203,7 @@ export async function GET() {
         id: true,
         registrationState: true,
         registeredUid: true,
+        registrationBlock: true,
         providerPodId: true,
         sshHost: true,
       },
@@ -304,22 +308,23 @@ export async function GET() {
       const probes = (probeByDep.get(dep.id) ?? []).slice(0, 40);
       const latestProbe = probes[0] ?? null;
       const trafficLatest = trafficByDep.get(dep.id) ?? null;
-      const openServiceKinds = new Set(
-        events.open.filter((e) => e.deploymentId === dep.id).map((e) => e.kind)
-      );
+      const depOpenEvents = events.open.filter((e) => e.deploymentId === dep.id);
+      const openServiceKinds = new Set(depOpenEvents.map((e) => e.kind));
       const hasCritical =
         alerts.some((a) => a.level === "critical") ||
         uid?.riskLevel === "critical" ||
         (gpuTemp !== null && gpuTemp >= DEVOPS_THRESHOLDS.tempCriticalC) ||
         latestGpu?.processAlive === false ||
         (latestProbe !== null && latestProbe.ok === false) ||
-        openServiceKinds.has("PROBE_FAIL");
+        openServiceKinds.has("PROBE_FAIL") ||
+        depOpenEvents.some((e) => e.kind === "RUNWAY" && e.severity === "critical");
       const hasWarning =
         alerts.some((a) => a.level === "warning") ||
         uid?.riskLevel === "warning" ||
         (gpuTemp !== null && gpuTemp >= DEVOPS_THRESHOLDS.tempWarnC) ||
         openServiceKinds.has("SERVICE_LATENCY") ||
-        openServiceKinds.has("QUERY_DROUGHT");
+        openServiceKinds.has("QUERY_DROUGHT") ||
+        openServiceKinds.has("RUNWAY");
 
       if (hasCritical) critical++;
       else if (hasWarning) warning++;
@@ -423,6 +428,34 @@ export async function GET() {
           })()
         : null;
 
+      // TIER4 / RUNWAY-1 — immunity runway for the card. DB-only here (the
+      // authoritative chain-backed version runs in the 90s worker pass):
+      // immunity clock from the chain snapshot's subnet metrics + the
+      // deployment's registration block, trajectory from the UID history.
+      const runway: RunwayAssessment | null = (() => {
+        if (dep.mode === "mock" || !dep.hotkey) return simulateMockRunway(dep.minerName);
+        const subnetMeta = snapshot?.subnets.find((s) => s.netuid === dep.netuid) ?? null;
+        const incentiveHistory = uidRows
+          .filter((r) => r.deploymentId === dep.id)
+          .slice(0, 20)
+          .reverse()
+          .map((r) => r.incentive);
+        return computeRunway({
+          uid: uid?.uid ?? null,
+          incentive: uid?.incentive ?? null,
+          incentiveHistory,
+          hyperparams: {
+            immunityPeriod: subnetMeta?.immunityBlocks ?? null,
+            maxAllowedUids: subnetMeta?.maxUids ?? null,
+          },
+          // LiveSubnetMetrics counts registered miners — the best DB-only
+          // capacity proxy (the worker pass uses the authoritative cohort).
+          registeredUids: subnetMeta?.minersCount ?? 0,
+          registrationBlock: reg?.registrationBlock ?? null,
+          blockNumber: snapshot?.blockNumber ?? null,
+        });
+      })();
+
       miners.push({
         deploymentId: dep.id,
         minerName: dep.minerName,
@@ -512,6 +545,7 @@ export async function GET() {
         logs,
         machine,
         service,
+        runway,
       });
     }
 

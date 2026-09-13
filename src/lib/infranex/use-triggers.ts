@@ -19,7 +19,8 @@ export interface TriggerEventDTO {
     | "QUERY_DROUGHT"
     | "ESCALATION"
     | "UPSTREAM_DRIFT"
-    | "BENCH_REGRESS";
+    | "BENCH_REGRESS"
+    | "RUNWAY";
   severity: string;
   status: "open" | "approved" | "acted" | "dismissed" | "resolved";
   title: string;

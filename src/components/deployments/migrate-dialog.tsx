@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMergedGpuOffers, type MergedGpuOffer } from "@/lib/infranex/use-gpu-offers";
+import { offerProviderId } from "@/lib/infranex/types";
 import { cn } from "@/lib/utils";
 
 /**
@@ -99,9 +100,13 @@ export function MigrateDialog({
   const [error, setError] = useState<string | null>(null);
 
   const isMock = mode === "mock";
-  // Live targets: RunPod on-demand offers, excluding spot + the current model.
+  // TIER4 — live targets come from the deployment's own rental provider
+  // (offerProviderId normalizes the inconsistent catalog label casings that
+  // previously made live RunPod targets unmatchable), excluding spot + the
+  // current model.
+  const liveProvider = mode === "vast" ? "vast" : "runpod";
   const liveTargets = offers.filter(
-    (o) => o.provider === "runpod" && !o.isSpot && o.model !== currentGpuModel
+    (o) => offerProviderId(o.provider) === liveProvider && !o.isSpot && o.model !== currentGpuModel
   );
   const targets = isMock
     ? MOCK_TARGETS.filter((t) => t.model !== currentGpuModel)

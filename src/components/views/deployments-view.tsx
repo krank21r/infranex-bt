@@ -283,9 +283,15 @@ function DeploymentCard({
                 <Badge variant="outline" className="mono text-[10px]">α{d.netuid}</Badge>
                 <Badge variant="outline" className="text-[10px]">{d.subnetName}</Badge>
                 <span className={cn("badge-status capitalize", statusColor)}>{d.status}</span>
-                <Badge variant="outline" className={cn("text-[9px]", d.mode === "runpod" ? "border-primary/30 text-primary" : "text-muted-foreground")}>
+                <Badge variant="outline" className={cn("text-[9px]", d.mode === "runpod" ? "border-primary/30 text-primary" : d.mode === "vast" ? "border-warning/40 text-warning" : "text-muted-foreground")}>
                   {d.mode}
                 </Badge>
+                {/* TIER4 — creator attribution */}
+                {d.createdByLabel && (
+                  <Badge variant="outline" className="text-[9px] text-muted-foreground">
+                    by {d.createdByLabel}
+                  </Badge>
+                )}
                 {/* Phase 2: registration lifecycle chip */}
                 {isStarted && d.registrationState === "registered" && (
                   <Badge variant="outline" className="gap-1 border-success/40 text-[10px] text-success">
@@ -439,7 +445,7 @@ function DeploymentCard({
               {regAction.isPending ? "Restarting…" : "Restart miner (approval)"}
             </Button>
           )}
-          {d.mode === "runpod" && !isTerminal && d.providerPodId && (
+          {(d.mode === "runpod" || d.mode === "vast") && !isTerminal && d.providerPodId && (
             <Button
               variant="outline"
               size="sm"

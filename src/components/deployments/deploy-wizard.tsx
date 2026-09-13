@@ -82,7 +82,7 @@ export function DeployWizard({ open, onOpenChange, initialNetuid, initialOfferId
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [netuid, setNetuid] = useState<number | null>(null);
   const [offerId, setOfferId] = useState<string | null>(null);
-  const [mode, setMode] = useState<"mock" | "runpod">("mock");
+  const [mode, setMode] = useState<"mock" | "runpod" | "vast">("mock");
   const [minerName, setMinerName] = useState("");
   const [walletName, setWalletName] = useState("infranex");
   const [depId, setDepId] = useState<string | null>(null);
@@ -177,6 +177,10 @@ export function DeployWizard({ open, onOpenChange, initialNetuid, initialOfferId
   const runpodConfigured = offerSnap?.providers
     ? Boolean(offerSnap.providers.find((p) => p.id === "runpod")?.configured)
     : true;
+  // TIER4 — Vast.ai rental adapter needs its own key.
+  const vastConfigured = offerSnap?.providers
+    ? Boolean(offerSnap.providers.find((p) => p.id === "vast")?.configured)
+    : true;
   const matchingOffers = useMemo(() => {
     if (requiredVram == null) return offers;
     return offers
@@ -184,6 +188,11 @@ export function DeployWizard({ open, onOpenChange, initialNetuid, initialOfferId
       .sort((a, b) => a.hourlyPrice - b.hourlyPrice);
   }, [offers, requiredVram]);
   const offer: MergedGpuOffer | null = offers.find((o) => o.id === offerId) ?? null;
+  // TIER4 — the real-rental button routes by the selected offer's provider:
+  // a Vast.ai offer provisions through the vast adapter, everything else RunPod.
+  const realMode: "runpod" | "vast" =
+    offer?.provider && offer.provider.toLowerCase().includes("vast") ? "vast" : "runpod";
+  const realConfigured = realMode === "vast" ? vastConfigured : runpodConfigured;
 
   // --- Step 4/5 data: the deployment record --------------------------------
   const detail = useDeploymentDetail(step >= 4 ? depId : null);
@@ -540,14 +549,14 @@ export function DeployWizard({ open, onOpenChange, initialNetuid, initialOfferId
                 </button>
                 <button
                   type="button"
-                  onClick={() => setMode("runpod")}
+                  onClick={() => setMode(realMode)}
                   className={cn(
                     "rounded-lg border p-3 text-left transition-colors",
-                    mode === "runpod" ? "border-primary/40 bg-primary/[0.06]" : "border-border/60 bg-card/30"
+                    mode === realMode ? "border-primary/40 bg-primary/[0.06]" : "border-border/60 bg-card/30"
                   )}
                 >
                   <p className="flex items-center gap-2 text-sm font-medium">
-                    <Rocket className="h-4 w-4 text-warning" /> RunPod (real)
+                    <Rocket className="h-4 w-4 text-warning" /> {realMode === "vast" ? "Vast.ai (real)" : "RunPod (real)"}
                   </p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Real GPU pod — billed until you terminate.
@@ -555,10 +564,12 @@ export function DeployWizard({ open, onOpenChange, initialNetuid, initialOfferId
                 </button>
               </div>
 
-              {mode === "runpod" && !runpodConfigured && (
+              {(mode === "runpod" || mode === "vast") && !realConfigured && (
                 <p className="-mt-1 flex items-start gap-1.5 text-xs text-warning">
                   <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                  No RunPod API key yet — add it in GPU catalog → “Provider API keys”, or run the Demo pod first.
+                  {mode === "vast"
+                    ? "No Vast.ai API key yet — add it in GPU catalog → “Provider API keys”, or run the Demo pod first."
+                    : "No RunPod API key yet — add it in GPU catalog → “Provider API keys”, or run the Demo pod first."}
                 </p>
               )}
 
@@ -618,7 +629,7 @@ export function DeployWizard({ open, onOpenChange, initialNetuid, initialOfferId
                   ) : (
                     <Rocket className="h-4 w-4" />
                   )}
-                  {mode === "runpod" ? "Rent & deploy (real)" : "Rent & install"}
+                  {(mode === "runpod" || mode === "vast") ? "Rent & deploy (real)" : "Rent & install"}
                 </Button>
               </div>
             </div>

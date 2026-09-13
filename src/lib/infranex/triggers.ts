@@ -457,6 +457,31 @@ export async function actOnTrigger(id: string): Promise<{ event: TriggerEventDTO
       actionNote =
         "Acknowledged — economics drift has no direct GPU change; the Optimization Engine can rank alternatives if the numbers no longer work.";
     }
+  } else if (kind === "RUNWAY" && row.deploymentId) {
+    // TIER4 / RUNWAY-1 — the immunity T-minus entered the watch/at-risk band.
+    // The evidence carries suggestedAction "failover": the same experienced-
+    // miner reflex as DEREG_RISK — push the fallback serving profile and
+    // restart so income is defended BEFORE the eviction line arrives.
+    const evidence = safeParse(row.evidenceJson);
+    if (evidence.suggestedAction === "failover") {
+      const { applyFailoverToGpu } = await import("./miner-mindset");
+      try {
+        const r = await applyFailoverToGpu(row.deploymentId);
+        actionNote = `Applied to GPU — ${r.note}.`;
+        if (r.transport === "platform-only") {
+          const { runRepairLadder } = await import("./escalation");
+          const ladder = await runRepairLadder(row.deploymentId, { originKind: "RUNWAY" });
+          actionNote += ` ${ladder.note}`;
+        }
+      } catch (e) {
+        actionNote = `Runway failover apply FAILED: ${
+          e instanceof Error ? e.message : "unknown error"
+        } — no GPU change was made; consider migrating the miner to a less saturated subnet instead.`;
+      }
+    } else {
+      actionNote =
+        "Acknowledged — runway margins logged. Keep the failover or migration path warm before the immunity window closes.";
+    }
   } else {
     actionNote = "No action bound to this event.";
   }

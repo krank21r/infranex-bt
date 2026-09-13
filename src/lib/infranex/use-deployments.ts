@@ -45,6 +45,9 @@ export interface DeploymentRecord {
   registrationBlock: number | null;
   registrationCheckedAt: string | null;
   restartedAfterRegistration: boolean;
+  /** TIER4 — creator attribution (null = team-shared / pre-tenancy row). */
+  ownerUserId: string | null;
+  createdByLabel: string | null;
   steps: DeploymentStep[];
   createdAt: string;
   updatedAt: string;
@@ -167,7 +170,7 @@ export function useCreateDeployment() {
       minerName: string;
       hotkey?: string;
       walletName?: string;
-      mode: "mock" | "runpod";
+      mode: "mock" | "runpod" | "vast";
     }) => {
       const res = await fetch("/api/deployments", {
         method: "POST",

@@ -17,6 +17,7 @@ import {
 } from "./config";
 import { MockProvider } from "./providers/mock";
 import { RunPodProvider } from "./providers/runpod";
+import { VastProvider } from "./providers/vast";
 import { generateSshKeypair } from "./ssh-keys";
 import { encryptSecret } from "@/lib/devops/crypto";
 import {
@@ -38,6 +39,7 @@ import type { Subnet, GPUOffer } from "../types";
 const PROVIDERS: Record<string, ProviderAdapter> = {
   mock: MockProvider,
   runpod: RunPodProvider,
+  vast: VastProvider,
 };
 
 function getProvider(mode: string): ProviderAdapter {
@@ -118,7 +120,10 @@ export interface CreateDeploymentInput {
   minerName: string;
   hotkey?: string;
   walletName?: string;
-  mode: "mock" | "runpod";
+  // TIER4 — "vast" rents a real Vast.ai bundle (provider adapter vast.ts).
+  mode: "mock" | "runpod" | "vast";
+  // TIER4 — light tenancy: attribute the deployment to its creator.
+  owner?: { userId: string; label?: string };
 }
 
 export interface DeploymentRecord {
@@ -148,6 +153,9 @@ export interface DeploymentRecord {
   registrationBlock: number | null;
   registrationCheckedAt: string | null;
   restartedAfterRegistration: boolean;
+  // TIER4 — creator attribution (null = team-shared / pre-tenancy row).
+  ownerUserId: string | null;
+  createdByLabel: string | null;
   steps: DeploymentStep[];
   createdAt: string;
   updatedAt: string;
@@ -179,6 +187,8 @@ function toRecord(row: {
   registrationBlock: number | null;
   registrationCheckedAt: Date | null;
   restartedAfterRegistration: boolean;
+  ownerUserId: string | null;
+  createdByLabel: string | null;
   steps: string;
   createdAt: Date;
   updatedAt: Date;
@@ -209,6 +219,8 @@ function toRecord(row: {
     registrationBlock: row.registrationBlock,
     registrationCheckedAt: row.registrationCheckedAt ? row.registrationCheckedAt.toISOString() : null,
     restartedAfterRegistration: row.restartedAfterRegistration,
+    ownerUserId: row.ownerUserId,
+    createdByLabel: row.createdByLabel,
     steps: deserializeSteps(row.steps),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -237,6 +249,8 @@ export async function createDeployment(input: CreateDeploymentInput): Promise<De
       config: serializeConfig(config),
       steps: serializeSteps(initSteps()),
       hotkey: input.hotkey ?? null,
+      ownerUserId: input.owner?.userId ?? null,
+      createdByLabel: input.owner?.label ?? null,
     },
   });
   // TIER2 — r1: the deployment's initial config anchors the rollback chain.
@@ -245,9 +259,10 @@ export async function createDeployment(input: CreateDeploymentInput): Promise<De
   return toRecord(row);
 }
 
-/** List all deployments, newest first. */
-export async function listDeployments(): Promise<DeploymentRecord[]> {
+/** List deployments, newest first. TIER4: optional per-owner scope. */
+export async function listDeployments(scope?: { ownerUserId?: string }): Promise<DeploymentRecord[]> {
   const rows = await db.deployment.findMany({
+    where: scope?.ownerUserId ? { ownerUserId: scope.ownerUserId } : undefined,
     orderBy: { createdAt: "desc" },
   });
   return rows.map(toRecord);
@@ -318,9 +333,12 @@ export async function advanceDeployment(
         stepOutputs.provision.push(`Pod ID: ${result.podId}`, `IP: ${result.ipAddress ?? "—"}`);
         return updateDeploymentState(id, next, providerPodId, stepOutputs, null, null, result.ipAddress);
       }
-      // runpod — real money path.
+      // runpod / vast — real money path. Both providers get the same
+      // ephemeral SSH keypair contract; Vast injects it via the onstart
+      // script (RunPod gets it natively via the publicKey argument).
       const keypair = generateSshKeypair(`infranex-${id.slice(-8)}`);
-      const result = await RunPodProvider.provision(config, id, {
+      const provider = getProvider(rec.mode);
+      const result = await provider.provision(config, id, {
         sshPublicKey: keypair.publicKey,
       });
       providerPodId = result.podId;
@@ -408,11 +426,15 @@ async function updateDeploymentState(
 export async function pollProvisioning(id: string): Promise<DeploymentRecord> {
   const rec = await getDeployment(id);
   if (!rec) throw new Error("Deployment not found");
-  if (rec.status !== "provisioning" || !rec.providerPodId || rec.mode !== "runpod") {
+  if (rec.status !== "provisioning" || !rec.providerPodId) {
     return rec;
   }
+  const provisionProvider = getProvider(rec.mode);
+  if (provisionProvider === MockProvider) {
+    return rec; // mocks provision inline — nothing to poll
+  }
   try {
-    const status = await RunPodProvider.getStatus(rec.providerPodId);
+    const status = await provisionProvider.getStatus(rec.providerPodId);
     if (status.status === "running") {
       const sshPort = status.sshPort ?? 22;
       const steps = syncSteps(rec.steps, "provisioned", {
@@ -520,7 +542,7 @@ export async function tickDeployment(id: string): Promise<DeploymentRecord> {
   if (rec.status === "started" || rec.status === "terminated" || rec.status === "failed") {
     return rec;
   }
-  if (rec.status === "provisioning" && rec.mode === "runpod") {
+  if (rec.status === "provisioning" && (rec.mode === "runpod" || rec.mode === "vast")) {
     return pollProvisioning(id);
   }
   if (rec.status === "setup" || rec.status === "deploying") {

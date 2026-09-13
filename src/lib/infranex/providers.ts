@@ -49,9 +49,11 @@ export const PROVIDER_META: ProviderMeta[] = [
     id: "vast",
     label: "Vast.ai",
     offers: true,
-    rent: false,
+    // TIER4 — rental adapter is live (deployment mode "vast"): provisions a
+    // real instance from the chosen bundle and injects the SSH key via onstart.
+    rent: true,
     keyHint: "console.vast.ai → Account → Keys → copy API key",
-    note: "Live market pricing. Rental adapter in progress — rent via RunPod (real) or simulated mode.",
+    note: "Live pricing AND real rentals — the deploy wizard rents the exact bundle you pick (on-demand only).",
   },
   {
     id: "lambda",
@@ -74,6 +76,9 @@ export const PROVIDER_META: ProviderMeta[] = [
 export function isProviderId(v: unknown): v is ProviderId {
   return typeof v === "string" && PROVIDER_META.some((p) => p.id === v);
 }
+
+// offerProviderId lives in types.ts (client-safe) — the migrate dialog and
+// the migration preflight both need it, and this module is server-only.
 
 // --- Key vault --------------------------------------------------------------
 

@@ -22,7 +22,12 @@ model Deployment {
   provider        String
   status          String   @default("requested")
   progress        Int      @default(0)
-  mode            String   @default("mock") // "mock" | "runpod"
+  mode            String   @default("mock") // "mock" | "runpod" | "vast"
+  // TIER4 — ownership attribution (light tenancy). Null = team-shared
+  // (legacy/pre-existing deployments stay visible and operable for everyone);
+  // new deployments created by a signed-in operator record their creator.
+  ownerUserId     String?
+  createdByLabel  String?
   hourlyCost      Float
   monthlyCost     Float
   estimatedRevenue Float   @default(0)
@@ -69,6 +74,7 @@ model Deployment {
 
   @@index([status])
   @@index([netuid])
+  @@index([ownerUserId])
 }
 
 model SubnetOverride {
@@ -577,4 +583,45 @@ model BenchmarkRun {
   detailJson   String   @default("{}")
 
   @@index([deploymentId, at])
+}
+
+// TIER4 — External alerting: operator-configured webhook channels that
+// receive trigger events as they are committed (Slack / Discord / generic).
+// URLs are stored AES-256-GCM encrypted (same scheme as provider keys) and
+// never returned to the client.
+model AlertChannel {
+  id          String   @id @default(cuid())
+  name        String
+  // "generic" (POST {text,event}) | "slack" ({text}) | "discord" ({content}).
+  kind        String   @default("generic")
+  // Webhook URL, encrypted at rest.
+  urlEnc      String
+  // Forward events at this severity or above: "warning" | "critical".
+  minSeverity String   @default("critical")
+  // Also receive the hourly fleet digest (open events + economics).
+  digest      Boolean  @default(false)
+  enabled     Boolean  @default(true)
+  // Delivery bookkeeping (updated by the dispatcher).
+  lastStatus  String?
+  lastError   String?
+  lastSentAt  DateTime?
+  sentCount   Int      @default(0)
+  failCount   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// TIER4 — AI Ops Agent: persisted fleet analyses. Each note is one LLM run
+// over the live monitor payload (optional operator question included).
+model AgentNote {
+  id        String   @id @default(cuid())
+  // The operator's question, when the analysis was asked something specific.
+  question  String?
+  // The agent's full answer (markdown-ish text).
+  content   String
+  // { model, latencyMs, miners, openEvents, netUsdPerDay, ... } context stats.
+  metaJson  String   @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }

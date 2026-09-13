@@ -24,6 +24,10 @@ export interface DeploymentConfig {
     hourlyPrice: number;
     monthlyPrice: number;
     region: string;
+    /** TIER4 — provider-native offer id (e.g. "vast-12345") when the offer
+     *  came from a live provider pull; providers that rent BY OFFER (Vast)
+     *  require it. Curated catalog offers may omit it. */
+    offerId?: string;
   };
   docker: {
     imageName: string;
@@ -176,6 +180,7 @@ ${template.extraArgs.join(" \\\n  ")}`;
       hourlyPrice: offer.hourlyPrice,
       monthlyPrice: monthlyUsd,
       region: offer.region,
+      offerId: offer.id,
     },
     docker: {
       imageName: template.image,

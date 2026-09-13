@@ -21,9 +21,16 @@ import {
   ChevronDown,
   ChevronRight,
   Stethoscope,
+  TimerReset,
 } from "lucide-react";
 import { cn, formatRelativeTime } from "@/lib/utils";
-import type { DevopsMinerDTO, DevopsThresholds, MinerHealthDTO } from "@/lib/infranex/use-devops-monitor";
+import { formatBlocksLeft } from "@/lib/infranex/immunity";
+import type {
+  DevopsMinerDTO,
+  DevopsThresholds,
+  MinerHealthDTO,
+  RunwayAssessmentDTO,
+} from "@/lib/infranex/use-devops-monitor";
 
 /**
  * DEVOPS-1 — one live operations card per running miner: GPU vitals +
@@ -349,6 +356,66 @@ export function MinerOpsCard({
           )}
         </div>
 
+        {/* TIER4 / RUNWAY-1 — immunity runway: verdict chip + margins + T-minus */}
+        {miner.runway && (
+          <div className="rounded-lg border border-border/50 bg-background/40 px-2.5 py-2">
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground/70">
+                <TimerReset className="h-3 w-3" aria-hidden />
+                immunity runway
+              </span>
+              <RunwayChip runway={miner.runway} />
+            </div>
+            <div className="mt-1.5 grid grid-cols-3 gap-2 text-center">
+              <MiniFact
+                label="Immunity left"
+                value={
+                  miner.runway.margins.immunityBlocksLeft != null
+                    ? formatBlocksLeft(miner.runway.margins.immunityBlocksLeft)
+                    : "unknown"
+                }
+                tone={
+                  miner.runway.margins.immunityBlocksLeft === 0
+                    ? "critical"
+                    : miner.runway.margins.immunityBlocksLeft != null &&
+                        miner.runway.margins.immunityBlocksLeft <= 1800
+                      ? "warning"
+                      : undefined
+                }
+              />
+              <MiniFact
+                label="Capacity"
+                value={
+                  miner.runway.margins.atCapacity
+                    ? "FULL"
+                    : miner.runway.margins.capacityFreeSlots != null
+                      ? `${miner.runway.margins.capacityFreeSlots} free`
+                      : "—"
+                }
+                tone={miner.runway.margins.atCapacity ? "warning" : undefined}
+              />
+              <MiniFact
+                label="T-minus"
+                value={miner.runway.tMinusLabel ?? "—"}
+                tone={
+                  miner.runway.verdict === "at_risk"
+                    ? "critical"
+                    : miner.runway.verdict === "watch"
+                      ? "warning"
+                      : undefined
+                }
+              />
+            </div>
+            <p className="mono mt-1.5 truncate text-[10px] text-muted-foreground/70">
+              trend {miner.runway.trajectory.direction}
+              {miner.runway.margins.incentive != null
+                ? ` · incentive ${(miner.runway.margins.incentive * 100).toFixed(2)}%`
+                : ""}
+              {miner.runway.simulated ? " · simulated" : ""}
+            </p>
+          </div>
+        )}
+
         {/* Alerts */}
         {miner.alerts.length > 0 && (
           <ul className="space-y-1">
@@ -448,6 +515,31 @@ function Vital({
         {value}
       </p>
     </div>
+  );
+}
+
+function RunwayChip({ runway }: { runway: RunwayAssessmentDTO }) {
+  const label =
+    runway.verdict === "at_risk"
+      ? "AT RISK"
+      : runway.verdict === "expired"
+        ? "EVICTABLE"
+        : runway.verdict.toUpperCase();
+  return (
+    <Badge
+      variant="outline"
+      className={cn(
+        "h-5 px-1.5 text-[10px]",
+        runway.verdict === "at_risk" || runway.verdict === "expired"
+          ? "border-destructive/40 bg-destructive/10 text-destructive"
+          : runway.verdict === "watch"
+            ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
+            : "border-success/40 bg-success/10 text-success"
+      )}
+    >
+      {label}
+      {runway.simulated ? " · sim" : ""}
+    </Badge>
   );
 }
 
