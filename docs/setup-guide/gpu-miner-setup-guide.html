@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>GPU Miner Setup Guide&nbsp;— INFRANEX BT</title>
+<script>/* This document contains literal dollar amounts, not LaTeX math.
+   Defining a katex stub makes the html2pdf pre-render hook treat KaTeX as
+   already loaded while renderMathInElement stays undefined, so no
+   auto-render pass ever runs and "$0.34/hr" survives as plain text. */
+window.katex = { __disabled: true };</script>
+<style>
+/* ================= PAGE MODEL ================= */
+@page { size: 720px 1020px; margin: 0; }
+:root {
+  --c-primary: #1a365d;      /* dark navy&nbsp;— headings, hero */
+  --c-mid: #2a5298;          /* mid navy&nbsp;— accents, chips */
+  --c-light: #4a7ac7;        /* light navy&nbsp;— borders, highlights */
+  --c-soft: #dce6f5;         /* soft fill */
+  --c-bg: #f5f8fc;           /* page background */
+  --c-text: #22303f;         /* body text */
+  --c-muted: #5b6b7d;        /* secondary text */
+  --c-border: #d9e2ef;       /* hairlines */
+  --c-term: #0f1e33;         /* terminal background */
+  --c-amber: #9a5b10;        /* caution text (low-sat) */
+  --c-amber-bg: #fdf3e3;     /* caution fill */
+}
+html, body {
+  margin: 0; padding: 0; width: 720px;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: 'Carlito', 'Noto Sans SC', 'DejaVu Sans', sans-serif;
+  font-size: 15px; line-height: 1.55;
+  line-break: strict; word-break: normal; overflow-wrap: break-word;
+}
+@media screen {
+  html { height: auto; display: flex; justify-content: center; background: #23303f; }
+  body { transform-origin: top center; margin: 20px auto; box-shadow: 0 8px 40px rgba(0,0,0,.4); }
+}
+* { box-sizing: border-box; }
+p { margin: 0 0 10px 0; }
+p, td, li { text-align: left; }
+
+/* ================= COVER ================= */
+.cover {
+  width: 720px; height: 1020px; break-after: page; overflow: hidden;
+  position: relative; background: var(--c-primary); color: #eef3fb;
+  display: flex; flex-direction: column; justify-content: center; padding: 64px;
+}
+.cover .ring1 { position: absolute; right: 44px; top: 64px; width: 280px; height: 280px;
+  border-radius: 50%; border: 2px solid rgba(122,150,200,.35); }
+.cover .ring2 { position: absolute; right: 84px; top: 104px; width: 200px; height: 200px;
+  border-radius: 50%; border: 1px solid rgba(122,150,200,.25); }
+.cover .grid-lines { position: absolute; left: 64px; bottom: 210px; width: 240px; height: 2px;
+  background: linear-gradient(90deg, var(--c-light), transparent); }
+.cover .tag { font-size: 12px; letter-spacing: 4px; text-transform: uppercase; color: #9db4d8; margin-bottom: 22px; }
+.cover .title { font-size: 58px; font-weight: 700; line-height: 1.04; margin-bottom: 18px; }
+.cover .title .thin { font-weight: 400; color: #b9cbe8; }
+.cover .subtitle { font-size: 17px; line-height: 1.6; color: #c3d2ea; max-width: 520px; margin-bottom: 34px; }
+.cover .cover-chips { display: flex; flex-wrap: wrap; gap: 8px; max-width: 560px; margin-bottom: 40px; }
+.cover .chip { font-size: 11.5px; letter-spacing: 1px; padding: 6px 12px; border: 1px solid rgba(140,170,215,.45);
+  border-radius: 999px; color: #d4e0f2; }
+.cover .cover-meta { position: absolute; left: 64px; bottom: 56px; right: 64px;
+  display: flex; justify-content: space-between; align-items: flex-end;
+  font-size: 12px; color: #93a9cd; border-top: 1px solid rgba(140,170,215,.3); padding-top: 16px; }
+.cover .cover-meta b { color: #d8e3f4; font-weight: 600; }
+
+/* ================= FLOW CONTENT ================= */
+.main-content { padding: 52px 56px 44px 56px; }
+.chapter-header { break-after: avoid; break-inside: avoid; margin-top: 26px; margin-bottom: 14px; }
+.chapter-header:first-child { margin-top: 0; }
+.kicker { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--c-mid); font-weight: 700; margin-bottom: 6px; }
+h1.chapter { font-size: 27px; font-weight: 700; color: var(--c-primary); margin: 0 0 8px 0; line-height: 1.15; }
+.rule { width: 52px; height: 3px; background: var(--c-mid); border-radius: 2px; margin: 10px 0 4px 0; }
+.lead { font-size: 15px; color: var(--c-muted); margin-bottom: 14px; }
+h2.sub { font-size: 18px; color: var(--c-primary); font-weight: 700; margin: 20px 0 8px 0; break-after: avoid; }
+
+/* Step blocks */
+.step { break-inside: avoid; margin-bottom: 14px; padding: 14px 16px; background: #ffffff;
+  border: 1px solid var(--c-border); border-left: 3px solid var(--c-mid); border-radius: 8px; }
+.step .step-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.step .no { font-size: 12px; font-weight: 700; color: var(--c-mid); letter-spacing: 1px; white-space: nowrap; }
+.step .step-title { font-size: 15.5px; font-weight: 700; color: var(--c-primary); }
+.step p { margin: 4px 0; font-size: 14px; }
+.step ul { margin: 6px 0 2px 0; padding-left: 20px; }
+.step li { margin-bottom: 4px; font-size: 14px; break-inside: avoid; }
+
+/* Click path chip */
+.click { display: inline-block; font-size: 12px; font-weight: 700; color: #ffffff; background: var(--c-mid);
+  padding: 2px 9px; border-radius: 4px; letter-spacing: .4px; white-space: nowrap; }
+.clickpath { font-size: 13.5px; margin: 6px 0; }
+.clickpath .sep { color: var(--c-light); font-weight: 700; padding: 0 4px; }
+
+/* Figures&nbsp;— screenshots */
+figure { break-inside: avoid; margin: 14px 0; }
+figure img { display: block; width: 100%; max-width: 100%; max-height: 460px; object-fit: contain;
+  border: 1px solid var(--c-border); border-radius: 8px; background: #fff; }
+figcaption { font-size: 12.5px; color: var(--c-muted); margin-top: 6px; padding-left: 2px; }
+figcaption b { color: var(--c-primary); }
+
+/* Terminal blocks */
+.term { break-inside: avoid; margin: 12px 0; background: var(--c-term); border-radius: 8px; overflow: hidden;
+  border: 1px solid #1c3355; }
+.term .term-bar { display: flex; justify-content: space-between; padding: 7px 14px; background: #16283f;
+  font-size: 10.5px; letter-spacing: 2px; text-transform: uppercase; color: #8fa9cd; }
+.term pre { margin: 0; padding: 12px 14px; font-family: 'DejaVu Sans Mono', 'Liberation Mono', monospace;
+  font-size: 11.5px; line-height: 1.6; color: #d7e4f6; white-space: pre-wrap; overflow-wrap: break-word; }
+.term .cmd { color: #9fd0a0; }
+.term .out { color: #93a9cd; }
+.term .warn { color: #e8b96a; }
+
+/* Callouts */
+.note { break-inside: avoid; margin: 12px 0; padding: 11px 14px; border-radius: 8px;
+  background: var(--c-soft); border: 1px solid #c3d3ea; font-size: 13.5px; }
+.note b { color: var(--c-primary); }
+.note.amber { background: var(--c-amber-bg); border: 1px solid #ecd3a8; }
+.note.amber b { color: var(--c-amber); }
+
+/* Tables */
+table { width: 100%; border-collapse: collapse; margin: 12px 0; break-inside: avoid; font-size: 13px; }
+thead { display: table-header-group; }
+th { background: var(--c-primary); color: #fff; text-align: left; padding: 7px 10px; font-weight: 700; font-size: 12.5px; }
+td { padding: 7px 10px; border-bottom: 1px solid var(--c-border); vertical-align: top; overflow-wrap: break-word; }
+tr:nth-child(even) td { background: #eef3fa; }
+tr { break-inside: avoid; }
+td b { color: var(--c-primary); }
+.mono { font-family: 'DejaVu Sans Mono', 'Liberation Mono', monospace; font-size: 11.5px; }
+
+/* Golden-order flow */
+.flow-wrap { break-inside: avoid; margin: 14px 0; }
+.flow { display: flex; flex-wrap: wrap; gap: 8px; max-width: 100%; align-items: stretch; }
+.flow-step { flex: 1 1 auto; min-width: 96px; max-width: 100%; background: #fff; border: 1px solid var(--c-border);
+  border-top: 3px solid var(--c-mid); border-radius: 8px; padding: 10px 10px 8px 10px; overflow-wrap: break-word; }
+.flow-step .fn { font-size: 10px; letter-spacing: 2px; color: var(--c-muted); text-transform: uppercase; }
+.flow-step .ft { font-size: 13.5px; font-weight: 700; color: var(--c-primary); margin: 3px 0 2px 0; }
+.flow-step .fd { font-size: 11.5px; color: var(--c-muted); line-height: 1.45; }
+.flow-step.money { border-top-color: var(--c-amber); }
+.flow-step.money .fn::after { content: " · COSTS"; color: var(--c-amber); }
+.flow-step.free .fn::after { content: " · FREE"; color: #2f6b3f; }
+
+/* Checklist */
+.check { break-inside: avoid; margin: 10px 0; padding: 12px 16px; background: #fff; border: 1px solid var(--c-border); border-radius: 8px; }
+.check .ci { display: flex; gap: 10px; align-items: baseline; margin-bottom: 6px; font-size: 14px; }
+.check .box { font-family: 'DejaVu Sans Mono', monospace; color: var(--c-mid); font-weight: 700; }
+
+/* ================= ENDING ================= */
+.ending { width: 720px; height: 1020px; break-before: page; overflow: hidden; position: relative;
+  background: var(--c-primary); color: #e8eefa; display: flex; flex-direction: column;
+  justify-content: center; padding: 64px; }
+.ending .ring1 { position: absolute; left: 52px; bottom: 150px; width: 300px; height: 300px;
+  border-radius: 50%; border: 2px solid rgba(122,150,200,.3); }
+.ending h2 { font-size: 40px; font-weight: 700; margin: 0 0 14px 0; }
+.ending p { color: #c3d2ea; font-size: 15.5px; max-width: 540px; }
+.ending .end-list { margin: 26px 0; }
+.ending .end-item { display: flex; gap: 12px; margin-bottom: 12px; font-size: 14.5px; }
+.ending .end-item .tick { color: #9fd0a0; font-weight: 700; }
+.ending .end-meta { position: absolute; bottom: 56px; left: 64px; right: 64px; display: flex;
+  justify-content: space-between; font-size: 12px; color: #93a9cd; border-top: 1px solid rgba(140,170,215,.3); padding-top: 16px; }
+</style>
+</head>
+<body>
+
+<!-- ============================ COVER ============================ -->
+<div class="cover">
+  <div class="ring1"></div><div class="ring2"></div><div class="grid-lines"></div>
+  <div class="tag">Infranex BT · Operator Handbook</div>
+  <div class="title">GPU Miner<br><span class="thin">Setup Guide</span></div>
+  <div class="subtitle">From an empty dashboard to your first live Bittensor miner on subnet 64 (Chutes) with an RTX 4090&nbsp;— every click, every command, every screenshot, in the exact order that keeps your costs at zero until the moment you choose to spend.</div>
+  <div class="cover-chips">
+    <span class="chip">SN64 · CHUTES</span>
+    <span class="chip">RTX 4090 · 24 GB · $0.34/HR</span>
+    <span class="chip">BINANCE FUNDING</span>
+    <span class="chip">REGISTER LAST</span>
+    <span class="chip">HOTKEY-ONLY SECURITY</span>
+  </div>
+  <div class="cover-meta">
+    <div>Edition <b>v1.2</b> · September 14, 2026</div>
+    <div>Network <b>Bittensor Finney (mainnet)</b></div>
+  </div>
+</div>
+
+<!-- ============================ FLOW CONTENT ============================ -->
+<div class="main-content">
+
+  <!-- ========== CHAPTER 0 : GOLDEN ORDER ========== -->
+  <div class="chapter-header">
+    <div class="kicker">Read this first</div>
+    <h1 class="chapter">The Golden Order</h1>
+    <div class="rule"></div>
+  </div>
+  <p class="lead">One principle runs the whole guide: <b>free things first, metered things last.</b> Your wallet costs nothing, your provider key costs nothing, the GPU meter starts the second a pod is created, and the registration burn starts your earning clock. Do them in this order and you never pay while you are still setting up.</p>
+
+  <div class="flow-wrap">
+    <div class="flow">
+      <div class="flow-step free"><div class="fn">Laptop</div><div class="ft">Wallet</div><div class="fd">coldkey + hotkey via btcli&nbsp;— keys never leave your machine</div></div>
+      <div class="flow-step free"><div class="fn">Platform</div><div class="ft">Provider key</div><div class="fd">paste RunPod API key&nbsp;— connecting is free</div></div>
+      <div class="flow-step money"><div class="fn">Wizard step 4</div><div class="ft">Rent GPU</div><div class="fd">pod created&nbsp;— $/hr billing starts now</div></div>
+      <div class="flow-step"><div class="fn">Wizard step 4</div><div class="ft">Install</div><div class="fd">automatic 10-step installer runs on the pod</div></div>
+      <div class="flow-step money"><div class="fn">Wizard step 5</div><div class="ft">Register</div><div class="fd">burn fee → UID&nbsp;— earning clock + immunity start</div></div>
+      <div class="flow-step"><div class="fn">Always on</div><div class="ft">Monitor</div><div class="fd">daemon + alerts + P&amp;L track everything</div></div>
+    </div>
+  </div>
+
+  <h2 class="sub">Where the money moves</h2>
+  <table>
+    <thead><tr><th style="width:34%">Move</th><th style="width:22%">Amount</th><th>What it is</th></tr></thead>
+    <tbody>
+      <tr><td><b>Binance → coldkey</b></td><td>burn fee + ~2 TAO</td><td>Plain deposit of funds. Nothing is burned; fully reversible by your own keys.</td></tr>
+      <tr><td><b>coldkey → chain burn</b></td><td>dynamic recycle fee</td><td>The actual burn&nbsp;— automatic inside the <span class="mono">btcli subnets register</span> command. SN64 burn-entry currently ≈ <b>0.0005 TAO</b>.</td></tr>
+      <tr><td><b>card → RunPod</b></td><td>$0.34/hr (4090)</td><td>GPU rent. Runs from pod creation until you <b>Terminate</b>.</td></tr>
+      <tr><td><b>Coldkey mnemonic</b></td><td>—</td><td>Never leaves your laptop. Never typed into any website, never stored by the platform.</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="sub">Before you start&nbsp;— have these ready</h2>
+  <div class="check">
+    <div class="ci"><span class="box">[ ]</span><span>A laptop with <b>Python 3.9+</b> (for btcli&nbsp;— all wallet steps run here, not on the GPU)</span></div>
+    <div class="ci"><span class="box">[ ]</span><span>A <b>RunPod account</b> with billing set up, and its API key ready to paste</span></div>
+    <div class="ci"><span class="box">[ ]</span><span><b>TAO on Binance</b> (or anywhere)&nbsp;— enough for the burn fee plus a ~1 TAO buffer</span></div>
+    <div class="ci"><span class="box">[ ]</span><span><b>45–60 minutes</b> of uninterrupted time from the moment you click <i>Rent</i></span></div>
+    <div class="ci" style="margin-bottom:0"><span class="box">[ ]</span><span>Paper and a pen&nbsp;— the coldkey mnemonic is shown <b>once</b> and must be written down</span></div>
+  </div>
+
+  <!-- ========== CHAPTER 1 : PART A ========== -->
+  <div class="chapter-header">
+    <div class="kicker">Part A · ~5 minutes · $0</div>
+    <h1 class="chapter">Platform Prep&nbsp;— Log In &amp; Connect RunPod</h1>
+    <div class="rule"></div>
+  </div>
+  <p class="lead">Two goals here: get into the platform, and hand it your RunPod API key so it can rent on your behalf later. Neither step costs anything&nbsp;— the key is only used when you actually create a pod.</p>
+
+  <div class="step">
+    <div class="step-head"><span class="no">A1</span><span class="step-title">Open the app and sign in</span></div>
+    <p><span class="click">Open</span> the preview link, then sign in with your operator ID and access code.</p>
+    <p class="clickpath"><span class="click">Login screen</span><span class="sep">→</span>enter <b>User ID</b> + <b>Access code</b><span class="sep">→</span><b>Sign in</b></p>
+    <p>You land on the <b>Dashboard</b>&nbsp;— the chain badge (top right, green dot) should read <i>LIVE · FINNEY CHAIN</i> with a recent block number. That is your confirmation the platform is reading live chain data.</p>
+  </div>
+  <figure>
+    <img src="images/s01-login.png" alt="Login screen">
+    <figcaption><b>Fig A-1.</b> The sign-in gate. Sessions are per-device; every sign-in is recorded in the audit trail (System &amp; Errors → Audit trail).</figcaption>
+  </figure>
+
+  <div class="step">
+    <div class="step-head"><span class="no">A2</span><span class="step-title">Connect your RunPod API key</span></div>
+    <p class="clickpath"><span class="click">GPU Catalog 05</span><span class="sep">→</span><b>Provider API keys</b><span class="sep">→</span>paste key into the <b>RunPod</b> field<span class="sep">→</span><b>Save &amp; verify</b></p>
+    <p>Get the key from <span class="mono">runpod.io → Settings → API Keys → Create API Key</span>, then paste it here. The platform validates the key on the spot and encrypts it at rest before storing anything. When validation passes you will see the green <i>saved</i> state on the RunPod row, and the GPU offer list (later steps) shows live prices.</p>
+  </div>
+  <figure>
+    <img src="images/s07-connect-provider.png" alt="Provider API keys dialog">
+    <figcaption><b>Fig A-2.</b> The Provider API keys dialog&nbsp;— one encrypted slot each for RunPod, Vast.ai and Lambda Labs. Only the run-time platform can decrypt these; the UI never shows a saved key again.</figcaption>
+  </figure>
+  <div class="note"><b>Why RunPod first?</b> The wizard's GPU step lists offers from every connected provider. With RunPod connected you will see the live RTX 4090 at ≈ <b>$0.34/hr</b> (prices move&nbsp;— check at rent time). Vast and Lambda can be added later; more providers just means more offers to choose from.</div>
+
+  <div class="step">
+    <div class="step-head"><span class="no">A3</span><span class="step-title">Optional now, recommended: save your wallet profile</span></div>
+    <p class="clickpath"><span class="click">System &amp; Errors 12</span><span class="sep">→</span>scroll to <b>Wallet profiles</b><span class="sep">→</span><b>Add profile</b></p>
+    <p>Save a <b>label</b> plus the btcli <b>wallet name</b> and <b>hotkey name</b> you plan to use (example used throughout this guide: wallet <span class="mono">infranex</span>, hotkey <span class="mono">miner</span>). This is public metadata only&nbsp;— it makes the deploy wizard prefill your wallet name instead of you typing it every time. The platform <b>cannot store mnemonics or private keys</b>; the API rejects any attempt.</p>
+  </div>
+  <figure>
+    <img src="images/s13b-wallet-profiles.png" alt="Wallet profiles, platform settings and audit trail">
+    <figcaption><b>Fig A-3.</b> System &amp; Errors&nbsp;— bottom section. Wallet profiles (public metadata only), Platform settings (chain network + registration buffer), Master-key backup acknowledgment, and the append-only Audit trail.</figcaption>
+  </figure>
+  <!-- ========== CHAPTER 2 : PART B ========== -->
+  <div class="chapter-header">
+    <div class="kicker">Part B · ~15 minutes · $0 (on YOUR laptop)</div>
+    <h1 class="chapter">Create the Wallet &amp; Fund It</h1>
+    <div class="rule"></div>
+  </div>
+  <p class="lead">The platform opens this same wizard for you later (Deployments → <i>Start wallet setup</i>) with every command generated and a <b>copy</b> button on each. You can follow either&nbsp;— the commands are identical. Do these four steps <b>before</b> renting the GPU, so the billing clock never runs while you set up keys.</p>
+
+  <div class="step">
+    <div class="step-head"><span class="no">B1</span><span class="step-title">Open the Wallet &amp; registration wizard (optional shortcut)</span></div>
+    <p class="clickpath"><span class="click">Deployments 06</span><span class="sep">→</span>Mining Journey card<span class="sep">→</span><b>Start wallet setup</b></p>
+    <p>The wizard has 8 steps. Steps 1–4 happen on your laptop and cost nothing; steps 5–8 come back to the platform after the GPU is rented. Everything below walks the same eight steps with the exact commands.</p>
+  </div>
+  <figure>
+    <img src="images/s09-wallet-wizard.png" alt="Wallet and registration wizard steps 1-4">
+    <figcaption><b>Fig B-1.</b> The wizard's laptop section&nbsp;— wallet name, hotkey name, and steps 1–4 with copy-paste commands. The red warning is the one that protects your life savings: the mnemonic prints once.</figcaption>
+  </figure>
+
+  <div class="step">
+    <div class="step-head"><span class="no">B2</span><span class="step-title">Install the Bittensor CLI</span></div>
+    <p>On your laptop terminal (Python 3.9+ required):</p>
+    <div class="term"><div class="term-bar"><span>your laptop · terminal</span><span>step 1 of 8</span></div><pre><span class="cmd">$ pip install bittensor</span>
+<span class="out">Successfully installed bittensor-9.x.x substrate-interface-1.x.x ...</span>
+<span class="cmd">$ btcli --version</span>
+<span class="out">btcli v9.x.x</span></pre></div>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><span class="no">B3</span><span class="step-title">Create the coldkey&nbsp;— your funds</span></div>
+    <div class="term"><div class="term-bar"><span>your laptop · terminal</span><span>step 2 of 8</span></div><pre><span class="cmd">$ btcli wallet new_coldkey --wallet_name infranex</span>
+<span class="out">Wallet dir: /home/you/.bittensor/wallets/infranex</span>
+<span class="warn">IMPORTANT: Store this 12-word mnemonic safely.
+It is the ONLY way to recover your funds if you lose access:</span>
+<span class="warn">1 word    2 word    3 word    4 word
+5 word    6 word    7 word    8 word
+9 word    10 word   11 word   12 word</span>
+<span class="out">Coldkey SS58 address: 5CA1abcdef...your-coldkey-address</span></pre></div>
+    <div class="note amber"><b>The 12 words are your money.</b> Write them on paper (never screenshot, never cloud notes, never paste anywhere&nbsp;— including into the platform). Whoever holds those words holds your TAO. The platform has no field for them by design.</div>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><span class="no">B4</span><span class="step-title">Create the hotkey&nbsp;— the miner's identity</span></div>
+    <div class="term"><div class="term-bar"><span>your laptop · terminal</span><span>step 3 of 8</span></div><pre><span class="cmd">$ btcli wallet new_hotkey --wallet_name infranex --hotkey_name miner</span>
+<span class="out">Hotkey SS58 address: 5Grwabcdef...your-hotkey-address</span></pre></div>
+    <p>The hotkey is what gets registered on-chain and what the miner signs with. Losing it costs nothing&nbsp;— you can create a new one anytime; only the coldkey is precious.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><span class="no">B5</span><span class="step-title">Fund the coldkey from Binance</span></div>
+    <p>First, print your addresses:</p>
+    <div class="term"><div class="term-bar"><span>your laptop · terminal</span><span>step 4 of 8</span></div><pre><span class="cmd">$ btcli wallet overview --wallet_name infranex</span>
+<span class="out">Wallet: infranex   ✓- coldkey: 5CA1abcdef...your-coldkey-address
+                    ℏ- hotkey:  5Grwabcdef...your-hotkey-address</span></pre></div>
+    <p>Then in Binance: <b>Spot → Withdraw → TAO</b>. Full click-by-click in <b>Chapter 7</b>. Send to the <b>coldkey</b> address (the ₵ one, starts with 5), amount = burn fee + ~2 TAO headroom. Skip ahead if you want the funding details now&nbsp;— the rest of this guide assumes TAO is on the coldkey.</p>
+  </div>
+
+  <!-- ========== CHAPTER 3 : PART C ========== -->
+  <div class="chapter-header">
+    <div class="kicker">Part C · ~20–30 min · COSTS START AT C4</div>
+    <h1 class="chapter">Pick the Subnet &amp; Rent the GPU</h1>
+    <div class="rule"></div>
+  </div>
+  <p class="lead">The platform gives you two doors into the same wizard: the <b>Mining Journey</b> card (recommended&nbsp;— it tracks your progress through all five steps) or <b>Deploy a miner</b> (the raw wizard). This guide uses the Journey.</p>
+  <div class="note"><b>What about the DevOps Engine strip and its "Add GPU host" button?</b> That is the third thing on the Deployments page, and it belongs to a <i>different</i> path: machines <b>you already own or rented yourself</b> (a home GPU box, or a pod created on the provider's own website). <span class="click">Add GPU host</span> just asks for the machine's SSH address / user / password, the engine connects over SSH and runs the same 10-step install pipeline on it. <b>You do not need it for this guide.</b> When you rent through the wizard (C4&nbsp;→&nbsp;C5), the platform registers the rented pod itself, connects with provider-issued credentials, and streams the install log inside wizard Step 4&nbsp;— the pod shows up as a managed deployment without you ever clicking <i>Add GPU host</i>. Rule of thumb: <b>rented here&nbsp;→ touch nothing in the DevOps strip; own the box&nbsp;→ Add GPU host.</b></div>
+
+  <div class="note"><b>Reading the subnet verdicts&nbsp;— RUN / WATCH / AVOID.</b> Every subnet in <b>Opportunities</b> carries a verdict computed from the Miner's Ledger score: mid-pack monthly USD <i>after</i> GPU rent (weight 30%), seat safety&nbsp;— slot pressure, reward concentration, burn, immunity (20%), alpha economics&nbsp;— price trend, liquidity, slippage (20%), earning reality&nbsp;— rewarded ratio, newcomer ramp (15%) and fit &amp; feasibility (15%). The bands: <b>RUN</b> = score ≥ 60 (healthy mid-pack economics&nbsp;— green), <b>WATCH</b> = 40–59 (viable <i>with skill or cheap entry</i>&nbsp;— amber), <b>AVOID</b> = below 40, or expected net profit under your $300/mo target (forced AVOID&nbsp;— red). <b>WATCH is advice, not a lock</b>: the wizard will happily deploy a WATCH subnet today. But mid-pack on those subnets hovers near breakeven once rent is paid, and the registration burn is the same on every subnet&nbsp;— so a "try WATCH now, move to RUN later" plan pays the burn twice. <b>First miner&nbsp;→ RUN subnet</b> (that is why this guide mines Chutes SN64); consider WATCH only when you have a specific edge&nbsp;— a cheaper GPU, existing code for that subnet's niche, or you deliberately want a low-cost experiment.</div>
+
+  <div class="step">
+    <div class="step-head"><span class="no">C1</span><span class="step-title">Choose the subnet&nbsp;— Chutes (SN64)</span></div>
+    <p class="clickpath"><span class="click">Deployments 06</span><span class="sep">→</span>Mining Journey step 1<span class="sep">→</span><b>Pick a subnet</b><span class="sep">→</span>search <span class="mono">chutes</span><span class="sep">→</span><b>SN64 Chutes · RTX 4090 24GB</b></p>
+    <p>The picker already knows which GPU matches: it literally offers <i>SN64 Chutes&nbsp;— RTX 4090 24GB</i>. Confirm with <b>Mine this subnet</b>. The journey card now shows <i>SN64 · Chutes · needs ≥ 24 GB VRAM</i> on step 1.</p>
+  </div>
+  <figure>
+    <img src="images/s04-chutes-detail.png" alt="Subnets grid with Chutes card">
+    <figcaption><b>Fig C-1.</b> Subnets view&nbsp;— the Chutes card carries the numbers that matter: <b>Min VRAM 24 GB</b> (a 4090 fits exactly), <b>burn-entry ≈ 0.0005 TAO</b> (your registration cost), 256 miners, emission 0.24 TAO/block. The Requirements button opens the full hardware profile.</figcaption>
+  </figure>
+
+  <div class="step">
+    <div class="step-head"><span class="no">C2</span><span class="step-title">Run the wizard&nbsp;— subnet → requirements → GPU</span></div>
+    <p class="clickpath"><span class="click">Deployments 06</span><span class="sep">→</span><b>Deploy a miner</b><span class="sep">→</span>Step 1 pick <b>SN64 Chutes</b><span class="sep">→</span>Step 2 review requirements<span class="sep">→</span><b>Find a GPU</b></p>
+    <p>Step 2 shows the subnet's real requirements profile pulled live (what the miners on SN64 actually run). Step 3 lists <b>offers meeting the 24 GB requirement, cheapest first</b>&nbsp;— RTX 3090 at $0.22/hr, A6000 at $0.33/hr, <b>RTX 4090 24 GB at ≈ $0.34/hr</b>, and more.</p>
+  </div>
+  <figure>
+    <img src="images/s11-wiz2-requirements.png" alt="Wizard step 2 requirements">
+    <figcaption><b>Fig C-2.</b> Wizard step 2&nbsp;— the requirements profile for SN64. With the journey subnet set, the wizard opens pre-selected here.</figcaption>
+  </figure>
+  <figure>
+    <img src="images/s12-wiz3-gpu.png" alt="Wizard step 3 GPU offers">
+    <figcaption><b>Fig C-3.</b> Wizard step 3&nbsp;— live offers filtered to ≥24 GB. Note the form below: miner name (auto: <span class="mono">chutes-miner-01</span>), wallet name prefilled from your saved profile (<span class="mono">infranex</span>), and the reminder that the hotkey is added LAST.</figcaption>
+  </figure>
+
+  <div class="step">
+    <div class="step-head"><span class="no">C3</span><span class="step-title">Confirm the GPU and the names</span></div>
+    <p>Select the <b>RTX 4090 · 24GB · RunPod</b> offer. Check the two name fields: <b>Miner name</b> is the label in your dashboard; <b>Wallet name</b> must match the btcli wallet you created in Part B (<span class="mono">infranex</span> in this guide&nbsp;— it prefills automatically from the wallet profile). Do not click the rent button until you are truly ready to start the meter.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><span class="no">C4</span><span class="step-title">Rent &amp; deploy&nbsp;— the meter starts</span></div>
+    <p class="clickpath">Wizard step 3<span class="sep">→</span>select <b>RunPod (real)</b><span class="sep">→</span><b>Rent &amp; deploy (real)</b></p>
+    <p>From this click: the platform creates the pod on RunPod (billing starts at the offer's $/hr), then runs the <b>automatic installer</b>&nbsp;— about ten steps shown live in the wizard's Install step: pull the image, write the subnet config, generate the pod's own SSH keypair, install the Node Daemon, start the miner process. You do nothing here except watch the log tick. When it finishes, the deployment card shows <b>started</b> and the wizard sits on step 5 waiting for your hotkey.</p>
+    <div class="note"><b>What "started" means now:</b> the miner process is running but serving <i>nothing yet</i>&nbsp;— it has no registered hotkey, so validators have nobody to score. This is by design: the expensive part (registration) waits until the cheap part (install) is proven working.</div>
+  </div>
+
+  <!-- ========== CHAPTER 4 : PART D ========== -->
+  <div class="chapter-header">
+    <div class="kicker">Part D · ~2 minutes · $0</div>
+    <h1 class="chapter">Put the Hotkey on the Pod</h1>
+    <div class="rule"></div>
+  </div>
+  <p class="lead">The miner on the pod needs the hotkey <b>keyfile</b> to sign messages. This file travels directly from your laptop to the pod over SSH&nbsp;— it never passes through the web app, and the coldkey file stays on your laptop.</p>
+
+  <div class="step">
+    <div class="step-head"><span class="no">D1</span><span class="step-title">Run the generated SCP command (wizard step 5)</span></div>
+    <p class="clickpath">Wizard step 5<span class="sep">→</span><b>"Copy the key files to the host"</b><span class="sep">→</span>copy the <span class="mono">scp</span> command<span class="sep">→</span>run it on your laptop</p>
+    <p>The wizard generates the exact command with your pod's real IP, SSH port and path&nbsp;— it looks like:</p>
+    <div class="term"><div class="term-bar"><span>your laptop · terminal</span><span>step 5 of 8</span></div><pre><span class="cmd">$ scp -P 12345 ~/.bittensor/wallets/infranex/hotkeys/miner root@149.x.x.x:/root/.bittensor/wallets/infranex/hotkeys/</span>
+<span class="out">miner                             100%  496   12.3KB/s   00:00</span></pre></div>
+    <p>Mark the step done (the <i>mark done</i> button) and move to step 6. Only the hotkey file crossed over; your coldkey and mnemonic are still exclusively on your laptop.</p>
+  </div>
+  <!-- ========== CHAPTER 5 : PART E ========== -->
+  <div class="chapter-header">
+    <div class="kicker">Part E · ~5 minutes · burn happens here</div>
+    <h1 class="chapter">Register LAST&nbsp;— Burn, UID, Verify</h1>
+    <div class="rule"></div>
+  </div>
+  <p class="lead">Your miner is installed and healthy&nbsp;— <b>now</b> you pay the registration fee. The burn is not a transfer you make by hand: it happens automatically inside the register command, taken from your coldkey the moment you confirm. In exchange your hotkey gets a <b>UID</b> on SN64, and both the immunity clock and your earning window start.</p>
+
+  <div class="step">
+    <div class="step-head"><span class="no">E1</span><span class="step-title">Register the hotkey (wizard step 6, on your laptop)</span></div>
+    <p class="clickpath">Wizard step 6<span class="sep">→</span><b>"Register the hotkey"</b><span class="sep">→</span>copy the command<span class="sep">→</span>run it on your laptop<span class="sep">→</span>confirm the fee</p>
+    <div class="term"><div class="term-bar"><span>your laptop · terminal</span><span>step 6 of 8</span></div><pre><span class="cmd">$ btcli subnets register --netuid 64 --wallet_name infranex --hotkey_name miner</span>
+<span class="out">Your balance:  2.0493   TAO
+Recycle burn: 0.0005   TAO (subnet 64 entry cost)
+Do you want to register? [y/n]: y</span>
+<span class="cmd">✓ Registered.</span>
+<span class="out">UID: 173   Netuid: 64   Block: 9,061,842</span></pre></div>
+    <p>btcli always prints the exact current fee and asks for confirmation&nbsp;— nothing is spent until you type <span class="mono">y</span>. The fee is <b>per registration</b>: if the hotkey ever deregisters, re-registering costs the fee again. That is why the platform watches deregistration risk for you after this point.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><span class="no">E2</span><span class="step-title">Restart the miner so it serves its axon (wizard step 7&nbsp;— one click)</span></div>
+    <p class="clickpath">Wizard step 7<span class="sep">→</span><b>Restart miner</b> button on the deployment card<span class="sep">→</span>the engine runs it over SSH for you</p>
+    <p>The miner announces its axon (IP:port) on-chain at startup&nbsp;— that announcement is how validators find and score you. The platform shows <i>restart pending</i> until this happens; one click on the card and the engine does the rest. Prefer the terminal? The wizard also prints the exact SSH command.</p>
+  </div>
+
+  <div class="step">
+    <div class="step-head"><span class="no">E3</span><span class="step-title">Verify on-chain (wizard step 8&nbsp;— one paste, one click)</span></div>
+    <p class="clickpath">Wizard step 8<span class="sep">→</span>paste your <b>hotkey SS58</b> (the ℏ address from <span class="mono">btcli wallet overview</span>)<span class="sep">→</span><b>Verify</b></p>
+    <p>The platform scans the live metagraph itself and reports:</p>
+    <div class="term"><div class="term-bar"><span>platform · step 8 result</span><span>chain-verified</span></div><pre><span class="cmd">✓ REGISTERED&nbsp;— UID 173 on SN64 (Chutes)</span>
+<span class="out">active: yes      incentive: 0.0% (ramps up as validators score you)
+emission: 0 rAO  block: #9,061,842</span></pre></div>
+    <p>The only thing you ever paste into the platform is this <b>public</b> address&nbsp;— never a private key, never a mnemonic. Deployment status flips to <b>started · UID · registered</b>, the burn amount is recorded on the deployment, and the Mining Journey goes all-green.</p>
+  </div>
+
+  <!-- ========== CHAPTER 6 : PART F ========== -->
+  <div class="chapter-header">
+    <div class="kicker">Part F · from now on · automatic</div>
+    <h1 class="chapter">You Are Live&nbsp;— What Watches What</h1>
+    <div class="rule"></div>
+  </div>
+  <p class="lead">From the verified-UID moment, the platform's worker passes run every 90 seconds and you stop being a babysitter. Here is the map of what watches what, so you know where to look when something moves.</p>
+  <table>
+    <thead><tr><th style="width:26%">Card / panel</th><th>What it tells you</th></tr></thead>
+    <tbody>
+      <tr><td><b>Dashboard&nbsp;— Portfolio revenue</b></td><td>Real P&amp;L: spend accrued every 90 s vs earnings rolled up daily from chain emissions, with a 14-day bar strip. Costs appear within minutes of the pod starting; earnings appear once validators start scoring your UID.</td></tr>
+      <tr><td><b>Deployments&nbsp;— deployment card</b></td><td>Status (started), UID, registration state, install log, the <b>Restart miner</b> and <b>Terminate</b> controls.</td></tr>
+      <tr><td><b>My Miners&nbsp;— UID Defense</b></td><td>Your UID's live chain vectors: incentive, emission, deregistration-risk sparkline. If your axon stops serving, this flags it with a runbook action before validators forget you.</td></tr>
+      <tr><td><b>Monitoring / Runbook</b></td><td>Alert rules (pod down, axon unreachable, registration lost, spend anomaly)&nbsp;— wire a Slack/Discord webhook in the channels dialog so they reach you.</td></tr>
+      <tr><td><b>System &amp; Errors&nbsp;— Audit trail</b></td><td>Every credential change, approval, and sign-in, append-only. If something moved, it is written here.</td></tr>
+    </tbody>
+  </table>
+  <div class="note amber"><b>Stopping vs terminating.</b> If you ever pause a miner, remember RunPod bills the pod's volume storage <b>even while stopped</b>. If you are done with a pod for good, use <b>Terminate</b>&nbsp;— otherwise an idle 100 GB volume quietly costs about $7/month forever.</div>
+  <figure>
+    <img src="images/s02-dashboard.png" alt="Dashboard with live chain data and portfolio">
+    <figcaption><b>Fig F-1.</b> The dashboard once you are live: chain badge, portfolio revenue (currently the honest empty state&nbsp;— it fills from the first accrual), and your tracked subnets with Chutes ranked 2nd by score.</figcaption>
+  </figure>
+
+  <!-- ========== CHAPTER 6b : PART G ========== -->
+  <div class="chapter-header">
+    <div class="kicker">Part G · your job now · ~5 min/day</div>
+    <h1 class="chapter">Living as a Miner&nbsp;— The Operator Routine</h1>
+    <div class="rule"></div>
+  </div>
+  <p class="lead">Once deployed, the machine lifecycle runs on rails: <b>provisioning → installing (10 steps) → started → registered → earning</b>. "Started" alone earns nothing&nbsp;— only "registered" puts your hotkey on the metagraph so validators can score you. From that moment your job is not babysitting a terminal; it is reading five surfaces every day and acting on alerts. The platform watches every 90 seconds&nbsp;— <b>you decide</b>.</p>
+
+  <div class="note"><b>Pick a posture first.</b> DevOps&nbsp;Engine&nbsp;07 tags every miner with a strategy mindset, shown on the Strategy Board: <b>DEFEND</b>, <b>STEADY</b>, <b>EARN&nbsp;MORE</b>, or <b>OPTIMIZE</b>. For your <b>first 1–2 weeks run DEFEND</b>&nbsp;— your only goal is keeping the UID alive, because the burn is expensive to repeat. Once the UID survives a full week with nonzero incentive, move to STEADY, and only then consider EARN&nbsp;MORE (push throughput) or OPTIMIZE (cut $/hr for the same output).</div>
+  <figure>
+    <img src="images/s17-strategy.png" alt="DevOps Engine strategy board with automation surfaces">
+    <figcaption><b>Fig G-1.</b> DevOps&nbsp;Engine&nbsp;07&nbsp;— the automation deck. Counters for healthy/warning/critical miners, the 90-second monitor pass line, policy-gated Autopilot, axon latency benchmarks, the Ops Agent situation reports, and the External alerting panel where a real Slack/Discord webhook plugs in.</figcaption>
+  </figure>
+
+  <div class="step">
+    <div class="step-head"><span class="no">G-1</span><span class="step-title">Every day&nbsp;— read the deployment card</span></div>
+    <p class="clickpath"><span class="click">Deployments 06</span><span class="sep">→</span>your deployment card</p>
+    <p>The status line must read <b>started · UID n · registered</b> with all ten install steps ticked green. <i>started</i> without a UID means registration never landed&nbsp;— reopen the wallet wizard and run the register step again. A <i>stopped</i> card usually means the pod died or the RunPod balance hit zero&nbsp;— fund the account and press <b>Restart miner</b>; the engine does the SSH work in one click.</p>
+  </div>
+  <div class="step">
+    <div class="step-head"><span class="no">G-2</span><span class="step-title">Every day&nbsp;— check UID Defense is <i>healthy</i></span></div>
+    <p class="clickpath"><span class="click">My Miners 08</span><span class="sep">→</span>UID Defense panel<span class="sep">→</span>risk level + sparkline</p>
+    <p>The engine scores your UID against the live metagraph on every pass and raises exactly six risk codes. Learn them once&nbsp;— they are the complete map of how a miner gets hurt:</p>
+    <table>
+      <thead><tr><th style="width:30%">Risk code</th><th>Meaning → your action</th></tr></thead>
+      <tbody>
+        <tr><td><b>NOT_REGISTERED</b> <i>critical</i></td><td>Hotkey missing from the metagraph → re-run registration.</td></tr>
+        <tr><td><b>ZERO_INCOME</b></td><td>Registered but earning 0 → normal in the first hours; if it persists past a day, restart and check the miner version.</td></tr>
+        <tr><td><b>EVICTABLE</b></td><td>Subnet at capacity and your immunity expired&nbsp;— you are a cut candidate → act fast: restart, update, improve; do not ignore this one.</td></tr>
+        <tr><td><b>UNDERPERFORMING</b></td><td>Scoring below your peers → update the miner revision; check subnet news.</td></tr>
+        <tr><td><b>INCENTIVE_COLLAPSE</b></td><td>Your incentive cratered → first check whether the whole subnet dipped (Subnets&nbsp;03) or just you.</td></tr>
+        <tr><td><b>PERSISTENT_DECLINE</b></td><td>Days of falling incentive → consider a fresh deploy, a different GPU, or a different subnet.</td></tr>
+      </tbody>
+    </table>
+    <figure>
+      <img src="images/s15-my-miners.png" alt="My Miners portfolio view">
+      <figcaption><b>Fig G-2.</b> My&nbsp;Miners&nbsp;08&nbsp;— the portfolio: running miners, monthly infra cost, estimated vs realized revenue, and the Registered miners list where UID Defense lives. Honest empty state here&nbsp;— yours fills the moment the first deployment registers.</figcaption>
+    </figure>
+  </div>
+  <div class="step">
+    <div class="step-head"><span class="no">G-3</span><span class="step-title">Every day&nbsp;— read the Monitoring rows</span></div>
+    <p class="clickpath"><span class="click">Monitoring 09</span><span class="sep">→</span>miner row<span class="sep">→</span>GPU util · temp · incentive</p>
+    <p>The engine samples each running miner every 90 seconds. <b>GPU utilisation</b> should spike regularly while the miner serves queries (60–95% bursts are normal)&nbsp;— a sustained flat 0% for hours means you are not being queried: check registration and version. <b>Temperature</b> is fine up to roughly 83–85&nbsp;°C; sustained readings above that risk throttling&nbsp;— restart and re-check. <b>Incentive</b> (e.g. <span class="mono">I: 0.0042</span>) is your validator score: small daily growth is the goal. The four header cards give the money view: <b>Daily Emission</b> (at the live TAO/USD price), <b>Monthly Cost</b> (GPU rental), and <b>Net&nbsp;Profit/mo with ROI%</b>&nbsp;— for example <span class="mono">Net +$4.10/mo · ROI 61%</span>.</p>
+    <figure>
+      <img src="images/s16-monitoring.png" alt="Monitoring engine with trigger center and money cards">
+      <figcaption><b>Fig G-3.</b> Monitoring&nbsp;09&nbsp;— Trigger Center on top (every action needs your approval; here one RE-SYNC warning from a pod that is not running), then the money cards: Started&nbsp;Miners, Daily&nbsp;Emission at TAO/USD&nbsp;$236.99, Monthly&nbsp;Cost, Net&nbsp;Profit/mo with ROI.</figcaption>
+    </figure>
+  </div>
+  <div class="step">
+    <div class="step-head"><span class="no">G-4</span><span class="step-title">Every day&nbsp;— glance at the P&amp;L card</span></div>
+    <p class="clickpath"><span class="click">Dashboard 01</span><span class="sep">→</span>Portfolio revenue card</p>
+    <p>Spend accrues within minutes of the pod starting; earnings roll up daily from chain emissions once validators score you. A healthy first week looks like: spend climbing steadily (about $8/day at $0.34/hr) while earnings start near zero and inflect upward as the UID earns trust. A card that only ever climbs on the cost side after a week of registration is your signal to revisit G-1 through G-3.</p>
+  </div>
+  <div class="step">
+    <div class="step-head"><span class="no">G-5</span><span class="step-title">Every day&nbsp;— keep 2–3 days of RunPod runway</span></div>
+    <p>An idle balance check takes ten seconds on the RunPod billing page. At $0.34/hr the burn is about $8.16/day, so keeping $17–25 of credit means never waking up to a stopped pod. If the balance reaches $0, RunPod stops the pod, the miner goes offline, and income stops&nbsp;— after topping up, one click on <b>Restart miner</b> brings it back. Put it on your calendar as a top-up reminder rather than trusting memory.</p>
+  </div>
+
+  <div class="chapter-header" style="margin-top:26px">
+    <div class="kicker">Part G.2 · weekly &amp; monthly · ~15 min/week</div>
+    <h1 class="chapter">The Deeper Cadence</h1>
+    <div class="rule"></div>
+  </div>
+  <table>
+    <thead><tr><th style="width:24%">When</th><th style="width:30%">Where</th><th>What &amp; why</th></tr></thead>
+    <tbody>
+      <tr><td><b>Weekly</b></td><td>My&nbsp;Miners&nbsp;08</td><td>Compare incentive Mon→Mon instead of staring daily&nbsp;— weekly deltas are the real trend line.</td></tr>
+      <tr><td><b>Weekly</b></td><td>Subnets&nbsp;03 → SN64</td><td>Is the subnet itself healthy (emission, price, registration count)? A dying subnet drags every UID down&nbsp;— this is also where a better home would show up.</td></tr>
+      <tr><td><b>Weekly</b></td><td>Laptop terminal</td><td>Hotkey balance check with <span class="mono">btcli wallet overview</span> (example below). Move TAO hotkey→coldkey only once meaningful amounts accumulate&nbsp;— never rush this in week&nbsp;1.</td></tr>
+      <tr><td><b>Weekly</b></td><td>RunPod console</td><td>Any <i>stopped</i> pods you are done with? <b>Terminate</b> them&nbsp;— an idle 100&nbsp;GB volume costs ≈&nbsp;$7/month forever.</td></tr>
+      <tr><td><b>Weekly</b></td><td>System&nbsp;&amp;&nbsp;Errors&nbsp;12 → Audit</td><td>Scan logins and credential events; anything you do not recognize&nbsp;= rotate the provider key now.</td></tr>
+      <tr><td><b>Monthly</b></td><td>GPU&nbsp;Catalog&nbsp;05</td><td>Re-check RTX&nbsp;4090 pricing&nbsp;— your $0.34/hr moves, and a cheaper identical GPU elsewhere is a valid OPTIMIZE move (Vast offers appear alongside).</td></tr>
+      <tr><td><b>Monthly</b></td><td>Deployments&nbsp;06 → revisions</td><td>Apply miner revision updates when flagged&nbsp;— Chutes refreshes its model list and stale miners lose incentive fast.</td></tr>
+      <tr><td><b>Monthly</b></td><td>Analytics&nbsp;11</td><td>Month-over-month earned vs spent vs ROI&nbsp;— the grow / hold / migrate decision, made on data.</td></tr>
+    </tbody>
+  </table>
+  <div class="term"><div class="term-bar"><span>your laptop · terminal</span><span>weekly balance check</span></div><pre><span class="cmd">$ btcli wallet overview --wallet_name infranex</span>
+<span class="out">Coldkey     Hotkey   Network   Stake α     USD</span>
+<span class="out">infranex    miner    finney    0.0831      $19.44   ← growing weekly ✓</span></pre></div>
+  <div class="note"><b>What you never have to do manually:</b> spend accrual, GPU utilisation and temperature sampling, incentive sampling, UID Defense scoring, daily earnings rollups, and the append-only audit log all run on the platform's 90-second worker passes&nbsp;— and alerts dispatch to your webhook the moment a trigger fires. <b>The whole daily routine in one line:</b> deployment card green → UID Defense healthy → GPU% and incentive nonzero → P&amp;L not bleeding → RunPod balance funded → done.</div>
+
+  <!-- ========== CHAPTER 7 : BINANCE ========== -->
+  <div class="chapter-header">
+    <div class="kicker">Chapter 7 · ~10 minutes · exchange-side</div>
+    <h1 class="chapter">Funding from Binance&nbsp;— Click by Click</h1>
+    <div class="rule"></div>
+  </div>
+  <p class="lead">This is a plain deposit into your own wallet&nbsp;— no burn happens here. The only two ways to get this wrong are the <b>network</b> and the <b>address</b>, so both are double-checked below.</p>
+  <div class="step">
+    <div class="step-head"><span class="no">B-1</span><span class="step-title">Copy your coldkey address from btcli (never from memory)</span></div>
+    <p>Run <span class="mono">btcli wallet overview --wallet_name infranex</span> and copy the coldkey (₵) address&nbsp;— the one <b>not</b> labeled ℏ. Both start with <span class="mono">5</span>; the ₵/ℏ marker is what tells them apart. If the marker is unclear, the address under your <b>coldkey</b> name is the funds wallet.</p>
+  </div>
+  <div class="step">
+    <div class="step-head"><span class="no">B-2</span><span class="step-title">In Binance: Spot → Withdraw → TAO</span></div>
+    <ul>
+      <li><b>Step 1:</b> Binance app or web → <b>Assets → Spot → Withdraw</b> → search <b>TAO (Bittensor)</b>.</li>
+      <li><b>Step 2:</b> choose <b>Withdraw → Crypto</b>. Paste your coldkey address. Use <b>Binance mobile app</b> or web&nbsp;— both work identically.</li>
+      <li><b>Step 3:</b> <b>Network: choose "Bittensor (native)"</b>. This is the critical choice&nbsp;— TAO is its own chain. If a network dropdown shows anything else (a wrapped or bridged variant), stay on native Bittensor.</li>
+      <li><b>Step 4:</b> <b>No memo/tag is needed</b>. If Binance asks for one, you are on the wrong network&nbsp;— stop and re-check.</li>
+      <li><b>Step 5:</b> Amount: burn fee + ~2 TAO. Binance shows its withdrawal fee on the confirmation screen before you confirm.</li>
+      <li><b>Step 6:</b> Verify the <b>first 6 and last 6 characters</b> of the pasted address against the btcli output, then confirm (2FA). Arrival is typically minutes; Binance occasionally pauses TAO withdrawals during chain upgrades&nbsp;— the button greys out and resumes later.</li>
+    </ul>
+  </div>
+  <div class="step">
+    <div class="step-head"><span class="no">B-3</span><span class="step-title">First time? Send a test amount first</span></div>
+    <p>Send 0.5 TAO, wait for it to land (check <span class="mono">btcli wallet overview</span>&nbsp;— the balance appears next to the coldkey), then send the rest. Costs one extra network fee; buys certainty on a chain you have never used.</p>
+    <div class="term"><div class="term-bar"><span>your laptop · terminal</span><span>after funding</span></div><pre><span class="cmd">$ btcli wallet overview --wallet_name infranex</span>
+<span class="out">Wallet: infranex   ✓- coldkey: 5CA1abcdef...  →  balance: 2.0493 TAO</span></pre></div>
+  </div>
+  <div class="note amber"><b>Three rules of exchange funding.</b> Native Bittensor network only. Coldkey address only (hotkeys are not for holding funds). Address check by first/last 6 characters every single time&nbsp;— there is no undo on a blockchain transfer.</div>
+
+  <!-- ========== CHAPTER 8 : TROUBLESHOOTING ========== -->
+  <div class="chapter-header">
+    <div class="kicker">Chapter 8 · when something looks off</div>
+    <h1 class="chapter">Troubleshooting &amp; Health Checks</h1>
+    <div class="rule"></div>
+  </div>
+  <p class="lead">The System &amp; Errors view runs live checks on every dependency. It is also the first place to look when anything in the pipeline misbehaves&nbsp;— most incidents are one of the five below.</p>
+  <figure>
+    <img src="images/s13-system.png" alt="System health checks">
+    <figcaption><b>Fig 8-1.</b> System &amp; Errors health board. In this capture the TAO price feed is rate-limited by CoinGecko (transient&nbsp;— the platform keeps working on live chain data and self-heals on retry); chain, API and RunPod pricing are green.</figcaption>
+  </figure>
+  <table>
+    <thead><tr><th style="width:32%">Symptom</th><th>Fix</th></tr></thead>
+    <tbody>
+      <tr><td><b>Verify says "Not registered yet"</b></td><td>Registration takes one block to land (~12 s). Wait and click Verify again. Also confirm you registered with the same wallet/hotkey names you pasted.</td></tr>
+      <tr><td><b>GPU step shows no offers</b></td><td>No provider key saved, or the saved key lost validity. GPU Catalog → Provider API keys → re-paste and <b>Save &amp; verify</b>.</td></tr>
+      <tr><td><b>Install step stuck</b></td><td>Open the deployment card's install log&nbsp;— each of the ~10 steps shows its output. Pod-boot delays up to ~2 min are normal on RunPod; a red step tells you exactly which script failed.</td></tr>
+      <tr><td><b>Restart pending won't clear</b></td><td>The restart runs over SSH to the pod. Check the pod is running (RunPod console) and the deployment's ssh port is reachable; then press <b>Restart miner</b> again.</td></tr>
+      <tr><td><b>Emissions stay 0</b></td><td>Normal for the first minutes&nbsp;— validators must probe your axon before scoring. Watch the incentive % on the UID Defense panel; if it stays flat for hours, check axon reachability from the Runbook panel.</td></tr>
+    </tbody>
+  </table>
+
+</div>
+
+<!-- ============================ ENDING ============================ -->
+<div class="ending">
+  <div class="ring1"></div>
+  <h2>You're mining.</h2>
+  <p>Wallet created offline. Keys where they belong. GPU rented at the right second. Registered last. The platform watches the rest&nbsp;— spend, earnings, axon health, deregistration risk&nbsp;— every 90 seconds, with alerts when anything drifts.</p>
+  <div class="end-list">
+    <div class="end-item"><span class="tick">✓</span><span>Coldkey mnemonic&nbsp;— on paper, in your safe, never online</span></div>
+    <div class="end-item"><span class="tick">✓</span><span>Hotkey file&nbsp;— on the pod only, via your own SCP</span></div>
+    <div class="end-item"><span class="tick">✓</span><span>RunPod key&nbsp;— encrypted at rest, audited on every change</span></div>
+    <div class="end-item"><span class="tick">✓</span><span>Registration burn&nbsp;— recorded on the deployment card</span></div>
+    <div class="end-item"><span class="tick">✓</span><span>P&amp;L&nbsp;— real accruals from the first minute, not estimates</span></div>
+  </div>
+  <p style="font-size:13.5px">Next moves when ready: scale to a second miner (same wallet, new hotkey&nbsp;— Part B again), or wire a real Slack/Discord webhook so alerts follow you. And when you terminate any pod&nbsp;— Terminate, never Stop.</p>
+  <div class="end-meta">
+    <div>INFRANEX BT · Operator Handbook</div>
+    <div>gpu-miner-setup-guide · v1.2</div>
+  </div>
+</div>
+
+</body>
+</html>
