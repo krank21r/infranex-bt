@@ -18,7 +18,16 @@ const nextConfig: NextConfig = {
         source: "/:path*",
         headers: [
           { key: "X-Content-Type-Options", value: "nosniff" },
-          { key: "X-Frame-Options", value: "DENY" },
+          // PREVIEW-FRAME-1: X-Frame-Options: DENY blocked the Z.ai preview
+          // iframe ("refused to connect"). CSP frame-ancestors is the modern
+          // selective-allow replacement: still blocks third-party framing,
+          // but lets the platform's own preview/chat surfaces embed the app.
+          // Modern browsers ignore X-Frame-Options when frame-ancestors is
+          // present, so do NOT reintroduce the blanket DENY.
+          {
+            key: "Content-Security-Policy",
+            value: "frame-ancestors 'self' https://*.space-z.ai https://*.z.ai",
+          },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
         ],
